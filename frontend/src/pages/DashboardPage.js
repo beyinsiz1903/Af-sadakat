@@ -11,7 +11,7 @@ export default function DashboardPage() {
 
   const { data: stats, isLoading } = useQuery({
     queryKey: ['stats', tenant?.slug],
-    queryFn: () => tenantAPI.stats(tenant?.slug).then(r => r.data),
+    queryFn: () => api.get(`/tenants/${tenant?.slug}/stats/enhanced`).then(r => r.data),
     enabled: !!tenant?.slug,
     refetchInterval: 15000,
   });
