@@ -134,6 +134,71 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Phase 3+4 Stats */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <Card className="bg-[hsl(var(--card))] border-[hsl(var(--border))]">
+          <CardContent className="p-5">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs text-[hsl(var(--muted-foreground))] font-medium">Revenue</p>
+                <p className="text-2xl font-bold mt-1">{new Intl.NumberFormat('tr-TR', {style:'currency', currency:'TRY'}).format(stats.revenue?.total || 0)}</p>
+              </div>
+              <div className="w-11 h-11 rounded-xl bg-emerald-500/10 flex items-center justify-center">
+                <TrendingUp className="w-5 h-5 text-emerald-400" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-[hsl(var(--card))] border-[hsl(var(--border))]">
+          <CardContent className="p-5">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs text-[hsl(var(--muted-foreground))] font-medium">Reviews</p>
+                <p className="text-2xl font-bold mt-1">{stats.reviews?.total || 0}</p>
+                <div className="flex items-center gap-2 mt-1">
+                  <span className="text-xs text-emerald-400 flex items-center gap-0.5"><ThumbsUp className="w-3 h-3" /> {stats.reviews?.sentiment?.positive || 0}</span>
+                  <span className="text-xs text-rose-400 flex items-center gap-0.5"><ThumbsDown className="w-3 h-3" /> {stats.reviews?.sentiment?.negative || 0}</span>
+                </div>
+              </div>
+              <div className="w-11 h-11 rounded-xl bg-amber-500/10 flex items-center justify-center">
+                <Star className="w-5 h-5 text-amber-400" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-[hsl(var(--card))] border-[hsl(var(--border))]">
+          <CardContent className="p-5">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs text-[hsl(var(--muted-foreground))] font-medium">Loyalty Members</p>
+                <p className="text-2xl font-bold mt-1">{stats.loyalty?.members || 0}</p>
+                <p className="text-xs text-[hsl(var(--muted-foreground))] mt-1">{stats.loyalty?.total_points_issued || 0} pts issued</p>
+              </div>
+              <div className="w-11 h-11 rounded-xl bg-purple-500/10 flex items-center justify-center">
+                <Gift className="w-5 h-5 text-purple-400" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-[hsl(var(--card))] border-[hsl(var(--border))]">
+          <CardContent className="p-5">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs text-[hsl(var(--muted-foreground))] font-medium">Reservations</p>
+                <p className="text-2xl font-bold mt-1">{stats.reservations || 0}</p>
+                <p className="text-xs text-[hsl(var(--muted-foreground))] mt-1">{stats.offers || 0} offers sent</p>
+              </div>
+              <div className="w-11 h-11 rounded-xl bg-blue-500/10 flex items-center justify-center">
+                <CalendarDays className="w-5 h-5 text-blue-400" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }
