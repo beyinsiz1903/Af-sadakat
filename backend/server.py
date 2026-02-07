@@ -6,6 +6,7 @@ from motor.motor_asyncio import AsyncIOMotorClient
 import os
 import logging
 import json
+import sys
 from pathlib import Path
 from pydantic import BaseModel, Field
 from typing import List, Optional, Dict, Any
@@ -15,6 +16,12 @@ from collections import defaultdict
 import asyncio
 import jwt
 import bcrypt
+import random
+
+# Add backend dir to path for local imports
+sys.path.insert(0, str(Path(__file__).parent))
+from rbac import ROLES, has_permission, get_accessible_modules, LOYALTY_TIERS, compute_tier, next_tier_info, analyze_sentiment, CONNECTOR_TYPES, FAKE_REVIEWS
+from connectors import get_connector, StripeStubProvider
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
