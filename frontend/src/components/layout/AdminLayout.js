@@ -4,7 +4,8 @@ import { useAuthStore } from '../../lib/store';
 import { WebSocketManager } from '../../lib/websocket';
 import {
   LayoutDashboard, Inbox, MessageSquare, ClipboardList, UtensilsCrossed,
-  BedDouble, TableProperties, BookOpen, Users, Settings, LogOut, Hotel, ChevronLeft, Menu
+  BedDouble, TableProperties, BookOpen, Users, Settings, LogOut, Hotel, ChevronLeft, Menu,
+  Star, Gift, Plug
 } from 'lucide-react';
 import { Button } from '../ui/button';
 import { ScrollArea } from '../ui/scroll-area';
@@ -16,12 +17,15 @@ const navItems = [
   { path: '/inbox', label: 'Inbox', icon: Inbox },
   { path: '/requests', label: 'Requests', icon: ClipboardList },
   { path: '/orders', label: 'Orders', icon: UtensilsCrossed },
+  { path: '/reviews', label: 'Reviews', icon: Star },
   { type: 'separator', label: 'Management' },
   { path: '/rooms', label: 'Rooms', icon: BedDouble },
   { path: '/tables', label: 'Tables', icon: TableProperties },
   { path: '/menu', label: 'Menu', icon: BookOpen },
   { path: '/contacts', label: 'Contacts', icon: Users },
+  { path: '/offers', label: 'Offers', icon: Gift },
   { type: 'separator', label: 'System' },
+  { path: '/connectors', label: 'Integrations', icon: Plug },
   { path: '/settings', label: 'Settings', icon: Settings },
 ];
 
