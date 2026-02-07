@@ -64,6 +64,9 @@ function App() {
               <Route path="menu" element={<MenuPage />} />
               <Route path="contacts" element={<ContactsPage />} />
               <Route path="inbox" element={<InboxPage />} />
+              <Route path="reviews" element={<ReviewsPage />} />
+              <Route path="offers" element={<OffersPage />} />
+              <Route path="connectors" element={<ConnectorsPage />} />
               <Route path="settings" element={<SettingsPage />} />
             </Route>
             
