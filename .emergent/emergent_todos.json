@@ -1,42 +1,42 @@
 [
   {
     "content": "Phase 3A: RBAC expansion - roles, permissions, role-based UI gating",
-    "status": "in_progress"
+    "status": "completed"
   },
   {
     "content": "Phase 3B: CRM Guest Intelligence Layer - computed fields + guest summary cards",
-    "status": "pending"
+    "status": "completed"
   },
   {
     "content": "Phase 3C: Loyalty Automation - tiers, auto-earn, progress bar, gamification",
-    "status": "pending"
+    "status": "completed"
   },
   {
     "content": "Phase 3D: Audit logs + enhanced settings",
-    "status": "pending"
+    "status": "completed"
   },
   {
-    "content": "Phase 3: Testing with Testing Agent",
-    "status": "pending"
+    "content": "Phase 3+4: Testing with Testing Agent",
+    "status": "in_progress"
   },
   {
     "content": "Phase 4A: Connector Framework + Stubs (WhatsApp, Instagram, Google Reviews, TripAdvisor)",
-    "status": "pending"
+    "status": "completed"
   },
   {
     "content": "Phase 4B: Reviews Module (list, sentiment, AI reply, manual publish)",
-    "status": "pending"
+    "status": "completed"
   },
   {
     "content": "Phase 4C: Offers + Mock Payments + Reservations flow",
-    "status": "pending"
+    "status": "completed"
   },
   {
     "content": "Phase 4D: Enhanced Dashboard (revenue charts, review sentiment, loyalty KPIs)",
-    "status": "pending"
+    "status": "completed"
   },
   {
-    "content": "Phase 4: Testing with Testing Agent",
+    "content": "Phase 3+4: Fix bugs from testing",
     "status": "pending"
   }
 ]
