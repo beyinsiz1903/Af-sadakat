@@ -16,6 +16,9 @@ import MenuPage from './pages/MenuPage';
 import ContactsPage from './pages/ContactsPage';
 import SettingsPage from './pages/SettingsPage';
 import InboxPage from './pages/InboxPage';
+import ReviewsPage from './pages/ReviewsPage';
+import OffersPage from './pages/OffersPage';
+import ConnectorsPage from './pages/ConnectorsPage';
 
 // Guest Pages
 import GuestRoomPanel from './pages/guest/GuestRoomPanel';
