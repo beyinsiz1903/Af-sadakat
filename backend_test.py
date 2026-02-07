@@ -42,6 +42,27 @@ class ComprehensiveAPITester:
             success = response.status_code == expected_status
             if success:
                 self.tests_passed += 1
+                print(f"✅ Passed - Status: {response.status_code}")
+                try:
+                    return success, response.json() if response.text else {}
+                except:
+                    return success, {}
+            else:
+                print(f"❌ Failed - Expected {expected_status}, got {response.status_code}")
+                try:
+                    error_response = response.json() if response.text else {"detail": "No response body"}
+                    print(f"   Response: {error_response}")
+                except:
+                    print(f"   Response: {response.text[:200]}")
+                self.failed_tests.append(f"{name}: {response.status_code} (expected {expected_status})")
+                return False, {}
+
+        except Exception as e:
+            print(f"❌ Failed - Error: {str(e)}")
+            self.failed_tests.append(f"{name}: {str(e)}")
+            return False, {}
+            if success:
+                self.tests_passed += 1
                 self.log(f"✅ {name} - Status: {response.status_code}")
                 return True, response.json() if response.content else {}
             else:
