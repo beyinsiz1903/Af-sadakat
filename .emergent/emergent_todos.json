@@ -1,19 +1,19 @@
 [
   {
     "content": "Phase 1: Core POC - Build multi-tenant + WebSocket + QR guest flow endpoints",
-    "status": "in_progress"
+    "status": "completed"
   },
   {
     "content": "Phase 1: Core POC - Write and run poc_ws_multitenant.py test script",
-    "status": "pending"
+    "status": "completed"
   },
   {
     "content": "Phase 1: Core POC - Fix until all tests pass reliably",
-    "status": "pending"
+    "status": "completed"
   },
   {
     "content": "Phase 2: Get design guidelines from design agent",
-    "status": "pending"
+    "status": "in_progress"
   },
   {
     "content": "Phase 2: Backend - Full API implementation (all modules)",
