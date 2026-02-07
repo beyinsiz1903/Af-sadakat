@@ -1,10 +1,10 @@
 import React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useAuthStore } from '../lib/store';
-import { tenantAPI } from '../lib/api';
+import api from '../lib/api';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
-import { ClipboardList, UtensilsCrossed, Users, MessageSquare, BedDouble, TableProperties, Star, Zap } from 'lucide-react';
+import { ClipboardList, UtensilsCrossed, Users, MessageSquare, BedDouble, TableProperties, Star, Zap, TrendingUp, Gift, CalendarDays, ThumbsUp, ThumbsDown } from 'lucide-react';
 
 export default function DashboardPage() {
   const tenant = useAuthStore((s) => s.tenant);
