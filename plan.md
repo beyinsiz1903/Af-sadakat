@@ -1,135 +1,317 @@
-# plan.md
+# plan.md (UPDATED)
 
 ## 1) Objectives
-- Deliver a deployable Phase-1 MVP for a tourism-first, multi-tenant SaaS: Hotel QR Requests + Restaurant QR Ordering + WebChat (real-time) + CRM Memory + Basic Loyalty + Admin.
-- Prove the hardest core workflow early: **multi-tenant scoping + WebSocket real-time events + guest-facing QR flows**.
-- Keep architecture AI-ready via `AIProvider` interface (mock templates TR/EN now, real LLM later).
-- Ensure security baseline: tenant isolation guard, JWT auth (added after core is proven), RBAC, audit logs.
+- **Ship a production-ready, sellable v1** of an **AI-powered Guest Operating System for Hospitality** (Hotels + Restaurants) on **FARM stack (FastAPI + React + MongoDB)**.
+- Keep the platform:
+  - **Multi-tenant, tenant-safe by design** (no cross-tenant leakage)
+  - **Real-time** (WebSocket updates for requests/orders/inbox)
+  - **AI-ready** (mock AI provider now, pluggable real LLM later)
+  - **Revenue-ready** (Phase 4 Sales Engine: connectors stubs + reviews + offers + mock payments)
+- Upgrade from **Demo-ready** → **Production-ready** by completing:
+  - Security & enterprise hardening (Auth/RBAC/Rate-limit/Audit)
+  - Tenant isolation audit + centralized enforcement
+  - Data protection (KVKK/GDPR)
+  - CRM Guest Intelligence (“wow” differentiation)
+  - Loyalty automation (revenue engine)
+
+**Current Status**
+- ✅ **Phase 1 Complete** (Core POC): 44/44 tests passed.
+- ✅ **Phase 2 Complete** (V1 App): Testing agent reports **98% overall** (backend 100%, frontend 95% with minor cosmetic issues).
+- ⏭️ **Phase 3 Next**: **Security + Enterprise Hardening + CRM Intelligence + Loyalty Automation + Data Protection**.
+- ⏭️ **Phase 4 After Phase 3**: **Sales Engine** (Omnichannel connector stubs + Reviews module + Offers/Mock Payments + enhanced dashboard).
+
+---
 
 ## 2) Implementation Steps (Phased)
 
-### Phase 1 — Core POC (Isolation) (must be stable before building full UI)
+### Phase 1 — Core POC (Isolation) (**COMPLETE**)
 **Goal:** Validate the core that can break the whole product: tenant isolation + WebSocket fanout + QR guest flows.
 
-User stories:
-1. As a guest, I can open a room QR link and submit a request without logging in.
-2. As staff, I see new room requests appear in real time without refreshing.
-3. As a guest, I can open a table QR link and place an order.
-4. As kitchen staff, I see incoming orders in real time and can update status.
-5. As the system, I guarantee no cross-tenant data leakage (tenant A never sees tenant B).
+User stories (validated):
+1. Guest can open a room QR link and submit a request without logging in.
+2. Staff sees new room requests appear in real time without refreshing.
+3. Guest can open a table QR link and place an order.
+4. Kitchen/staff sees incoming orders in real time and can update status.
+5. System guarantees no cross-tenant data leakage.
 
-Steps:
-- Web search best practices for FastAPI WebSocket scaling + Redis Pub/Sub patterns (single instance now; pub/sub ready).
-- Implement minimal FastAPI POC service:
-  - Tenant creation (slug), create room/table codes.
-  - Guest endpoints: create `GuestRequest`, create `Order`.
-  - WebSocket channels: `tenant:{tenant_id}:requests` and `tenant:{tenant_id}:orders`.
-  - In-memory/Redis event bus (choose Redis if available; fallback in-memory for local dev).
-- Implement minimal tenant isolation middleware: resolves `tenant_id` from slug in URL and scopes DB queries.
-- Write a standalone Python test script to:
-  - Create 2 tenants, submit requests/orders for both.
-  - Open WS connections and assert only correct tenant receives events.
-- Fix until POC is reliable (no dropped events, correct scoping, predictable payloads).
+Steps (done):
+- Implemented tenant creation + tenant-scoped collections.
+- Implemented guest endpoints for **GuestRequest** and **Order**.
+- Implemented FastAPI WebSocket tenant channel `tenant:{tenant_id}` and broadcast events.
+- Wrote and executed `poc_ws_multitenant.py`.
 
-Deliverables:
-- `poc_ws_multitenant.py` test script + POC endpoints + WS event contract.
+Deliverables (done):
+- ✅ POC endpoints + WS contract
+- ✅ `poc_ws_multitenant.py` with **44/44 passing**
 
 ---
 
-### Phase 2 — V1 App Development (MVP UI + API, minimal auth initially)
-**Goal:** Build the full working MVP around the proven POC flows; ship guest + staff UIs; keep auth minimal/optional until flow is verified.
+### Phase 2 — V1 App Development (MVP UI + API) (**COMPLETE**)
+**Goal:** Build the full working MVP around proven POC flows; ship guest + staff UIs; provide investor/customer demo readiness.
 
-User stories:
-1. As an owner, I can create a tenant and configure rooms, departments, tables, and menu.
-2. As a guest, I can submit a room request and track its status updates live.
-3. As department staff, I can manage request lifecycle on a kanban board in real time.
-4. As a guest, I can place a restaurant order and see confirmation.
-5. As kitchen staff, I can update order status and staff/guest views update instantly.
-6. As an agent, I can chat with a guest in real time via WebChat and see AI reply suggestions.
+User stories (implemented and tested):
+1. Owner/admin can configure rooms, departments, tables, menu, loyalty rules.
+2. Guest can submit a room request and track status.
+3. Department staff can manage request lifecycle on kanban board.
+4. Guest can browse menu and place order via QR.
+5. Kitchen/staff can update order status; views update live.
+6. Agent can chat with guest and use AI reply suggestions.
 
-Backend (FastAPI + MongoDB + Redis optional):
-- Data model collections (tenant-scoped): Tenant, User, Department, ServiceCategory, Room, GuestRequest, Table, MenuCategory, MenuItem, Order, Contact, Conversation, Message, LoyaltyAccount, LoyaltyLedger, UsageCounters, AuditLog.
-- Core API modules:
-  - Tenant/admin setup (rooms, departments, tables, menu, loyalty rules).
-  - Hotel requests CRUD + lifecycle transitions + SLA timestamps.
-  - Restaurant orders create + status transitions.
-  - WebChat: conversation create, message send/receive.
-  - AI mock: `AIProvider` + `MockProviderTR/EN` returning templates based on intent + DB FAQs/policies/menu/services.
-- WebSocket:
-  - Unified event envelope `{type, tenant_id, entity, action, payload, ts}`.
-  - Broadcast on create/update for requests, orders, messages.
-- Guest flows (no login):
-  - `/g/{tenantSlug}/room/{roomCode}` submit request + optional loyalty join.
-  - `/g/{tenantSlug}/table/{tableCode}` browse menu + order + call waiter/bill.
-  - `/g/{tenantSlug}/chat` start chat session.
+Backend (done):
+- FastAPI + MongoDB tenant-scoped models and APIs
+- JWT auth (login/register/me)
+- Admin APIs: rooms, tables, menu categories/items, departments, users
+- Operational APIs: requests lifecycle + SLA timestamps, orders lifecycle
+- WebChat: conversation + messages
+- AI mock reply API: template-based intent detection TR/EN
+- Loyalty: guest join (OTP stub), accounts, ledger
+- Dashboard stats endpoint
+- Seed endpoint for demo tenant `grand-hotel`
 
-Frontend (React + Tailwind, dark theme):
-- Shared UI kit: dark layout, Indigo primary, Emerald success, Amber warning, Rose error.
-- Pages:
-  - Guest: Room panel, Table menu/cart, Guest chat.
-  - Staff: Requests board (dept filter), Orders board (kitchen), WebChat agent view.
-  - Admin: Tenant settings, users placeholder, departments/categories, rooms, tables, menu, loyalty rules.
-- Real-time:
-  - WS client per tenant; optimistic UI + server reconciliation.
+Frontend (done, dark theme):
+- Dark professional Intercom/Zendesk-like UI with Indigo/Emerald/Amber/Rose semantics
+- Implemented pages:
+  - Login/Register
+  - Dashboard KPIs
+  - Requests Kanban
+  - Orders board
+  - Rooms management (QR links)
+  - Tables management
+  - Menu management
+  - Contacts (search + timeline)
+  - Settings (features/users/departments/loyalty)
+  - Inbox (WebChat + AI suggestions)
+  - Guest Room Panel (no-auth)
+  - Guest Table Panel (no-auth + cart)
+  - Guest Chat
+- WebSocket client for real-time updates
 
-End-of-phase testing:
-- 1 full E2E pass: create tenant → configure room/table/menu → guest submits request/order/chat → staff sees live → updates status → guest sees updates.
+End-of-phase testing (done):
+- Testing agent: **98% overall**
+  - Backend: **100%**
+  - Frontend: **95%** (minor cosmetic issues)
+  - Guest panels: **100%**
 
-Deliverables:
-- Working V1 app with guest + staff dashboards, real-time updates, AI mock suggestions.
+Deliverables (done):
+- ✅ Working V1 app ready for demos
+- ✅ Seeded demo tenant + credentials
 
----
-
-### Phase 3 — Hardening + Auth/RBAC + CRM/Loyalty depth (production-friendly refactor)
-**Goal:** Add JWT auth (access/refresh), RBAC, audit logs, stronger CRM memory + loyalty ledger; stabilize UX.
-
-User stories:
-1. As an owner, I can invite users and assign roles (Owner/Admin/Manager/Agent/DepartmentStaff).
-2. As staff, I can only access permitted modules/queues based on my role and department.
-3. As staff, I can view a guest summary (tags/notes/timeline) when handling requests/orders/chat.
-4. As a guest, I can join loyalty with phone/email (OTP stub) and earn points automatically.
-5. As an owner, I can set plan limits and see usage counters update.
-
-Steps:
-- Implement JWT auth + refresh flow; protect staff/admin routes.
-- RBAC middleware + per-route permission map.
-- Tenant isolation guard enforced for all authenticated + guest endpoints.
-- CRM Memory:
-  - Contact matching by phone/email; attach requests/orders/messages to contact timeline.
-  - Notes/tags/consent flags.
-- Loyalty:
-  - Rules per tenant; ledger entries on `DONE/SERVED` events.
-  - Guest join flow (OTP stub) + staff “guest summary” card.
-- Audit logs for admin actions; basic admin usage counters (users/rooms/tables/AI replies).
-
-End-of-phase testing:
-- E2E with 2 roles + 2 tenants: verify access control + no leakage + loyalty accrual + timeline linkage.
+Known minor issues (accepted, low priority):
+- Occasional WS connection warning on initial load (cosmetic)
+- Occasional DOM attachment issue during nav clicks in automation (non-blocking)
 
 ---
 
-### Phase 4 — Phase-2 Modules (stubs first, then UI): Omnichannel Inbox + Reviews + Offers/Mock Payment
-User stories:
-1. As an agent, I can view a unified inbox that includes WebChat and stub channels (IG/WA).
-2. As an admin, I can configure connector credentials (stored as JSON) per tenant.
-3. As an agent, I can reply from the unified inbox and see messages update live.
-4. As a manager, I can view review list and respond with saved templates (stub).
-5. As an owner, I can create an offer and simulate payment status (mock) end-to-end.
+### Phase 3 — Security + Enterprise Hardening + CRM Intelligence + Loyalty Automation (**NEXT**) 
+**Goal:** Move from demo-ready to **production-ready** by implementing security, compliance, and the differentiation layer (Guest Intelligence + loyalty automation).
 
-Steps:
-- Implement connector interfaces + stub data generators.
-- Reviews CRUD + response templates.
-- Offer objects + mock payment state machine.
-- Extend AIProvider to use channel context.
+#### 3A) Auth & RBAC Hardening (Enterprise baseline)
+**Scope**
+- Add auth features:
+  - Refresh token rotation
+  - Device session tracking (session list + revoke)
+  - IP logging and last-login metadata
+  - Rate limiting **per tenant**
+  - Brute-force protection (login attempt throttling / lockout)
+  - Optional 2FA toggle (Pro plan) (TOTP stub acceptable now)
+  - Role matrix audit log events
+
+**RBAC expansion**
+- Roles: **Owner, Admin, Manager, Agent, DepartmentStaff, KitchenStaff, FrontDesk**
+- Permissions:
+  - Permission matrix per module/route (API + UI)
+  - Department scoping for DepartmentStaff/FrontDesk/KitchenStaff
+  - Role-based UI filtering (nav items + route guards)
+
+Deliverables
+- `auth_refresh` flow, `sessions` collection
+- Middleware/Dependency: `require_role()` / `require_permission()`
+- Admin UI: Sessions page (basic) + 2FA toggle (Pro)
+
+#### 3B) Tenant Isolation Audit + Centralized Enforcement
+**Goal:** guarantee: **Every DB query includes tenant_id** (or is explicitly global/system).
+
+Security tests to add:
+- Cross-tenant WebSocket injection attempts
+- IDOR risks (guessing entity IDs)
+- Slug manipulation
+- Feature flag bypass
+
+Implementation changes:
+- Centralize tenant context resolution and enforce tenant scoping:
+  - Tenant context dependency that yields `{tenant_id, slug, features}`
+  - Repository/data-access helpers that *require* `tenant_id`
+  - Defensive checks on update/delete by `{id, tenant_id}` always
+
+Deliverables
+- Automated isolation test suite (pytest) covering the above
+- A lintable pattern (or helper functions) to prevent missing tenant filters
+
+#### 3C) Data Protection (KVKK/GDPR readiness)
+**Additions**
+- Consent logging (when/where/how consent was collected)
+- PII masking in logs (never log phone/email in plaintext in app logs)
+- Data export endpoint (Right of access): export guest-related data by contact
+- Data delete endpoint (Right to be forgotten): delete/anonymize contact + linked data as per policy
+- Encrypted loyalty ledger (at-rest encryption placeholder):
+  - Field-level encryption approach documented + implemented as a wrapper for sensitive values
+
+Deliverables
+- `/tenants/{slug}/privacy/export` (admin) and/or `/contacts/{id}/export`
+- `/tenants/{slug}/privacy/forget` (admin) and/or `/contacts/{id}/forget`
+- Audit trail entries for exports/deletions
+
+#### 3D) CRM Guest Intelligence Layer (Differentiator)
+**Data model changes (Contact)**
+Add computed/derived fields:
+- `visit_count`
+- `avg_rating`
+- `total_spend`
+- `complaint_ratio`
+- `last_sentiment`
+- `preferred_language`
+- `preferred_room_type`
+- `favorite_menu_items` (top-N)
+
+Computation approach
+- Incremental updates on events (request done, order served, message received)
+- Backfill job for historical recomputation
+- Simple sentiment: rule-based classifier for now (Phase 3), pluggable LLM later
+
+UI/UX
+- Staff “Guest Summary Card”:
+  - Alerts like: “⚠ Previously complained about AC issue in R203”
+  - Key stats: spend, visits, last rating, last complaint
+  - Suggested actions (templates)
+
+Deliverables
+- Contact intelligence update pipeline
+- Guest Summary Card in:
+  - Requests detail
+  - Orders detail
+  - Inbox conversation view
+
+#### 3E) Loyalty Automation (Revenue Engine)
+Enhancements
+- Auto-earn points on:
+  - Completed request
+  - Served/completed order
+  - (Reservation created — if Phase 4 reservation exists, add hook)
+- Tier system:
+  - Bronze → Silver → Gold → Platinum
+  - Tier auto-upgrade rules
+  - Tier benefits configuration per tenant
+- Gamification UI:
+  - Progress bar: “250 points left to Gold”
+
+Deliverables
+- Tier rules + benefits config UI
+- Idempotent points awarding (no duplicate ledger entries)
+- Guest view badge (optional) and staff view summary
+
+**End-of-phase testing (Phase 3)**
+- E2E: multi-tenant + multi-role test matrix
+- Security regression suite:
+  - Tenant isolation checks
+  - Auth session revocation
+  - Rate-limit behavior
+  - Export/delete flows
+
+---
+
+### Phase 4 — Sales Engine (Connectors Stubs + Reviews + Offers/Mock Payments) (**AFTER PHASE 3**) 
+**Goal:** convert platform from operational tool → **revenue engine** and investor-ready product story.
+
+#### 4A) Connector Framework + Stubs
+- Implement connector interfaces + fake polling jobs:
+  - `WhatsAppConnectorStub`
+  - `InstagramDMConnectorStub`
+  - `GoogleReviewsConnectorStub`
+  - `TripAdvisorConnectorStub`
+- Add `ConnectorCredential` model:
+  - Per tenant
+  - Encrypted JSON placeholder
+- Admin UI:
+  - “Connect WhatsApp (Coming Soon)”
+  - “Connect Instagram (Coming Soon)”
+  - “Connect Google Reviews (Coming Soon)”
+
+Deliverables
+- Polling cron/async job stub that generates deterministic fake data per tenant
+- Unified inbox shows stub messages with channel labels
+
+#### 4B) Reviews Module
+Backend
+- `Review` model + `ReviewReply`
+- Sentiment badge (rule-based initially)
+- AI reply suggestions for reviews
+- Manual reply publish (stub)
+
+Frontend
+- Reviews list view with filters + sentiment badges
+- Review detail page with:
+  - AI suggested reply
+  - Templates
+  - “Publish reply” (stub)
+
+Deliverables
+- Reviews module integrated into left nav (role gated)
+
+#### 4C) Offers + Mock Payments + Reservations
+Backend
+- `Offer` model (dates, room type, price, inclusions)
+- `PaymentLink` model + `StripeStubProvider`
+- Mock payment success endpoint
+- `Reservation` creation on payment success
+
+Frontend
+- Offer builder UI (from Inbox and/or Offers page)
+- Generate payment link UI
+- Simulate payment UI
+- Reservations dashboard
+
+End-to-end flow
+- Create Offer → Generate Payment Link → Simulate Payment → Create Reservation
+
+#### 4D) Enhanced Dashboard (Sales/Revenue)
+- Revenue charts (mock data from orders + payments)
+- Review sentiment summary
+- Loyalty program KPIs:
+  - enrolled guests
+  - points issued
+  - tier distribution
+
+**End-of-phase testing (Phase 4)**
+- E2E: connector stubs feed inbox/reviews
+- E2E: offers → payment → reservation
+
+---
 
 ## 3) Next Actions (immediate)
-1. Run web search on FastAPI WebSocket patterns + Redis Pub/Sub; pick event envelope + reconnect strategy.
-2. Implement Phase-1 POC endpoints + WS + tenant guard.
-3. Write and run `poc_ws_multitenant.py` until it passes reliably.
-4. Once stable, scaffold V1 app (backend routes + frontend pages) in one cohesive build.
+1. Confirm Phase 3 implementation order (recommended):
+   1) Tenant isolation centralization + security tests
+   2) Refresh tokens + sessions + rate limiting + brute-force
+   3) Expanded RBAC (roles + permission matrix + UI gating)
+   4) Data protection endpoints + consent logging
+   5) CRM intelligence layer + guest summary cards
+   6) Loyalty automation + tiers + gamification
+2. Define a minimal “Production Ready” acceptance checklist (security + compliance + isolation tests green).
+3. After Phase 3 is stable, start Phase 4 Sales Engine.
+
+---
 
 ## 4) Success Criteria
-- POC: two-tenant WS test passes (no cross-tenant events; stable reconnect; correct payload schema).
-- V1: guest can submit room request/order/chat; staff sees and updates in real time; status reflects everywhere.
-- Tenant isolation: every collection is tenant-scoped; guard prevents leakage (tested with 2 tenants).
-- Usability: dark theme consistent; core flows doable in <2 minutes for demo.
-- Reliability: no blocking errors in core flows; basic input validation; audit logs for admin changes by Phase 3.
+- Phase 1: ✅ Two-tenant WS isolation test passes (44/44).
+- Phase 2: ✅ V1 app demo-ready; testing agent reports **98%** overall; guest QR panels functional.
+- Phase 3 (production-ready target):
+  - Refresh token rotation + session management + rate-limits + brute-force protection
+  - RBAC roles expanded and enforced in API + UI
+  - Centralized tenant isolation enforcement; isolation test suite green
+  - KVKK/GDPR endpoints (export/forget) + consent logging + PII-masked logs
+  - CRM Guest Intelligence fields computed and visible as staff insights
+  - Loyalty tiers + gamification; idempotent ledger awarding
+- Phase 4 (sellable revenue engine target):
+  - Connector stubs visible in admin + inbox with polling job stubs
+  - Reviews module live with sentiment + AI suggestions
+  - Offers → mock payment → reservation flow demonstrated end-to-end
+  - Dashboard includes sales/revenue and customer sentiment summaries
