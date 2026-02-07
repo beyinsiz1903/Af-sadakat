@@ -1430,6 +1430,424 @@ async def seed_data():
         }
     }
 
+# ============ RBAC ROUTES ============
+@api_router.get("/rbac/roles")
+async def get_roles():
+    return ROLES
+
+@api_router.get("/rbac/modules")
+async def get_user_modules(user=Depends(get_current_user)):
+    return {"modules": get_accessible_modules(user.get("role", "agent")), "role": user.get("role")}
+
+@api_router.get("/rbac/tiers")
+async def get_loyalty_tiers():
+    return LOYALTY_TIERS
+
+# ============ REVIEWS MODULE ============
+@api_router.get("/tenants/{tenant_slug}/reviews")
+async def list_reviews(tenant_slug: str, source: Optional[str] = None, page: int = 1, limit: int = 20):
+    tenant = await get_tenant_by_slug(tenant_slug)
+    query = {"tenant_id": tenant["id"]}
+    if source:
+        query["source"] = source.upper()
+    skip = (page - 1) * limit
+    reviews = await db.reviews.find(query, {"_id": 0}).sort("created_at", -1).skip(skip).limit(limit).to_list(limit)
+    total = await db.reviews.count_documents(query)
+    return {"data": [serialize_doc(r) for r in reviews], "total": total, "page": page}
+
+@api_router.post("/tenants/{tenant_slug}/reviews/{review_id}/reply")
+async def reply_to_review(tenant_slug: str, review_id: str, data: dict):
+    tenant = await get_tenant_by_slug(tenant_slug)
+    review = await db.reviews.find_one({"id": review_id, "tenant_id": tenant["id"]})
+    if not review:
+        raise HTTPException(status_code=404, detail="Review not found")
+    
+    reply = {
+        "id": new_id(),
+        "tenant_id": tenant["id"],
+        "review_id": review_id,
+        "content": data.get("content", ""),
+        "author": data.get("author", "Management"),
+        "status": "draft",  # draft, published (stub)
+        "created_at": now_utc().isoformat()
+    }
+    await db.review_replies.insert_one(reply)
+    await db.reviews.update_one({"id": review_id}, {"$set": {"replied": True, "reply_id": reply["id"], "updated_at": now_utc().isoformat()}})
+    return serialize_doc(reply)
+
+@api_router.post("/tenants/{tenant_slug}/reviews/seed-stubs")
+async def seed_stub_reviews(tenant_slug: str):
+    """Seed fake reviews from connector stubs"""
+    tenant = await get_tenant_by_slug(tenant_slug)
+    existing = await db.reviews.count_documents({"tenant_id": tenant["id"]})
+    if existing > 0:
+        return {"message": "Reviews already exist", "count": existing}
+    
+    reviews = []
+    for i, fr in enumerate(FAKE_REVIEWS):
+        reviews.append({
+            "id": new_id(),
+            "tenant_id": tenant["id"],
+            "source": fr["source"],
+            "author": fr["author"],
+            "rating": fr["rating"],
+            "text": fr["text"],
+            "language": fr["language"],
+            "sentiment": analyze_sentiment(fr["text"]),
+            "replied": False,
+            "reply_id": None,
+            "created_at": (now_utc() - timedelta(days=random.randint(1, 30))).isoformat(),
+            "updated_at": now_utc().isoformat()
+        })
+    await db.reviews.insert_many(reviews)
+    return {"message": f"Seeded {len(reviews)} reviews", "count": len(reviews)}
+
+# ============ CONNECTOR FRAMEWORK ============
+@api_router.get("/tenants/{tenant_slug}/connectors")
+async def list_connectors(tenant_slug: str):
+    tenant = await get_tenant_by_slug(tenant_slug)
+    # Get configured connectors
+    credentials = await db.connector_credentials.find({"tenant_id": tenant["id"]}, {"_id": 0}).to_list(20)
+    cred_map = {c["connector_type"]: c for c in credentials}
+    
+    result = []
+    for ct in CONNECTOR_TYPES:
+        cred = cred_map.get(ct["type"])
+        result.append({
+            **ct,
+            "configured": cred is not None,
+            "enabled": cred.get("enabled", False) if cred else False,
+            "credential_id": cred.get("id") if cred else None,
+        })
+    return result
+
+@api_router.post("/tenants/{tenant_slug}/connectors")
+async def configure_connector(tenant_slug: str, data: dict):
+    tenant = await get_tenant_by_slug(tenant_slug)
+    connector_type = data.get("connector_type", "").upper()
+    
+    existing = await db.connector_credentials.find_one({
+        "tenant_id": tenant["id"], "connector_type": connector_type
+    })
+    
+    if existing:
+        await db.connector_credentials.update_one(
+            {"id": existing["id"]},
+            {"$set": {"credentials_json": data.get("credentials", {}), "enabled": data.get("enabled", True), "updated_at": now_utc().isoformat()}}
+        )
+        updated = await db.connector_credentials.find_one({"id": existing["id"]}, {"_id": 0})
+        return serialize_doc(updated)
+    
+    cred = {
+        "id": new_id(),
+        "tenant_id": tenant["id"],
+        "connector_type": connector_type,
+        "credentials_json": data.get("credentials", {}),
+        "enabled": data.get("enabled", True),
+        "created_at": now_utc().isoformat(),
+        "updated_at": now_utc().isoformat()
+    }
+    await db.connector_credentials.insert_one(cred)
+    return serialize_doc(cred)
+
+# ============ OFFERS + MOCK PAYMENTS ============
+@api_router.post("/tenants/{tenant_slug}/offers")
+async def create_offer(tenant_slug: str, data: dict):
+    tenant = await get_tenant_by_slug(tenant_slug)
+    
+    offer = {
+        "id": new_id(),
+        "tenant_id": tenant["id"],
+        "guest_name": data.get("guest_name", ""),
+        "guest_email": data.get("guest_email", ""),
+        "guest_phone": data.get("guest_phone", ""),
+        "room_type": data.get("room_type", "standard"),
+        "check_in": data.get("check_in", ""),
+        "check_out": data.get("check_out", ""),
+        "price": data.get("price", 0),
+        "currency": data.get("currency", "TRY"),
+        "inclusions": data.get("inclusions", []),
+        "notes": data.get("notes", ""),
+        "status": "draft",  # draft, sent, accepted, expired
+        "payment_link_id": None,
+        "reservation_id": None,
+        "created_by": data.get("created_by", ""),
+        "created_at": now_utc().isoformat(),
+        "updated_at": now_utc().isoformat()
+    }
+    await db.offers.insert_one(offer)
+    
+    # Log audit
+    await _log_audit(tenant["id"], "offer_created", "offer", offer["id"], data.get("created_by", ""))
+    
+    return serialize_doc(offer)
+
+@api_router.get("/tenants/{tenant_slug}/offers")
+async def list_offers(tenant_slug: str, status: Optional[str] = None):
+    tenant = await get_tenant_by_slug(tenant_slug)
+    query = {"tenant_id": tenant["id"]}
+    if status:
+        query["status"] = status
+    offers = await db.offers.find(query, {"_id": 0}).sort("created_at", -1).to_list(100)
+    return [serialize_doc(o) for o in offers]
+
+@api_router.post("/tenants/{tenant_slug}/offers/{offer_id}/generate-payment-link")
+async def generate_payment_link(tenant_slug: str, offer_id: str):
+    tenant = await get_tenant_by_slug(tenant_slug)
+    offer = await db.offers.find_one({"id": offer_id, "tenant_id": tenant["id"]})
+    if not offer:
+        raise HTTPException(status_code=404, detail="Offer not found")
+    
+    payment_data = StripeStubProvider.create_payment_link(
+        amount=offer["price"],
+        currency=offer.get("currency", "TRY"),
+        description=f"Reservation: {offer['room_type']} {offer.get('check_in','')} - {offer.get('check_out','')}"
+    )
+    
+    payment_link = {
+        **payment_data,
+        "tenant_id": tenant["id"],
+        "offer_id": offer_id,
+    }
+    await db.payment_links.insert_one(payment_link)
+    await db.offers.update_one({"id": offer_id}, {"$set": {"payment_link_id": payment_data["id"], "status": "sent", "updated_at": now_utc().isoformat()}})
+    
+    return serialize_doc(payment_link)
+
+@api_router.post("/payments/mock/succeed/{link_id}")
+async def mock_payment_success(link_id: str):
+    """Simulate payment success"""
+    link = await db.payment_links.find_one({"id": link_id})
+    if not link:
+        raise HTTPException(status_code=404, detail="Payment link not found")
+    
+    # Update payment link
+    await db.payment_links.update_one({"id": link_id}, {"$set": {"status": "succeeded", "paid_at": now_utc().isoformat()}})
+    
+    # Find offer
+    offer = await db.offers.find_one({"id": link.get("offer_id")})
+    if offer:
+        # Create reservation
+        reservation = {
+            "id": new_id(),
+            "tenant_id": link["tenant_id"],
+            "offer_id": offer["id"],
+            "payment_link_id": link_id,
+            "guest_name": offer.get("guest_name", ""),
+            "guest_email": offer.get("guest_email", ""),
+            "guest_phone": offer.get("guest_phone", ""),
+            "room_type": offer.get("room_type", ""),
+            "check_in": offer.get("check_in", ""),
+            "check_out": offer.get("check_out", ""),
+            "price": offer.get("price", 0),
+            "currency": offer.get("currency", "TRY"),
+            "status": "confirmed",
+            "created_at": now_utc().isoformat()
+        }
+        await db.reservations.insert_one(reservation)
+        await db.offers.update_one({"id": offer["id"]}, {"$set": {"status": "accepted", "reservation_id": reservation["id"], "updated_at": now_utc().isoformat()}})
+        
+        # Broadcast
+        await ws_manager.broadcast_tenant(link["tenant_id"], "reservation", "reservation", "created", serialize_doc(reservation))
+        
+        return {"payment": "succeeded", "reservation": serialize_doc(reservation)}
+    
+    return {"payment": "succeeded", "reservation": None}
+
+@api_router.get("/tenants/{tenant_slug}/reservations")
+async def list_reservations(tenant_slug: str):
+    tenant = await get_tenant_by_slug(tenant_slug)
+    reservations = await db.reservations.find({"tenant_id": tenant["id"]}, {"_id": 0}).sort("created_at", -1).to_list(100)
+    return [serialize_doc(r) for r in reservations]
+
+# ============ GUEST INTELLIGENCE (CRM) ============
+@api_router.get("/tenants/{tenant_slug}/contacts/{contact_id}/intelligence")
+async def get_contact_intelligence(tenant_slug: str, contact_id: str):
+    """Compute and return guest intelligence data"""
+    tenant = await get_tenant_by_slug(tenant_slug)
+    contact = await db.contacts.find_one({"id": contact_id, "tenant_id": tenant["id"]}, {"_id": 0})
+    if not contact:
+        raise HTTPException(status_code=404, detail="Contact not found")
+    
+    phone = contact.get("phone", "")
+    email = contact.get("email", "")
+    
+    # Compute metrics
+    req_query = {"tenant_id": tenant["id"]}
+    if phone:
+        req_query["guest_phone"] = phone
+    
+    requests_list = await db.guest_requests.find(req_query, {"_id": 0}).to_list(500)
+    orders_list = await db.orders.find({"tenant_id": tenant["id"], "guest_phone": phone}, {"_id": 0}).to_list(500) if phone else []
+    
+    visit_count = len(set([r.get("room_code", "") for r in requests_list])) + len(set([o.get("table_code", "") for o in orders_list]))
+    
+    ratings = [r["rating"] for r in requests_list if r.get("rating")]
+    avg_rating = round(sum(ratings) / len(ratings), 1) if ratings else 0
+    
+    total_spend = sum(o.get("total", 0) for o in orders_list)
+    
+    complaints = [r for r in requests_list if r.get("priority") in ["high", "urgent"] or analyze_sentiment(r.get("description", "")) == "negative"]
+    complaint_ratio = round(len(complaints) / max(len(requests_list), 1), 2)
+    
+    # Last sentiment
+    all_texts = [r.get("description", "") for r in requests_list] + [r.get("rating_comment", "") for r in requests_list if r.get("rating_comment")]
+    last_sentiment = analyze_sentiment(all_texts[-1]) if all_texts else "neutral"
+    
+    # Preferred room type
+    room_types = [r.get("room_code", "")[:1] for r in requests_list if r.get("room_code")]
+    
+    # Favorite menu items
+    item_counts = {}
+    for o in orders_list:
+        for item in o.get("items", []):
+            name = item.get("menu_item_name", "")
+            item_counts[name] = item_counts.get(name, 0) + item.get("quantity", 1)
+    favorite_items = sorted(item_counts.items(), key=lambda x: -x[1])[:5]
+    
+    # Alerts
+    alerts = []
+    if complaint_ratio > 0.3:
+        alerts.append({"type": "warning", "message": f"High complaint ratio ({int(complaint_ratio*100)}%)"})
+    for r in requests_list[-3:]:
+        if r.get("priority") in ["high", "urgent"] and r.get("status") in ["OPEN", "IN_PROGRESS"]:
+            alerts.append({"type": "urgent", "message": f"Active {r['priority']} request: {r['description'][:50]}"})
+    if avg_rating > 0 and avg_rating < 3:
+        alerts.append({"type": "warning", "message": f"Low average rating: {avg_rating}/5"})
+    
+    # Loyalty
+    loyalty_info = None
+    if contact.get("loyalty_account_id"):
+        account = await db.loyalty_accounts.find_one({"id": contact["loyalty_account_id"]}, {"_id": 0})
+        if account:
+            tier = compute_tier(account.get("points", 0))
+            loyalty_info = {
+                "points": account.get("points", 0),
+                "tier": tier,
+                "tier_info": LOYALTY_TIERS.get(tier, {}),
+                "next_tier": next_tier_info(tier, account.get("points", 0))
+            }
+    
+    intelligence = {
+        "visit_count": visit_count,
+        "avg_rating": avg_rating,
+        "total_spend": total_spend,
+        "complaint_ratio": complaint_ratio,
+        "last_sentiment": last_sentiment,
+        "preferred_language": contact.get("preferred_language", "en"),
+        "favorite_menu_items": [{"name": n, "count": c} for n, c in favorite_items],
+        "total_requests": len(requests_list),
+        "total_orders": len(orders_list),
+        "alerts": alerts,
+        "loyalty": loyalty_info
+    }
+    
+    # Update contact with computed fields
+    await db.contacts.update_one({"id": contact_id}, {"$set": {
+        "intelligence": intelligence,
+        "updated_at": now_utc().isoformat()
+    }})
+    
+    return intelligence
+
+# ============ AUDIT LOG ============
+async def _log_audit(tenant_id: str, action: str, entity_type: str, entity_id: str, user_id: str = "", details: dict = None):
+    entry = {
+        "id": new_id(),
+        "tenant_id": tenant_id,
+        "action": action,
+        "entity_type": entity_type,
+        "entity_id": entity_id,
+        "user_id": user_id,
+        "details": details or {},
+        "created_at": now_utc().isoformat()
+    }
+    await db.audit_logs.insert_one(entry)
+
+@api_router.get("/tenants/{tenant_slug}/audit-logs")
+async def list_audit_logs(tenant_slug: str, page: int = 1, limit: int = 50):
+    tenant = await get_tenant_by_slug(tenant_slug)
+    skip = (page - 1) * limit
+    logs = await db.audit_logs.find({"tenant_id": tenant["id"]}, {"_id": 0}).sort("created_at", -1).skip(skip).limit(limit).to_list(limit)
+    total = await db.audit_logs.count_documents({"tenant_id": tenant["id"]})
+    return {"data": [serialize_doc(l) for l in logs], "total": total, "page": page}
+
+# ============ ENHANCED DASHBOARD STATS ============
+@api_router.get("/tenants/{tenant_slug}/stats/enhanced")
+async def get_enhanced_stats(tenant_slug: str):
+    tenant = await get_tenant_by_slug(tenant_slug)
+    tid = tenant["id"]
+    
+    # Basic stats
+    total_requests = await db.guest_requests.count_documents({"tenant_id": tid})
+    open_requests = await db.guest_requests.count_documents({"tenant_id": tid, "status": "OPEN"})
+    in_progress = await db.guest_requests.count_documents({"tenant_id": tid, "status": "IN_PROGRESS"})
+    done = await db.guest_requests.count_documents({"tenant_id": tid, "status": {"$in": ["DONE", "CLOSED"]}})
+    
+    total_orders = await db.orders.count_documents({"tenant_id": tid})
+    active_orders = await db.orders.count_documents({"tenant_id": tid, "status": {"$in": ["RECEIVED", "PREPARING"]}})
+    
+    total_contacts = await db.contacts.count_documents({"tenant_id": tid})
+    total_conversations = await db.conversations.count_documents({"tenant_id": tid})
+    rooms_count = await db.rooms.count_documents({"tenant_id": tid})
+    tables_count = await db.tables.count_documents({"tenant_id": tid})
+    
+    # Revenue (from orders)
+    revenue_pipeline = [
+        {"$match": {"tenant_id": tid, "order_type": "dine_in"}},
+        {"$group": {"_id": None, "total_revenue": {"$sum": "$total"}, "order_count": {"$sum": 1}}}
+    ]
+    rev_result = await db.orders.aggregate(revenue_pipeline).to_list(1)
+    total_revenue = rev_result[0]["total_revenue"] if rev_result else 0
+    
+    # Avg rating
+    rating_pipeline = [
+        {"$match": {"tenant_id": tid, "rating": {"$ne": None}}},
+        {"$group": {"_id": None, "avg_rating": {"$avg": "$rating"}, "count": {"$sum": 1}}}
+    ]
+    rating_result = await db.guest_requests.aggregate(rating_pipeline).to_list(1)
+    avg_rating = round(rating_result[0]["avg_rating"], 1) if rating_result else 0
+    rating_count = rating_result[0]["count"] if rating_result else 0
+    
+    # Reviews stats
+    total_reviews = await db.reviews.count_documents({"tenant_id": tid})
+    review_sentiment = {
+        "positive": await db.reviews.count_documents({"tenant_id": tid, "sentiment": "positive"}),
+        "neutral": await db.reviews.count_documents({"tenant_id": tid, "sentiment": "neutral"}),
+        "negative": await db.reviews.count_documents({"tenant_id": tid, "sentiment": "negative"}),
+    }
+    
+    # Loyalty stats
+    loyalty_members = await db.loyalty_accounts.count_documents({"tenant_id": tid})
+    points_pipeline = [
+        {"$match": {"tenant_id": tid, "type": "earn"}},
+        {"$group": {"_id": None, "total_points": {"$sum": "$points"}}}
+    ]
+    points_result = await db.loyalty_ledger.aggregate(points_pipeline).to_list(1)
+    total_points = points_result[0]["total_points"] if points_result else 0
+    
+    # Offers/Reservations
+    total_offers = await db.offers.count_documents({"tenant_id": tid})
+    total_reservations = await db.reservations.count_documents({"tenant_id": tid})
+    
+    return {
+        "requests": {"total": total_requests, "open": open_requests, "in_progress": in_progress, "done": done},
+        "orders": {"total": total_orders, "active": active_orders},
+        "contacts": total_contacts,
+        "conversations": total_conversations,
+        "rooms": rooms_count,
+        "tables": tables_count,
+        "avg_rating": avg_rating,
+        "rating_count": rating_count,
+        "revenue": {"total": total_revenue, "currency": "TRY"},
+        "reviews": {"total": total_reviews, "sentiment": review_sentiment},
+        "loyalty": {"members": loyalty_members, "total_points_issued": total_points},
+        "offers": total_offers,
+        "reservations": total_reservations,
+        "usage": tenant.get("usage_counters", {}),
+        "limits": tenant.get("plan_limits", {})
+    }
+
 # ============ WEBSOCKET ENDPOINT ============
 @app.websocket("/ws/{tenant_id}")
 async def websocket_endpoint(websocket: WebSocket, tenant_id: str):
