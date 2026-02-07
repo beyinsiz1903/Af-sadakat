@@ -3,22 +3,14 @@ import sys
 import json
 from datetime import datetime
 
-class TourismPlatformTester:
+class ComprehensiveAPITester:
     def __init__(self):
         self.base_url = "https://omni-inbox-hub.preview.emergentagent.com/api"
         self.token = None
-        self.tenant_slug = None
-        self.user_data = None
+        self.tenant_slug = "grand-hotel"
         self.tests_run = 0
         self.tests_passed = 0
-        
-        # Test data containers
-        self.created_room_id = None
-        self.created_table_id = None
-        self.created_request_id = None
-        self.created_order_id = None
-        self.created_contact_id = None
-        self.conversation_id = None
+        self.failed_tests = []
 
     def log(self, message):
         print(f"[{datetime.now().strftime('%H:%M:%S')}] {message}")
