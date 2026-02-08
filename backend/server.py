@@ -2832,6 +2832,34 @@ try:
 except Exception as e:
     logger.warning(f"V2 loyalty router not loaded: {e}")
 
+try:
+    from routers.properties import router as properties_v2_router
+    app.include_router(properties_v2_router)
+    logger.info("V2 properties router loaded")
+except Exception as e:
+    logger.warning(f"V2 properties router not loaded: {e}")
+
+try:
+    from routers.offers import router as offers_v2_router
+    app.include_router(offers_v2_router)
+    logger.info("V2 offers router loaded")
+except Exception as e:
+    logger.warning(f"V2 offers router not loaded: {e}")
+
+try:
+    from routers.payments import router as payments_v2_router
+    app.include_router(payments_v2_router)
+    logger.info("V2 payments router loaded")
+except Exception as e:
+    logger.warning(f"V2 payments router not loaded: {e}")
+
+try:
+    from routers.reservations import router as reservations_v2_router
+    app.include_router(reservations_v2_router)
+    logger.info("V2 reservations router loaded")
+except Exception as e:
+    logger.warning(f"V2 reservations router not loaded: {e}")
+
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
