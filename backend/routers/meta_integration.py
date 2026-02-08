@@ -231,10 +231,10 @@ async def oauth_callback(code: str = "", state: str = "", error: str = ""):
             logger.warning(f"Auto-discovery failed after OAuth: {e}")
 
         return HTMLResponse(
-            f"""<html><body style="font-family:sans-serif;text-align:center;padding:40px">
+            """<html><body style="font-family:sans-serif;text-align:center;padding:40px">
             <h2 style="color:#22c55e">Meta Connected Successfully!</h2>
             <p>You can close this window and return to the dashboard.</p>
-            <script>setTimeout(function(){{window.close()}},3000)</script>
+            <script>setTimeout(function(){window.close()},3000)</script>
             </body></html>"""
         )
 
