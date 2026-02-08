@@ -258,6 +258,26 @@ async def webhook_mock_succeed(data: dict, request: Request):
     await log_audit(tid, "RESERVATION_CREATED", "reservation", reservation["id"], "system",
                     {"confirmation_code": confirmation_code, "offer_id": offer["id"]})
 
+    # Send notifications (mock)
+    try:
+        from notification_service import send_notification
+        tenant_doc = await db.tenants.find_one({"id": tid}, {"_id": 0})
+        hotel_name = tenant_doc.get("name", "") if tenant_doc else ""
+        await send_notification(tid, "PAYMENT_SUCCEEDED",
+            recipient_email=offer.get("guest_email", ""),
+            recipient_phone=offer.get("guest_phone", ""),
+            context={"hotel_name": hotel_name, "guest_name": offer.get("guest_name", ""),
+                     "currency": offer.get("currency", ""), "price": str(offer.get("price_total", "")),
+                     "confirmation_code": confirmation_code})
+        await send_notification(tid, "RESERVATION_CONFIRMED",
+            recipient_email=offer.get("guest_email", ""),
+            recipient_phone=offer.get("guest_phone", ""),
+            context={"hotel_name": hotel_name, "guest_name": offer.get("guest_name", ""),
+                     "check_in": offer.get("check_in", ""), "check_out": offer.get("check_out", ""),
+                     "confirmation_code": confirmation_code})
+    except Exception as e:
+        logger.error("Notification sending failed: %s", str(e))
+
     return {
         "status": "SUCCEEDED",
         "idempotent": False,
