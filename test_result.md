@@ -237,6 +237,9 @@ frontend:
       - working: true
         agent: "main"
         comment: "Added aiSalesAPI with all settings, room rates, discount rules, policies, stats, AI trigger, session endpoints."
+      - working: true
+        agent: "testing"
+        comment: "✅ API Client AI Sales endpoints working correctly. Verified API endpoints for settings, room rates, discount rules, and policies are implemented and properly connected to UI components. The frontend successfully retrieves and updates data using these endpoints."
 
 metadata:
   created_by: "main_agent"
