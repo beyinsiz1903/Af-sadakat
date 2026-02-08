@@ -1,857 +1,540 @@
-import requests
-import sys
+#!/usr/bin/env python3
+"""
+Sprint 6 Hardening Features Test Suite
+Tests the production hardening features for multi-tenant hotel SaaS
+"""
+import asyncio
+import aiohttp
 import json
-from datetime import datetime
+import os
+import sys
+import time
+from pathlib import Path
 
-class ComprehensiveAPITester:
+# Configuration
+BASE_URL = "https://property-payments-1.preview.emergentagent.com/api"
+TENANT_SLUG = "grand-hotel"
+LOGIN_CREDENTIALS = {
+    "email": "admin@grandhotel.com", 
+    "password": "admin123"
+}
+
+class TestResults:
     def __init__(self):
-        self.base_url = "https://property-payments-1.preview.emergentagent.com/api"
+        self.tests = []
+        self.passed = 0
+        self.failed = 0
+        
+    def add_test(self, name, passed, details=""):
+        self.tests.append({
+            "name": name,
+            "passed": passed,
+            "details": details
+        })
+        if passed:
+            self.passed += 1
+        else:
+            self.failed += 1
+            
+    def print_summary(self):
+        print(f"\n=== SPRINT 6 TEST RESULTS ===")
+        print(f"Total: {len(self.tests)}, Passed: {self.passed}, Failed: {self.failed}")
+        print(f"Success Rate: {(self.passed/len(self.tests)*100):.1f}%")
+        
+        if self.failed > 0:
+            print(f"\n=== FAILED TESTS ===")
+            for test in self.tests:
+                if not test["passed"]:
+                    print(f"❌ {test['name']}: {test['details']}")
+        
+        print(f"\n=== PASSED TESTS ===")
+        for test in self.tests:
+            if test["passed"]:
+                print(f"✅ {test['name']}")
+
+class Sprint6Tester:
+    def __init__(self):
+        self.session = None
         self.token = None
-        self.tenant_slug = "grand-hotel"
-        self.tests_run = 0
-        self.tests_passed = 0
-        self.failed_tests = []
-
-    def log(self, message):
-        print(f"[{datetime.now().strftime('%H:%M:%S')}] {message}")
-
-    def run_test(self, name, method, endpoint, expected_status, data=None, headers=None):
-        """Run a single API test"""
-        url = f"{self.base_url}/{endpoint.lstrip('/')}"
-        test_headers = {'Content-Type': 'application/json'}
+        self.results = TestResults()
         
+    async def setup(self):
+        """Setup HTTP session and get auth token"""
+        self.session = aiohttp.ClientSession()
+        
+        # Login to get token
+        try:
+            async with self.session.post(f"{BASE_URL}/auth/login", json=LOGIN_CREDENTIALS) as response:
+                if response.status == 200:
+                    data = await response.json()
+                    self.token = data["token"]
+                    self.results.add_test("Authentication Setup", True, "Successfully logged in")
+                    print(f"✅ Authenticated as {LOGIN_CREDENTIALS['email']}")
+                else:
+                    self.results.add_test("Authentication Setup", False, f"Login failed: {response.status}")
+                    print(f"❌ Login failed: {response.status}")
+                    return False
+        except Exception as e:
+            self.results.add_test("Authentication Setup", False, f"Login error: {str(e)}")
+            print(f"❌ Login error: {str(e)}")
+            return False
+            
+        return True
+        
+    async def cleanup(self):
+        """Close HTTP session"""
+        if self.session:
+            await self.session.close()
+            
+    def get_headers(self):
+        """Get headers with auth token"""
+        headers = {"Content-Type": "application/json"}
         if self.token:
-            test_headers['Authorization'] = f'Bearer {self.token}'
+            headers["Authorization"] = f"Bearer {self.token}"
+        return headers
+    
+    async def test_health_endpoint(self):
+        """Test 1: Health endpoint returns Sprint 6 data"""
+        print("\n🔍 Testing Health Endpoint...")
+        try:
+            async with self.session.get(f"{BASE_URL}/health") as response:
+                data = await response.json()
+                request_id = response.headers.get("X-Request-Id")
+                
+                # Check basic response
+                if response.status != 200:
+                    self.results.add_test("Health Status Code", False, f"Expected 200, got {response.status}")
+                    return
+                    
+                # Check version 6.0.0
+                if data.get("version") != "6.0.0":
+                    self.results.add_test("Health Version", False, f"Expected 6.0.0, got {data.get('version')}")
+                else:
+                    self.results.add_test("Health Version", True)
+                
+                # Check status "ok"
+                if data.get("status") != "ok":
+                    self.results.add_test("Health Status", False, f"Expected 'ok', got {data.get('status')}")
+                else:
+                    self.results.add_test("Health Status", True)
+                
+                # Check uptime_seconds > 0
+                uptime = data.get("uptime_seconds", 0)
+                if uptime > 0:
+                    self.results.add_test("Health Uptime", True, f"Uptime: {uptime}s")
+                else:
+                    self.results.add_test("Health Uptime", False, f"Expected > 0, got {uptime}")
+                
+                # Check services
+                services = data.get("services", {})
+                if services.get("mongodb") == True:
+                    self.results.add_test("Health MongoDB", True)
+                else:
+                    self.results.add_test("Health MongoDB", False, f"MongoDB service: {services.get('mongodb')}")
+                    
+                if services.get("redis") == True:
+                    self.results.add_test("Health Redis", True)
+                else:
+                    self.results.add_test("Health Redis", False, f"Redis service: {services.get('redis')}")
+                
+                # Check X-Request-Id header
+                if request_id:
+                    self.results.add_test("Health Request ID Header", True, f"Request ID: {request_id}")
+                else:
+                    self.results.add_test("Health Request ID Header", False, "Missing X-Request-Id header")
+                    
+        except Exception as e:
+            self.results.add_test("Health Endpoint Error", False, str(e))
+    
+    async def test_request_id_middleware(self):
+        """Test 2: Request ID middleware on various endpoints"""
+        print("\n🔍 Testing Request ID Middleware...")
         
-        if headers:
-            test_headers.update(headers)
-
-        self.tests_run += 1
-        self.log(f"🔍 Testing {name}...")
+        endpoints = [
+            f"{BASE_URL}/health",
+            f"{BASE_URL}/auth/login"
+        ]
+        
+        for endpoint in endpoints:
+            try:
+                if "login" in endpoint:
+                    async with self.session.post(endpoint, json=LOGIN_CREDENTIALS) as response:
+                        request_id = response.headers.get("X-Request-Id")
+                else:
+                    async with self.session.get(endpoint) as response:
+                        request_id = response.headers.get("X-Request-Id")
+                
+                if request_id:
+                    self.results.add_test(f"Request ID on {endpoint.split('/')[-1]}", True, f"ID: {request_id}")
+                else:
+                    self.results.add_test(f"Request ID on {endpoint.split('/')[-1]}", False, "Missing X-Request-Id")
+                    
+            except Exception as e:
+                self.results.add_test(f"Request ID test {endpoint}", False, str(e))
+    
+    async def test_confirmation_code_format(self):
+        """Test 3: New confirmation code format (PREFIX-YYYYMM-XXXXXX)"""
+        print("\n🔍 Testing Confirmation Code Format...")
         
         try:
-            if method == 'GET':
-                response = requests.get(url, headers=test_headers, timeout=30)
-            elif method == 'POST':
-                response = requests.post(url, json=data, headers=test_headers, timeout=30)
-            elif method == 'PATCH':
-                response = requests.patch(url, json=data, headers=test_headers, timeout=30)
-            elif method == 'DELETE':
-                response = requests.delete(url, headers=test_headers, timeout=30)
-
-            success = response.status_code == expected_status
-            if success:
-                self.tests_passed += 1
-                self.log(f"✅ {name} - Status: {response.status_code}")
-                try:
-                    return success, response.json() if response.text else {}
-                except:
-                    return success, {}
-            else:
-                self.log(f"❌ {name} - Expected {expected_status}, got {response.status_code}")
-                try:
-                    error_response = response.json() if response.text else {"detail": "No response body"}
-                    self.log(f"   Response: {error_response}")
-                except:
-                    self.log(f"   Response: {response.text[:200]}")
-                self.failed_tests.append(f"{name}: {response.status_code} (expected {expected_status})")
-                return False, {}
-
+            # 1. Create an offer
+            offer_data = {
+                "guest_name": "CodeTest",
+                "price_total": 500,
+                "currency": "TRY", 
+                "room_type": "standard",
+                "check_in": "2026-05-01",
+                "check_out": "2026-05-03"
+            }
+            
+            async with self.session.post(
+                f"{BASE_URL}/v2/offers/tenants/{TENANT_SLUG}/offers",
+                json=offer_data,
+                headers=self.get_headers()
+            ) as response:
+                if response.status != 200:
+                    self.results.add_test("Confirmation Code - Create Offer", False, f"Status: {response.status}")
+                    return
+                offer = await response.json()
+                offer_id = offer["id"]
+                self.results.add_test("Confirmation Code - Create Offer", True, f"Offer ID: {offer_id}")
+            
+            # 2. Create payment link
+            async with self.session.post(
+                f"{BASE_URL}/v2/offers/tenants/{TENANT_SLUG}/offers/{offer_id}/create-payment-link",
+                headers=self.get_headers()
+            ) as response:
+                if response.status != 200:
+                    self.results.add_test("Confirmation Code - Payment Link", False, f"Status: {response.status}")
+                    return
+                payment_link = await response.json()
+                payment_link_id = payment_link["id"]
+                self.results.add_test("Confirmation Code - Payment Link", True, f"Link ID: {payment_link_id}")
+            
+            # 3. Mock payment success
+            webhook_data = {"paymentLinkId": payment_link_id}
+            async with self.session.post(
+                f"{BASE_URL}/v2/payments/webhook/mock/succeed",
+                json=webhook_data
+            ) as response:
+                if response.status != 200:
+                    self.results.add_test("Confirmation Code - Mock Payment", False, f"Status: {response.status}")
+                    return
+                result = await response.json()
+                self.results.add_test("Confirmation Code - Mock Payment", True, "Payment succeeded")
+                
+                # 4. Check confirmation code format
+                reservation = result.get("reservation", {})
+                confirmation_code = reservation.get("confirmation_code", "")
+                
+                if not confirmation_code:
+                    self.results.add_test("Confirmation Code Format", False, "No confirmation code in response")
+                    return
+                
+                # Check format: XXX-YYYYMM-XXXXXX
+                parts = confirmation_code.split("-")
+                if len(parts) != 3:
+                    self.results.add_test("Confirmation Code Format", False, f"Wrong format: {confirmation_code}")
+                    return
+                
+                prefix, date_part, random_part = parts
+                
+                # Check prefix (3 letters)
+                if len(prefix) == 3 and prefix.isalpha():
+                    prefix_ok = True
+                else:
+                    prefix_ok = False
+                
+                # Check date part (6 digits YYYYMM)
+                if len(date_part) == 6 and date_part.isdigit():
+                    date_ok = True
+                else:
+                    date_ok = False
+                
+                # Check random part (6 alphanumeric)
+                if len(random_part) == 6 and random_part.isalnum():
+                    random_ok = True
+                else:
+                    random_ok = False
+                
+                # Check it's NOT the old RES-XXXXXX format
+                old_format = confirmation_code.startswith("RES-") and len(confirmation_code.split("-")) == 2
+                
+                if prefix_ok and date_ok and random_ok and not old_format:
+                    self.results.add_test("Confirmation Code Format", True, f"Valid format: {confirmation_code}")
+                else:
+                    self.results.add_test("Confirmation Code Format", False, 
+                                        f"Invalid format: {confirmation_code} (prefix:{prefix_ok}, date:{date_ok}, random:{random_ok}, old_format:{old_format})")
+                
         except Exception as e:
-            self.log(f"❌ {name} - Error: {str(e)}")
-            self.failed_tests.append(f"{name}: {str(e)}")
-            return False, {}
-
-    def test_health_and_root(self):
-        """Test basic health endpoints"""
-        self.log("\n=== HEALTH CHECK ===")
-        self.run_test("API Root", "GET", "", 200)
-        self.run_test("Health Check", "GET", "health", 200)
-
-    def test_seeding(self):
-        """Test data seeding"""
-        self.log("\n=== DATA SEEDING ===")
-        self.run_test("Seed Demo Data", "POST", "seed", 200)
-
-    def test_auth(self):
-        """Test authentication flow"""
-        self.log("\n=== AUTHENTICATION ===")
-        success, response = self.run_test(
-            "Admin Login",
-            "POST", 
-            "auth/login",
-            200,
-            {"email": "admin@grandhotel.com", "password": "admin123"}
-        )
-        if success and 'token' in response:
-            self.token = response['token']
-            self.log(f"   Token acquired: {self.token[:20]}...")
-            return True
-        return False
-
-    def test_tenant_management(self):
-        """Test tenant operations"""
-        self.log("\n=== TENANT MANAGEMENT ===")
-        self.run_test("Get Tenant Info", "GET", f"tenants/{self.tenant_slug}", 200)
-        self.run_test("List Tenants", "GET", "tenants", 200)
-
-    def test_dashboard_stats(self):
-        """Test enhanced dashboard statistics"""
-        self.log("\n=== DASHBOARD STATS ===")
-        success, stats = self.run_test("Dashboard Stats", "GET", f"tenants/{self.tenant_slug}/stats", 200)
-        if success:
-            required_keys = ['requests', 'orders', 'contacts', 'conversations', 'rooms', 'tables', 'avg_rating', 'usage', 'limits']
-            missing_keys = [key for key in required_keys if key not in stats]
-            if missing_keys:
-                self.log(f"   ⚠️  Missing dashboard keys: {missing_keys}")
-            else:
-                self.log(f"   ✅ Dashboard has all required KPIs")
-
-    def test_analytics_engine_fix(self):
-        """Test fixed analytics engine - AI efficiency should be <= 100%"""
-        self.log("\n=== ANALYTICS ENGINE (FIXED) ===")
-        success, analytics = self.run_test("Get Analytics", "GET", f"tenants/{self.tenant_slug}/analytics", 200)
-        if success:
-            ai_efficiency = analytics.get("ai", {}).get("efficiency_pct", 0)
-            self.log(f"   AI Efficiency: {ai_efficiency}%")
-            if ai_efficiency > 100:
-                self.log(f"   ❌ AI Efficiency still broken: {ai_efficiency}% (should be <= 100%)")
-                self.failed_tests.append(f"AI Efficiency broken: {ai_efficiency}%")
-            else:
-                self.log(f"   ✅ AI Efficiency fixed: {ai_efficiency}%")
-
-    def test_v2_modular_routes(self):
-        """Test V2 modular hotel routes"""
-        self.log("\n=== V2 MODULAR ROUTES ===")
+            self.results.add_test("Confirmation Code Test Error", False, str(e))
+    
+    async def test_payment_idempotency(self):
+        """Test 4: Payment idempotency (atomic operations)"""
+        print("\n🔍 Testing Payment Idempotency...")
         
-        # Test V2 rooms list
-        success, rooms = self.run_test("V2 Rooms List", "GET", f"v2/hotel/tenants/{self.tenant_slug}/rooms", 200)
-        if success:
-            self.log(f"   Found {len(rooms)} rooms in V2 API")
-        
-        # Test V2 requests list
-        success, requests_data = self.run_test("V2 Requests List", "GET", f"v2/hotel/tenants/{self.tenant_slug}/requests", 200)
-        if success:
-            requests = requests_data.get('data', [])
-            total = requests_data.get('total', 0)
-            self.log(f"   Found {len(requests)}/{total} requests in V2 API")
-        
-        # Test QR PNG generation for a room
-        if rooms:
-            room_id = rooms[0]["id"]
-            success, _ = self.run_test("V2 Room QR PNG", "GET", f"v2/hotel/rooms/{room_id}/qr.png", 200)
-            if success:
-                self.log(f"   ✅ QR PNG generation working")
-
-    def test_guest_resolve_endpoints(self):
-        """Test guest JWT token resolution"""
-        self.log("\n=== GUEST RESOLVE ENDPOINTS ===")
-        
-        # Test guest room resolution with proper query parameters
-        self.run_test("Guest Resolve Room", "GET", f"guest/resolve-room?tenantSlug={self.tenant_slug}&roomCode=R101", 200)
-        
-        # Test guest table resolution with proper query parameters
-        self.run_test("Guest Resolve Table", "GET", f"guest/resolve-table?tenantSlug={self.tenant_slug}&tableCode=T1", 200)
-
-    def test_system_status(self):
-        """Test system status endpoint"""
-        self.log("\n=== SYSTEM STATUS ===")
-        success, status = self.run_test("System Status", "GET", "system/status", 200)
-        if success:
-            operational = status.get("operational", False)
-            self.log(f"   System operational: {operational}")
-
-    def test_reviews_system(self):
-        """Test reviews management and AI reply system"""
-        self.log("\n=== REVIEWS SYSTEM ===")
-        
-        # Test review seeding
-        self.run_test("Seed Review Stubs", "POST", f"tenants/{self.tenant_slug}/reviews/seed-stubs", 200)
-        
-        # Test getting reviews
-        success, reviews_data = self.run_test("Get Reviews", "GET", f"tenants/{self.tenant_slug}/reviews", 200)
-        if success and reviews_data.get('data'):
-            reviews = reviews_data['data']
-            self.log(f"   Found {len(reviews)} reviews")
+        try:
+            # Create offer and payment link
+            offer_data = {
+                "guest_name": "IdempotencyTest",
+                "price_total": 750,
+                "currency": "TRY",
+                "room_type": "deluxe", 
+                "check_in": "2026-06-01",
+                "check_out": "2026-06-03"
+            }
             
-            # Test review structure
-            if reviews:
-                review = reviews[0]
-                required_fields = ['id', 'text', 'rating', 'author', 'sentiment', 'source']
-                missing_fields = [f for f in required_fields if f not in review]
-                if missing_fields:
-                    self.log(f"   ⚠️  Missing review fields: {missing_fields}")
+            # Create offer
+            async with self.session.post(
+                f"{BASE_URL}/v2/offers/tenants/{TENANT_SLUG}/offers",
+                json=offer_data,
+                headers=self.get_headers()
+            ) as response:
+                offer = await response.json()
+                offer_id = offer["id"]
+            
+            # Create payment link
+            async with self.session.post(
+                f"{BASE_URL}/v2/offers/tenants/{TENANT_SLUG}/offers/{offer_id}/create-payment-link",
+                headers=self.get_headers()
+            ) as response:
+                payment_link = await response.json()
+                payment_link_id = payment_link["id"]
+            
+            # First payment success
+            webhook_data = {"paymentLinkId": payment_link_id}
+            async with self.session.post(
+                f"{BASE_URL}/v2/payments/webhook/mock/succeed",
+                json=webhook_data
+            ) as response:
+                first_result = await response.json()
+                first_idempotent = first_result.get("idempotent", None)
+                first_reservation_id = first_result.get("reservation", {}).get("id")
+                
+                if first_idempotent == False:
+                    self.results.add_test("Payment First Success", True, "New payment processed")
                 else:
-                    self.log(f"   ✅ Review structure is complete")
-                    
-                # Test AI reply suggestion
-                self.run_test("AI Suggest Reply", "POST", f"tenants/{self.tenant_slug}/ai/suggest-reply", 200, 
-                            {"message": review['text'], "language": "en", "sector": "hotel"})
-                
-                # Test reply to review
-                if not review.get('replied'):
-                    reply_success, _ = self.run_test("Reply to Review", "POST", 
-                                                   f"tenants/{self.tenant_slug}/reviews/{review['id']}/reply", 
-                                                   200, {"content": "Thank you for your feedback!"})
-
-    def test_offers_and_payments(self):
-        """Test offers creation and payment flow"""
-        self.log("\n=== OFFERS & PAYMENTS ===")
-        
-        # Create offer
-        offer_data = {
-            "guest_name": "Test Guest",
-            "guest_email": "test@example.com", 
-            "guest_phone": "+905551234567",
-            "room_type": "deluxe",
-            "check_in": "2024-12-01",
-            "check_out": "2024-12-03",
-            "price": 500.0,
-            "currency": "TRY",
-            "notes": "Test offer",
-            "created_by": "test-user-id"
-        }
-        
-        success, offer = self.run_test("Create Offer", "POST", f"tenants/{self.tenant_slug}/offers", 201, offer_data)
-        if success and offer.get('id'):
-            offer_id = offer['id']
-            self.log(f"   Created offer: {offer_id}")
+                    self.results.add_test("Payment First Success", False, f"Unexpected idempotent: {first_idempotent}")
             
-            # Generate payment link
-            link_success, link_response = self.run_test("Generate Payment Link", "POST", 
-                                                      f"tenants/{self.tenant_slug}/offers/{offer_id}/generate-payment-link", 200)
-            if link_success and link_response.get('payment_link_id'):
-                link_id = link_response['payment_link_id']
-                self.log(f"   Payment link ID: {link_id}")
+            # Second payment success (should be idempotent)
+            async with self.session.post(
+                f"{BASE_URL}/v2/payments/webhook/mock/succeed", 
+                json=webhook_data
+            ) as response:
+                second_result = await response.json()
+                second_idempotent = second_result.get("idempotent", None)
+                second_reservation_id = second_result.get("reservation", {}).get("id")
                 
-                # Simulate payment
-                self.run_test("Simulate Payment", "POST", f"payments/mock/succeed/{link_id}", 200)
+                if second_idempotent == True:
+                    self.results.add_test("Payment Second Success (Idempotent)", True, "Idempotent response")
+                else:
+                    self.results.add_test("Payment Second Success (Idempotent)", False, f"Expected idempotent=true, got {second_idempotent}")
                 
-                # Check reservations
-                self.run_test("Get Reservations", "GET", f"tenants/{self.tenant_slug}/reservations", 200)
-
-    def test_connectors(self):
-        """Test connector framework"""
-        self.log("\n=== CONNECTORS ===")
-        success, connectors = self.run_test("Get Connectors", "GET", f"tenants/{self.tenant_slug}/connectors", 200)
-        if success:
-            connector_types = [c.get('type') for c in connectors]
-            expected_types = ['WHATSAPP', 'INSTAGRAM', 'GOOGLE_REVIEWS', 'TRIPADVISOR', 'WEBCHAT']
-            missing_types = [t for t in expected_types if t not in connector_types]
-            if missing_types:
-                self.log(f"   ⚠️  Missing connector types: {missing_types}")
-            else:
-                self.log(f"   ✅ All expected connectors present")
-
-    def test_existing_functionality(self):
-        """Test existing core functionality"""
-        self.log("\n=== CORE FUNCTIONALITY ===")
-        
-        # Rooms
-        self.run_test("Get Rooms", "GET", f"tenants/{self.tenant_slug}/rooms", 200)
-        
-        # Tables  
-        self.run_test("Get Tables", "GET", f"tenants/{self.tenant_slug}/tables", 200)
-        
-        # Requests
-        self.run_test("Get Requests", "GET", f"tenants/{self.tenant_slug}/requests", 200)
-        
-        # Orders
-        self.run_test("Get Orders", "GET", f"tenants/{self.tenant_slug}/orders", 200)
-        
-        # Menu
-        self.run_test("Get Menu Categories", "GET", f"tenants/{self.tenant_slug}/menu-categories", 200)
-        self.run_test("Get Menu Items", "GET", f"tenants/{self.tenant_slug}/menu-items", 200)
-        
-        # Contacts
-        self.run_test("Get Contacts", "GET", f"tenants/{self.tenant_slug}/contacts", 200)
-        
-        # Conversations (Inbox)
-        self.run_test("Get Conversations", "GET", f"tenants/{self.tenant_slug}/conversations", 200)
-
-    def test_guest_panels(self):
-        """Test guest room and table panel access"""
-        self.log("\n=== GUEST PANELS ===")
-        
-        # Test room info (guest access, no auth needed)
-        self.run_test("Guest Room Info", "GET", f"g/{self.tenant_slug}/room/R101/info", 200, headers={})
-        
-        # Test table info (guest access, no auth needed)  
-        self.run_test("Guest Table Info", "GET", f"g/{self.tenant_slug}/table/T1/info", 200, headers={})
-
-    def test_guest_request_creation(self):
-        """Test guest request creation flow"""
-        self.log("\n=== GUEST REQUEST FLOW ===")
-        request_data = {
-            "category": "housekeeping",
-            "description": "Test request from API test",
-            "priority": "normal",
-            "guest_name": "API Test Guest",
-            "guest_phone": "+905551111111"
-        }
-        self.run_test("Create Guest Request", "POST", f"g/{self.tenant_slug}/room/R101/requests", 200, request_data, headers={})
-
-    def test_guest_order_creation(self):
-        """Test guest order creation flow"""
-        self.log("\n=== GUEST ORDER FLOW ===")
-        order_data = {
-            "items": [
-                {
-                    "menu_item_id": "test-item-id",
-                    "menu_item_name": "Test Item", 
-                    "quantity": 2,
-                    "price": 50.0,
-                    "notes": "Test order from API"
-                }
-            ],
-            "guest_name": "API Test Guest",
-            "guest_phone": "+905551111111",
-            "order_type": "dine_in"
-        }
-        self.run_test("Create Guest Order", "POST", f"g/{self.tenant_slug}/table/T1/orders", 200, order_data, headers={})
-
-    def test_phase5_plan_management(self):
-        """Test Phase 5 plan management APIs"""
-        self.log("\n=== PHASE 5: PLAN MANAGEMENT ===")
-        
-        # Test plans endpoint
-        success, plans = self.run_test("Get Plans", "GET", "plans", 200)
-        if success and plans:
-            expected_plans = ['basic', 'pro', 'enterprise']
-            plan_names = [plan.get('name', '').lower() for plan in plans] if isinstance(plans, list) else []
-            missing_plans = [p for p in expected_plans if p not in plan_names]
-            if missing_plans:
-                self.log(f"   ⚠️  Missing plan types: {missing_plans}")
-            else:
-                self.log(f"   ✅ All expected plans present: {plan_names}")
-
-    def test_phase5_usage_enforcement(self):
-        """Test Phase 5 usage limits and enforcement"""
-        self.log("\n=== PHASE 5: USAGE ENFORCEMENT ===")
-        
-        success, usage = self.run_test("Get Usage Metrics", "GET", f"tenants/{self.tenant_slug}/usage", 200)
-        if success:
-            required_keys = ['current', 'limits', 'plan', 'metrics']
-            missing_keys = [key for key in required_keys if key not in usage]
-            if missing_keys:
-                self.log(f"   ⚠️  Missing usage keys: {missing_keys}")
-            else:
-                self.log(f"   ✅ Usage metrics structure complete")
-                if 'current' in usage and 'limits' in usage:
-                    self.log(f"   📊 Current usage: {usage['current']}")
-                    self.log(f"   📊 Plan limits: {usage['limits']}")
-
-    def test_phase5_billing(self):
-        """Test Phase 5 billing system"""
-        self.log("\n=== PHASE 5: BILLING ===")
-        
-        success, billing = self.run_test("Get Billing Info", "GET", f"tenants/{self.tenant_slug}/billing", 200)
-        if success:
-            required_keys = ['account', 'subscription', 'invoices']
-            missing_keys = [key for key in required_keys if key not in billing]
-            if missing_keys:
-                self.log(f"   ⚠️  Missing billing keys: {missing_keys}")
-            else:
-                self.log(f"   ✅ Billing structure complete")
-                if 'invoices' in billing:
-                    invoice_count = len(billing['invoices']) if isinstance(billing['invoices'], list) else 0
-                    self.log(f"   📋 Found {invoice_count} invoices")
-
-    def test_phase5_analytics(self):
-        """Test Phase 5 analytics engine"""
-        self.log("\n=== PHASE 5: ANALYTICS ===")
-        
-        success, analytics = self.run_test("Get Analytics", "GET", f"tenants/{self.tenant_slug}/analytics", 200)
-        if success:
-            required_sections = ['revenue', 'guests', 'operations', 'ai']
-            missing_sections = [section for section in required_sections if section not in analytics]
-            if missing_sections:
-                self.log(f"   ⚠️  Missing analytics sections: {missing_sections}")
-            else:
-                self.log(f"   ✅ Analytics sections complete")
+                # Same reservation returned
+                if first_reservation_id == second_reservation_id and first_reservation_id:
+                    self.results.add_test("Payment Same Reservation", True, f"Same reservation ID: {first_reservation_id}")
+                else:
+                    self.results.add_test("Payment Same Reservation", False, f"Different reservations: {first_reservation_id} vs {second_reservation_id}")
+            
+            # Verify only one reservation exists
+            async with self.session.get(
+                f"{BASE_URL}/v2/reservations/tenants/{TENANT_SLUG}/reservations",
+                headers=self.get_headers()
+            ) as response:
+                reservations_data = await response.json()
+                reservations = reservations_data.get("data", [])
+                matching_reservations = [r for r in reservations if r.get("offer_id") == offer_id]
                 
-                # Check revenue section
-                if 'revenue' in analytics:
-                    revenue = analytics['revenue']
-                    if 'total' in revenue:
-                        self.log(f"   💰 Total revenue: {revenue.get('currency', 'TRY')} {revenue['total']}")
-                
-                # Check AI metrics
-                if 'ai' in analytics:
-                    ai_metrics = analytics['ai']
-                    if 'efficiency_pct' in ai_metrics:
-                        self.log(f"   🤖 AI efficiency: {ai_metrics['efficiency_pct']}%")
-
-    def test_phase5_compliance(self):
-        """Test Phase 5 GDPR/KVKK compliance"""
-        self.log("\n=== PHASE 5: COMPLIANCE ===")
+                if len(matching_reservations) == 1:
+                    self.results.add_test("Payment Single Reservation", True, "Only one reservation created")
+                else:
+                    self.results.add_test("Payment Single Reservation", False, f"Found {len(matching_reservations)} reservations for offer")
+                    
+        except Exception as e:
+            self.results.add_test("Payment Idempotency Error", False, str(e))
+    
+    async def test_payment_safety(self):
+        """Test 5: Payment safety (error handling)"""
+        print("\n🔍 Testing Payment Safety...")
         
-        # Test getting guest data for compliance
-        success, contacts = self.run_test("Get Contacts for Compliance", "GET", f"tenants/{self.tenant_slug}/contacts", 200)
-        if success and contacts.get('data'):
-            contact_list = contacts['data']
-            if contact_list:
-                contact_id = contact_list[0]['id']
+        # Test checkout on non-existent payment link
+        try:
+            async with self.session.post(f"{BASE_URL}/v2/payments/pay/nonexistent-link/checkout") as response:
+                if response.status == 404:
+                    self.results.add_test("Payment Safety - 404 for non-existent link", True, "Correctly returned 404")
+                else:
+                    self.results.add_test("Payment Safety - 404 for non-existent link", False, f"Expected 404, got {response.status}")
+        except Exception as e:
+            self.results.add_test("Payment Safety - 404 test error", False, str(e))
+        
+        # Test mock/succeed without paymentLinkId  
+        try:
+            async with self.session.post(f"{BASE_URL}/v2/payments/webhook/mock/succeed", json={}) as response:
+                if response.status == 400:
+                    self.results.add_test("Payment Safety - 400 for missing paymentLinkId", True, "Correctly returned 400")
+                else:
+                    self.results.add_test("Payment Safety - 400 for missing paymentLinkId", False, f"Expected 400, got {response.status}")
+        except Exception as e:
+            self.results.add_test("Payment Safety - 400 test error", False, str(e))
+    
+    async def test_notification_engine(self):
+        """Test 6: Notification engine (check DB records)"""
+        print("\n🔍 Testing Notification Engine...")
+        
+        try:
+            # Look for notification records in audit logs
+            async with self.session.get(
+                f"{BASE_URL}/tenants/{TENANT_SLUG}/audit-logs",
+                headers=self.get_headers()
+            ) as response:
+                if response.status != 200:
+                    self.results.add_test("Notification Engine - Audit Logs Access", False, f"Status: {response.status}")
+                    return
                 
-                # Test data export
-                export_success, export_data = self.run_test("Export Guest Data", "POST", 
-                                                          f"tenants/{self.tenant_slug}/compliance/export/{contact_id}", 200)
-                if export_success:
-                    expected_keys = ['contact', 'requests', 'orders', 'consent_logs']
-                    missing_keys = [key for key in expected_keys if key not in export_data]
-                    if missing_keys:
-                        self.log(f"   ⚠️  Missing export keys: {missing_keys}")
+                audit_data = await response.json()
+                audit_logs = audit_data.get("data", [])
+                
+                # Look for notification-related entries
+                notification_logs = []
+                for log in audit_logs:
+                    action = log.get("action", "")
+                    if "NOTIFICATION" in action:
+                        notification_logs.append(log)
+                
+                if notification_logs:
+                    self.results.add_test("Notification Engine - Records Found", True, f"Found {len(notification_logs)} notification log entries")
+                    
+                    # Check for specific notification types
+                    payment_notifications = [log for log in notification_logs if "PAYMENT_SUCCEEDED" in log.get("action", "")]
+                    reservation_notifications = [log for log in notification_logs if "RESERVATION_CONFIRMED" in log.get("action", "")]
+                    
+                    if payment_notifications:
+                        self.results.add_test("Notification Engine - Payment Notifications", True, f"Found {len(payment_notifications)} payment notifications")
                     else:
-                        self.log(f"   ✅ Data export structure complete")
-                
-                # Test retention policy endpoint
-                self.run_test("Get Retention Policy", "GET", f"tenants/{self.tenant_slug}/compliance/retention", 200)
-                
-                # Test consent logs
-                self.run_test("Get Consent Logs", "GET", f"tenants/{self.tenant_slug}/compliance/consent-logs", 200)
-
-    def test_phase5_growth_referrals(self):
-        """Test Phase 5 referral and growth system"""
-        self.log("\n=== PHASE 5: GROWTH & REFERRALS ===")
-        
-        success, referral = self.run_test("Get Referral Code", "GET", f"tenants/{self.tenant_slug}/growth/referral", 200)
-        if success:
-            required_keys = ['code', 'clicks', 'signups', 'rewards_earned']
-            missing_keys = [key for key in required_keys if key not in referral]
-            if missing_keys:
-                self.log(f"   ⚠️  Missing referral keys: {missing_keys}")
-            else:
-                self.log(f"   ✅ Referral structure complete")
-                if 'code' in referral:
-                    self.log(f"   🔗 Referral code: {referral['code']}")
-                    self.log(f"   📊 Stats - Clicks: {referral.get('clicks', 0)}, Signups: {referral.get('signups', 0)}")
-
-    def test_phase5_system_metrics(self):
-        """Test Phase 5 system-wide metrics"""
-        self.log("\n=== PHASE 5: SYSTEM METRICS ===")
-        
-        # Test system status
-        self.run_test("System Status", "GET", "system/status", 200)
-        
-        # Test system metrics
-        success, metrics = self.run_test("System Metrics", "GET", "system/metrics", 200)
-        if success:
-            expected_keys = ['tenants', 'users', 'requests', 'orders', 'messages', 'mrr']
-            missing_keys = [key for key in expected_keys if key not in metrics]
-            if missing_keys:
-                self.log(f"   ⚠️  Missing system metric keys: {missing_keys}")
-            else:
-                self.log(f"   ✅ System metrics complete")
-                self.log(f"   🏢 Tenants: {metrics.get('tenants', 0)}")
-                self.log(f"   👥 Users: {metrics.get('users', 0)}")
-                if 'mrr' in metrics:
-                    self.log(f"   💰 MRR: ${metrics['mrr']}")
-
-    def test_phase5_onboarding(self):
-        """Test Phase 5 onboarding wizard"""
-        self.log("\n=== PHASE 5: ONBOARDING ===")
-        
-        success, onboarding = self.run_test("Get Onboarding Progress", "GET", f"tenants/{self.tenant_slug}/onboarding", 200)
-        if success:
-            if 'steps' in onboarding:
-                total_steps = len(onboarding['steps']) if isinstance(onboarding['steps'], list) else 0
-                completed_steps = sum(1 for step in onboarding['steps'] if step.get('completed', False)) if isinstance(onboarding['steps'], list) else 0
-                self.log(f"   📝 Onboarding progress: {completed_steps}/{total_steps} steps completed")
-            else:
-                self.log(f"   ⚠️  Missing onboarding steps structure")
-
-    def test_phase5_demo_reset(self):
-        """Test Phase 5 demo reset functionality"""
-        self.log("\n=== PHASE 5: DEMO RESET ===")
-        
-        # Test demo reset endpoint (should reset demo data)
-        self.run_test("Demo Reset", "POST", "demo/reset", 200)
-
-    def test_phase5plus_guest_tokens(self):
-        """Test Phase 5+ Guest JWT Token System"""
-        self.log("\n=== PHASE 5+: GUEST JWT TOKENS ===")
-        
-        # Test guest room resolution with token generation
-        success, room_data = self.run_test(
-            "Guest Resolve Room", 
-            "GET", 
-            f"guest/resolve-room?tenantSlug={self.tenant_slug}&roomCode=R101", 
-            200, 
-            headers={}
-        )
-        if success:
-            required_keys = ['guestToken', 'tenant', 'room', 'categories']
-            missing_keys = [key for key in required_keys if key not in room_data]
-            if missing_keys:
-                self.log(f"   ⚠️  Missing room resolve keys: {missing_keys}")
-            else:
-                self.log(f"   ✅ Room resolve response complete")
-                if 'guestToken' in room_data:
-                    self.log(f"   🎫 Guest token generated: {room_data['guestToken'][:20]}...")
-        
-        # Test guest table resolution with token generation
-        success, table_data = self.run_test(
-            "Guest Resolve Table", 
-            "GET", 
-            f"guest/resolve-table?tenantSlug={self.tenant_slug}&tableCode=T1", 
-            200, 
-            headers={}
-        )
-        if success:
-            required_keys = ['guestToken', 'table', 'menu']
-            missing_keys = [key for key in required_keys if key not in table_data]
-            if missing_keys:
-                self.log(f"   ⚠️  Missing table resolve keys: {missing_keys}")
-            else:
-                self.log(f"   ✅ Table resolve response complete")
-                if 'guestToken' in table_data:
-                    self.log(f"   🎫 Guest token generated: {table_data['guestToken'][:20]}...")
-
-    def test_phase5plus_qr_generation(self):
-        """Test Phase 5+ QR Code Generation (PNG & PDF)"""
-        self.log("\n=== PHASE 5+: QR GENERATION ===")
-        
-        # Get rooms first to get a room ID
-        success, rooms_data = self.run_test("Get Rooms for QR", "GET", f"tenants/{self.tenant_slug}/rooms", 200)
-        if success and rooms_data:
-            rooms = rooms_data if isinstance(rooms_data, list) else []
-            if rooms:
-                room_id = rooms[0]['id']
-                
-                # Test individual room QR PNG generation
-                # Note: This will return binary data, so we don't check JSON response
-                png_success, _ = self.run_test("Room QR PNG", "GET", f"admin/rooms/{room_id}/qr.png", 200)
-                if png_success:
-                    self.log(f"   ✅ QR PNG generated for room {room_id}")
-                
-                # Test PDF generation for multiple rooms
-                room_ids = ','.join([r['id'] for r in rooms[:3]])  # First 3 rooms
-                pdf_success, _ = self.run_test("Rooms QR PDF", "GET", f"admin/rooms/print.pdf?ids={room_ids}", 200)
-                if pdf_success:
-                    self.log(f"   ✅ QR PDF generated for {len(rooms[:3])} rooms")
-            else:
-                self.log(f"   ⚠️  No rooms available for QR testing")
-
-    def test_phase5plus_comments_system(self):
-        """Test Phase 5+ Request Comments System"""
-        self.log("\n=== PHASE 5+: REQUEST COMMENTS ===")
-        
-        # Get requests first to get a request ID
-        success, requests_data = self.run_test("Get Requests for Comments", "GET", f"tenants/{self.tenant_slug}/requests", 200)
-        if success and requests_data.get('data'):
-            requests = requests_data['data']
-            if requests:
-                request_id = requests[0]['id']
-                
-                # Test adding a comment
-                comment_data = {
-                    "body": "Test comment from API test",
-                    "user_id": "test-user-id", 
-                    "user_name": "Test User"
-                }
-                add_success, comment = self.run_test(
-                    "Add Request Comment", 
-                    "POST", 
-                    f"tenants/{self.tenant_slug}/requests/{request_id}/comments", 
-                    201, 
-                    comment_data
-                )
-                if add_success:
-                    self.log(f"   ✅ Comment added to request {request_id}")
-                
-                # Test getting comments
-                get_success, comments = self.run_test(
-                    "Get Request Comments", 
-                    "GET", 
-                    f"tenants/{self.tenant_slug}/requests/{request_id}/comments", 
-                    200
-                )
-                if get_success:
-                    comment_count = len(comments) if isinstance(comments, list) else 0
-                    self.log(f"   ✅ Retrieved {comment_count} comments for request {request_id}")
-            else:
-                self.log(f"   ⚠️  No requests available for comments testing")
-
-    def test_phase5plus_kb_articles(self):
-        """Test Phase 5+ Knowledge Base Articles System"""
-        self.log("\n=== PHASE 5+: KB ARTICLES ===")
-        
-        # Test creating a KB article
-        article_data = {
-            "title": "Test Knowledge Base Article",
-            "content": "This is a test article content for API testing",
-            "category": "general",
-            "tags": ["test", "api", "knowledge"],
-            "author_id": "test-user-id",
-            "status": "published"
-        }
-        
-        create_success, article = self.run_test(
-            "Create KB Article", 
-            "POST", 
-            f"tenants/{self.tenant_slug}/kb-articles", 
-            201, 
-            article_data
-        )
-        if create_success:
-            article_id = article.get('id', '')
-            self.log(f"   ✅ KB Article created: {article_id}")
-        
-        # Test getting KB articles
-        get_success, articles = self.run_test(
-            "Get KB Articles", 
-            "GET", 
-            f"tenants/{self.tenant_slug}/kb-articles", 
-            200
-        )
-        if get_success:
-            article_count = len(articles) if isinstance(articles, list) else 0
-            self.log(f"   ✅ Retrieved {article_count} KB articles")
-            if articles and isinstance(articles, list) and articles:
-                article = articles[0]
-                required_keys = ['id', 'title', 'content', 'category', 'created_at']
-                missing_keys = [key for key in required_keys if key not in article]
-                if missing_keys:
-                    self.log(f"   ⚠️  Missing article keys: {missing_keys}")
-                else:
-                    self.log(f"   ✅ KB Article structure complete")
-
-    def test_sprint3_v2_inbox_apis(self):
-        """Test Sprint 3 V2 Inbox APIs"""
-        self.log("\n=== SPRINT 3: V2 INBOX APIs ===")
-        
-        # Test V2 conversations list
-        success, convs_data = self.run_test("V2 Inbox Conversations", "GET", f"v2/inbox/tenants/{self.tenant_slug}/conversations", 200)
-        if success:
-            convs = convs_data.get('data', [])
-            total = convs_data.get('total', 0)
-            self.log(f"   Found {len(convs)}/{total} conversations")
-            
-            # Verify conversation structure
-            if convs:
-                conv = convs[0]
-                required_keys = ['id', 'channel_type', 'last_message_preview', 'message_count', 'status', 'guest_name']
-                missing_keys = [key for key in required_keys if key not in conv]
-                if missing_keys:
-                    self.log(f"   ⚠️  Missing conversation keys: {missing_keys}")
-                else:
-                    self.log(f"   ✅ Conversation structure complete")
-                    
-                    # Test conversation detail
-                    conv_id = conv['id']
-                    detail_success, detail_data = self.run_test("V2 Conversation Detail", "GET", f"v2/inbox/tenants/{self.tenant_slug}/conversations/{conv_id}", 200)
-                    if detail_success:
-                        required_detail_keys = ['conversation', 'messages', 'contact']
-                        missing_detail_keys = [key for key in required_detail_keys if key not in detail_data]
-                        if missing_detail_keys:
-                            self.log(f"   ⚠️  Missing detail keys: {missing_detail_keys}")
-                        else:
-                            self.log(f"   ✅ Conversation detail complete")
-                            
-                        # Test AI suggestion
-                        self.run_test("V2 AI Suggest Inbox", "POST", f"v2/inbox/tenants/{self.tenant_slug}/conversations/{conv_id}/ai-suggest", 200)
+                        self.results.add_test("Notification Engine - Payment Notifications", False, "No payment notification records found")
                         
-                        # Test sending agent message
-                        msg_data = {"text": "Test message from API"}
-                        self.run_test("V2 Send Agent Message", "POST", f"v2/inbox/tenants/{self.tenant_slug}/conversations/{conv_id}/messages", 200, msg_data)
-                        
-                        # Test close conversation
-                        self.run_test("V2 Close Conversation", "POST", f"v2/inbox/tenants/{self.tenant_slug}/conversations/{conv_id}/close", 200)
-                        
-                        # Test reopen conversation 
-                        self.run_test("V2 Reopen Conversation", "POST", f"v2/inbox/tenants/{self.tenant_slug}/conversations/{conv_id}/reopen", 200)
-
-        # Test connector pull-now
-        pull_success, pull_data = self.run_test("V2 Pull Connectors Now", "POST", f"v2/inbox/tenants/{self.tenant_slug}/connectors/pull-now", 200)
-        if pull_success:
-            messages_created = pull_data.get('messages_created', 0)
-            reviews_created = pull_data.get('reviews_created', 0)
-            self.log(f"   ✅ Pull completed: {messages_created} messages, {reviews_created} reviews created")
-
-    def test_sprint3_v2_reviews_apis(self):
-        """Test Sprint 3 V2 Reviews APIs"""
-        self.log("\n=== SPRINT 3: V2 REVIEWS APIs ===")
-        
-        # Test V2 reviews list with summary
-        success, reviews_data = self.run_test("V2 Reviews List", "GET", f"v2/reviews/tenants/{self.tenant_slug}", 200)
-        if success:
-            reviews = reviews_data.get('data', [])
-            total = reviews_data.get('total', 0)
-            summary = reviews_data.get('summary', {})
-            
-            self.log(f"   Found {len(reviews)}/{total} reviews")
-            self.log(f"   Sentiment summary: {summary.get('positive', 0)} POS, {summary.get('neutral', 0)} NEU, {summary.get('negative', 0)} NEG")
-            
-            # Verify review structure
-            if reviews:
-                review = reviews[0]
-                required_keys = ['id', 'text', 'rating', 'author_name', 'sentiment', 'source_type', 'created_at']
-                missing_keys = [key for key in required_keys if key not in review]
-                if missing_keys:
-                    self.log(f"   ⚠️  Missing review keys: {missing_keys}")
+                    if reservation_notifications:
+                        self.results.add_test("Notification Engine - Reservation Notifications", True, f"Found {len(reservation_notifications)} reservation notifications")
+                    else:
+                        self.results.add_test("Notification Engine - Reservation Notifications", False, "No reservation notification records found")
                 else:
-                    self.log(f"   ✅ Review structure complete")
+                    self.results.add_test("Notification Engine - Records Found", False, "No notification records found in audit logs")
                     
-                    # Test AI suggestion for review
-                    review_id = review['id']
-                    self.run_test("V2 AI Suggest Review Reply", "POST", f"v2/reviews/tenants/{self.tenant_slug}/{review_id}/ai-suggest", 200)
+        except Exception as e:
+            self.results.add_test("Notification Engine Error", False, str(e))
+    
+    async def test_rate_limiting(self):
+        """Test 7: Rate limiting on public endpoints"""
+        print("\n🔍 Testing Rate Limiting...")
+        
+        try:
+            # Make 5 rapid requests to a public payment endpoint
+            responses = []
+            for i in range(5):
+                async with self.session.get(f"{BASE_URL}/v2/payments/pay/nonexistent") as response:
+                    responses.append(response.status)
+                await asyncio.sleep(0.1)  # Small delay
+            
+            # All should succeed (within 30/min limit)
+            success_count = sum(1 for status in responses if status in [404, 200])  # 404 is expected for nonexistent
+            
+            if success_count >= 4:  # Allow for some variance
+                self.results.add_test("Rate Limiting - Normal Load", True, f"All {success_count}/5 requests succeeded")
+            else:
+                self.results.add_test("Rate Limiting - Normal Load", False, f"Only {success_count}/5 requests succeeded")
+                
+        except Exception as e:
+            self.results.add_test("Rate Limiting Error", False, str(e))
+    
+    async def test_properties_still_work(self):
+        """Test 8: Properties V2 endpoints still working"""
+        print("\n🔍 Testing Properties V2 Still Work...")
+        
+        try:
+            async with self.session.get(
+                f"{BASE_URL}/v2/properties/tenants/{TENANT_SLUG}/properties",
+                headers=self.get_headers()
+            ) as response:
+                if response.status != 200:
+                    self.results.add_test("Properties V2 - Status", False, f"Status: {response.status}")
+                    return
+                
+                properties_data = await response.json()
+                properties = properties_data.get("data", [])
+                
+                if len(properties) >= 2:
+                    self.results.add_test("Properties V2 - Count", True, f"Found {len(properties)} properties")
+                else:
+                    self.results.add_test("Properties V2 - Count", False, f"Expected >= 2 properties, found {len(properties)}")
                     
-                    # Test reply to review
-                    reply_data = {"text": "Thank you for your feedback! We appreciate your review."}
-                    self.run_test("V2 Reply to Review", "POST", f"v2/reviews/tenants/{self.tenant_slug}/{review_id}/reply", 200, reply_data)
-
-    def test_sprint3_webchat_apis(self):
-        """Test Sprint 3 WebChat APIs"""
-        self.log("\n=== SPRINT 3: WEBCHAT APIs ===")
+        except Exception as e:
+            self.results.add_test("Properties V2 Error", False, str(e))
+    
+    async def test_cli_export_verification(self):
+        """Test 9: Verify data exists for CLI export"""
+        print("\n🔍 Testing CLI Export Data Verification...")
         
-        # Test WebChat widget JS generation
-        widget_success, widget_js = self.run_test("WebChat Widget JS", "GET", f"v2/inbox/webchat/widget.js?tenantSlug={self.tenant_slug}", 200, headers={'Accept': 'application/javascript'})
-        if widget_success:
-            self.log(f"   ✅ Widget JS generated (length: {len(str(widget_js)) if widget_js else 0} chars)")
-        
-        # Test WebChat conversation start
-        start_data = {"tenantSlug": self.tenant_slug, "visitorName": "Test Visitor"}
-        start_success, start_response = self.run_test("WebChat Start Conversation", "POST", "v2/inbox/webchat/start", 200, start_data, headers={})
-        if start_success and start_response.get('conversationId'):
-            conv_id = start_response['conversationId']
-            self.log(f"   ✅ WebChat conversation created: {conv_id}")
-            
-            # Test guest message in WebChat
-            msg_data = {"text": "Hello from API test", "senderName": "Test Visitor"}
-            self.run_test("WebChat Guest Message", "POST", f"v2/inbox/webchat/{conv_id}/messages", 200, msg_data, headers={})
-
-    def test_sprint3_ai_usage_enforcement(self):
-        """Test Sprint 3 AI Usage Enforcement (402 on limit exceeded)"""
-        self.log("\n=== SPRINT 3: AI USAGE ENFORCEMENT ===")
-        
-        # Get current usage first
-        usage_success, usage_data = self.run_test("Get Usage Metrics", "GET", f"tenants/{self.tenant_slug}/usage", 200)
-        if usage_success:
-            current_usage = usage_data.get('current', {})
-            ai_replies_used = current_usage.get('ai_replies_used', 0)
-            limits = usage_data.get('limits', {})
-            ai_replies_limit = limits.get('monthly_ai_replies', 500)
-            
-            self.log(f"   Current AI usage: {ai_replies_used}/{ai_replies_limit}")
-            
-            # Test AI suggestion endpoints (these should work normally within limits)
-            convs_success, convs_data = self.run_test("Get Conversations for AI Test", "GET", f"v2/inbox/tenants/{self.tenant_slug}/conversations", 200)
-            if convs_success and convs_data.get('data'):
-                conv_id = convs_data['data'][0]['id']
-                ai_success, ai_response = self.run_test("AI Suggest (Within Limits)", "POST", f"v2/inbox/tenants/{self.tenant_slug}/conversations/{conv_id}/ai-suggest", 200)
-                if ai_success and ai_response.get('usage'):
-                    usage_info = ai_response['usage']
-                    self.log(f"   ✅ AI usage tracking: {usage_info.get('used', 0)}/{usage_info.get('limit', 0)}")
-            
-            # Note: Testing 402 limit exceeded would require artificially setting usage high
-            # or making 500+ requests which is not practical in testing
-            self.log(f"   ✅ AI enforcement system active (would return 402 at {ai_replies_limit} limit)")
-
-    def test_sprint3_channel_filtering(self):
-        """Test Sprint 3 Channel Filtering"""
-        self.log("\n=== SPRINT 3: CHANNEL FILTERING ===")
-        
-        # Test filtering by different channels
-        channels = ['WEBCHAT', 'WHATSAPP', 'INSTAGRAM']
-        for channel in channels:
-            success, data = self.run_test(f"Filter by {channel}", "GET", f"v2/inbox/tenants/{self.tenant_slug}/conversations?channel={channel}", 200)
-            if success:
-                convs = data.get('data', [])
-                filtered_convs = [c for c in convs if c.get('channel_type') == channel]
-                self.log(f"   {channel}: {len(filtered_convs)}/{len(convs)} conversations match filter")
-        
-        # Test reviews filtering by source
-        sources = ['GOOGLE_REVIEWS', 'TRIPADVISOR']
-        for source in sources:
-            success, data = self.run_test(f"Filter Reviews by {source}", "GET", f"v2/reviews/tenants/{self.tenant_slug}?source={source}", 200)
-            if success:
-                reviews = data.get('data', [])
-                filtered_reviews = [r for r in reviews if r.get('source_type') == source]
-                self.log(f"   {source}: {len(filtered_reviews)}/{len(reviews)} reviews match filter")
-
-    def run_all_tests(self):
-        """Run all test suites"""
-        self.log("🚀 Starting Comprehensive API Testing for Multi-tenant SaaS Platform")
-        self.log("=" * 80)
-        
-        # Test sequence
-        test_methods = [
-            self.test_health_and_root,
-            self.test_seeding,
-            self.test_auth,
-            self.test_tenant_management, 
-            self.test_dashboard_stats,
-            self.test_analytics_engine_fix,
-            self.test_v2_modular_routes,
-            self.test_guest_resolve_endpoints,
-            self.test_system_status,
-            self.test_reviews_system,
-            self.test_offers_and_payments,
-            self.test_connectors,
-            self.test_existing_functionality,
-            self.test_guest_panels,
-            self.test_guest_request_creation,
-            self.test_guest_order_creation,
-            # Phase 5 tests
-            self.test_phase5_plan_management,
-            self.test_phase5_usage_enforcement,
-            self.test_phase5_billing,
-            self.test_phase5_analytics,
-            self.test_phase5_compliance,
-            self.test_phase5_growth_referrals,
-            self.test_phase5_system_metrics,
-            self.test_phase5_onboarding,
-            self.test_phase5_demo_reset,
-            # Phase 5+ tests
-            self.test_phase5plus_guest_tokens,
-            self.test_phase5plus_qr_generation,
-            self.test_phase5plus_comments_system,
-            self.test_phase5plus_kb_articles,
+        collections_to_check = [
+            ("contacts", f"{BASE_URL}/tenants/{TENANT_SLUG}/contacts"),
+            ("reservations", f"{BASE_URL}/v2/reservations/tenants/{TENANT_SLUG}/reservations"),
+            ("offers", f"{BASE_URL}/v2/offers/tenants/{TENANT_SLUG}/offers"),
+            ("loyalty_accounts", f"{BASE_URL}/tenants/{TENANT_SLUG}/loyalty/accounts")
         ]
         
-        # Run all tests
-        for test_method in test_methods:
+        for collection_name, endpoint in collections_to_check:
             try:
-                test_method()
+                async with self.session.get(endpoint, headers=self.get_headers()) as response:
+                    if response.status != 200:
+                        self.results.add_test(f"CLI Export Data - {collection_name}", False, f"Status: {response.status}")
+                        continue
+                        
+                    data = await response.json()
+                    items = data.get("data", data)  # Some endpoints return data directly, others in "data" key
+                    
+                    if isinstance(items, list) and len(items) > 0:
+                        self.results.add_test(f"CLI Export Data - {collection_name}", True, f"Found {len(items)} items")
+                    else:
+                        self.results.add_test(f"CLI Export Data - {collection_name}", False, f"No data found (got: {type(items)})")
+                        
             except Exception as e:
-                self.log(f"\n❌ Test section failed: {str(e)}")
-                self.failed_tests.append(f"Test section error: {str(e)}")
+                self.results.add_test(f"CLI Export Data - {collection_name} Error", False, str(e))
+
+    async def run_all_tests(self):
+        """Run all Sprint 6 tests"""
+        print("🚀 Starting Sprint 6 Hardening Features Test Suite...")
         
-        # Sprint 3 V2 API Tests
-        sprint3_tests = [
-            self.test_sprint3_v2_inbox_apis,
-            self.test_sprint3_v2_reviews_apis, 
-            self.test_sprint3_webchat_apis,
-            self.test_sprint3_ai_usage_enforcement,
-            self.test_sprint3_channel_filtering,
-        ]
+        if not await self.setup():
+            return
         
-        for test_method in sprint3_tests:
-            try:
-                test_method()
-            except Exception as e:
-                self.log(f"\n❌ Sprint 3 test section failed: {str(e)}")
-                self.failed_tests.append(f"Sprint 3 test error: {str(e)}")
+        try:
+            # Run all tests
+            await self.test_health_endpoint()
+            await self.test_request_id_middleware()
+            await self.test_confirmation_code_format()
+            await self.test_payment_idempotency()
+            await self.test_payment_safety()
+            await self.test_notification_engine()
+            await self.test_rate_limiting()
+            await self.test_properties_still_work()
+            await self.test_cli_export_verification()
+            
+        finally:
+            await self.cleanup()
         
         # Print results
-        self.log(f"\n" + "=" * 80)
-        self.log(f"📊 TEST RESULTS")
-        self.log(f"📊 Tests passed: {self.tests_passed}/{self.tests_run}")
-        self.log(f"📊 Success rate: {(self.tests_passed/self.tests_run*100):.1f}%" if self.tests_run > 0 else "No tests run")
-        
-        if self.failed_tests:
-            self.log(f"\n❌ FAILED TESTS:")
-            for failed in self.failed_tests:
-                self.log(f"   • {failed}")
-        else:
-            self.log(f"\n✅ ALL TESTS PASSED!")
-        
-        return self.tests_passed == self.tests_run
+        self.results.print_summary()
+        return self.results
 
-def main():
-    tester = ComprehensiveAPITester()
-    success = tester.run_all_tests()
-    return 0 if success else 1
+async def main():
+    """Main test runner"""
+    tester = Sprint6Tester()
+    results = await tester.run_all_tests()
+    
+    # Exit with proper code
+    if results.failed > 0:
+        sys.exit(1)
+    else:
+        sys.exit(0)
 
 if __name__ == "__main__":
-    sys.exit(main())
+    asyncio.run(main())
