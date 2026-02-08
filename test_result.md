@@ -102,20 +102,117 @@
 # Testing Data - Main Agent and testing sub agent both should log testing data below this section
 #====================================================================================================
 
-user_problem_statement: "Sprint 7: AI Reservation Sales Engine - OpenAI tool calling, state machine, room rates, discount rules, auto-reply in webchat"
+user_problem_statement: "Sprint 8: Meta Integration (Facebook, Instagram, WhatsApp) - OAuth, webhooks, messaging, comments"
 
 backend:
-  - task: "Sprint 7: AI Sales Router and Settings"
+  - task: "Sprint 8: Meta Integration Admin Router"
     implemented: true
     working: true
-    file: "routers/ai_sales.py"
+    file: "routers/meta_integration.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Full admin router: status, configure credentials, OAuth start/callback, discover assets, enable/disable assets, pull-now, disconnect. All tenant-scoped with audit logging."
+
+  - task: "Sprint 8: Meta Webhooks Router"
+    implemented: true
+    working: true
+    file: "routers/meta_webhooks.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Public webhook endpoints: GET verify (hub.verify_token), POST events with HMAC signature verification. Handles WhatsApp Cloud API, Facebook Messaging, Instagram DM, FB/IG comments. Creates conversations/messages with deterministic external_id for deduplication. Comments stored as reviews."
+
+  - task: "Sprint 8: Meta Provider Service"
+    implemented: true
+    working: true
+    file: "services/meta_provider.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Graph API wrapper: OAuth token exchange, long-lived token, page listing, IG account discovery, WA number discovery, webhook subscribe/unsubscribe, send FB/IG/WA messages, reply to comments, token refresh."
+
+  - task: "Sprint 8: Outbound Meta Messaging in Inbox"
+    implemented: true
+    working: true
+    file: "routers/inbox.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Agent send message now checks if conversation is Meta channel (WA/IG/FB) and sends via Graph API. WhatsApp 24h window check included (returns 409 TEMPLATE_REQUIRED)."
+
+  - task: "Sprint 8: Meta Comment Reply in Reviews"
+    implemented: true
+    working: true
+    file: "routers/reviews.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Reply to review now detects FB/IG comments and also sends reply via Graph API."
+
+  - task: "Sprint 8: Token Refresh Background Job"
+    implemented: true
+    working: true
+    file: "server.py"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Background task runs every 6 hours, checks token expiry, refreshes long-lived tokens 7 days before expiry."
+
+  - task: "Sprint 8: DB Indexes and Seed Data"
+    implemented: true
+    working: true
+    file: "server.py"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: true
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Added indexes for meta_assets, messages.external_id, reviews.external_id, conversations.external. Seed META connector credential (DISCONNECTED)."
+
+frontend:
+  - task: "Sprint 8: Meta Integration Card on Connectors Page"
+    implemented: true
+    working: true
+    file: "pages/ConnectorsPage.js"
     stuck_count: 0
     priority: "high"
     needs_retesting: false
     status_history:
       - working: true
         agent: "main"
-        comment: "Created AI Sales router with settings, room rates CRUD, discount rules CRUD, policies CRUD, AI stats, manual AI trigger, session info endpoints."
+        comment: "Meta Platform card with status, Configure dialog (App ID, Secret, Verify Token, Webhook URL), Connect Meta OAuth button, Assets dialog with enable/disable toggles, Disconnect button."
+
+  - task: "Sprint 8: Inbox FACEBOOK channel support"
+    implemented: true
+    working: true
+    file: "pages/InboxPage.js"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Added FACEBOOK to channel icons and colors map."
       - working: true
         agent: "testing"
         comment: "✅ All AI Sales endpoints working: GET /v2/ai-sales/tenants/grand-hotel/settings returns 2 properties (Main enabled). Room rates CRUD tested - 4 types found (standard, deluxe, suite, economy). POST room-rates correctly handles duplicates with 409 status. Discount rules show max 10%, min 3 nights. Policies return check-in 14:00, check-out 12:00. AI stats show 20 replies used, 500 limit, 1 offer created, 4 active sessions."
