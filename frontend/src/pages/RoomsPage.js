@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Badge } from '../components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
-import { BedDouble, Plus, Trash2, QrCode, Copy } from 'lucide-react';
+import { BedDouble, Plus, Trash2, QrCode, Copy, Download, FileText } from 'lucide-react';
 import { toast } from 'sonner';
 
 export default function RoomsPage() {
