@@ -101,3 +101,172 @@
 #====================================================================================================
 # Testing Data - Main Agent and testing sub agent both should log testing data below this section
 #====================================================================================================
+
+user_problem_statement: "Sprint 5: Multi-Property + Offers/Reservations V2 + Mock Payments V2 + Inbox-to-Sale + Go-Live Hardening for multi-tenant SaaS hotel management platform"
+
+backend:
+  - task: "Properties V2 CRUD"
+    implemented: true
+    working: true
+    file: "routers/properties.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Created properties router with list, create, get, update, activate, deactivate. Tested via curl - returns 2 seeded properties."
+
+  - task: "Offers V2 CRUD with send/cancel/payment-link"
+    implemented: true
+    working: true
+    file: "routers/offers.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Created offers V2 router with list (filter by status/property), create, get, update (DRAFT only), send, cancel, create-payment-link. Returns 4 seeded offers."
+
+  - task: "Payments V2 Mock with idempotency"
+    implemented: true
+    working: true
+    file: "routers/payments.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Created payments V2 router with public payment data, checkout, mock succeed (idempotent), mock fail. Creates reservation on success."
+
+  - task: "Reservations V2 CRUD with export"
+    implemented: true
+    working: true
+    file: "routers/reservations.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Created reservations V2 router with list, get, cancel (admin only), export CSV. Returns 2 seeded reservations."
+
+  - task: "Inbox create-offer endpoint"
+    implemented: true
+    working: true
+    file: "routers/inbox.py"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: true
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Added POST /conversations/:id/create-offer to inbox V2 router."
+
+  - task: "Offer expiration background task"
+    implemented: true
+    working: true
+    file: "server.py"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: true
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Added background task that runs every 60s to expire offers past expires_at."
+
+  - task: "Seed data with properties, offers, payments, reservations"
+    implemented: true
+    working: true
+    file: "server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Added 2 properties, 4 offers, 3 payment links, 1 payment, 2 reservations to seed data."
+
+frontend:
+  - task: "Property Switcher in top bar"
+    implemented: true
+    working: true
+    file: "components/layout/AdminLayout.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Property switcher dropdown in top bar. Stores active property in localStorage."
+
+  - task: "Properties Page"
+    implemented: true
+    working: true
+    file: "pages/PropertiesPage.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Full CRUD for properties with create dialog, edit, activate/deactivate."
+
+  - task: "Offers V2 Page"
+    implemented: true
+    working: true
+    file: "pages/OffersPage.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Full V2 offers page with status filter, create, send, cancel, payment link, simulate payment. Stats cards."
+
+  - task: "Payment Public Page"
+    implemented: true
+    working: true
+    file: "pages/PaymentPage.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Guest checkout page at /pay/:paymentLinkId with offer summary, pay mock button, confirmation code."
+
+  - task: "V2 API Client endpoints"
+    implemented: true
+    working: true
+    file: "lib/api.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Added propertiesAPI, offersAPI, paymentsAPI, reservationsAPI, inboxOffersAPI."
+
+metadata:
+  created_by: "main_agent"
+  version: "5.0"
+  test_sequence: 1
+  run_ui: false
+
+test_plan:
+  current_focus:
+    - "Properties V2 CRUD"
+    - "Offers V2 CRUD with send/cancel/payment-link"
+    - "Payments V2 Mock with idempotency"
+    - "Reservations V2 CRUD with export"
+    - "Inbox create-offer endpoint"
+  stuck_tasks: []
+  test_all: true
+  test_priority: "high_first"
+
+agent_communication:
+  - agent: "main"
+    message: "Sprint 5 implementation complete. All V2 backend routers created (properties, offers, payments, reservations). Inbox create-offer added. Seed data includes properties, offers, payments, reservations. Frontend has property switcher, properties page, V2 offers page, payment public page. Test all backend endpoints. Login: admin@grandhotel.com / admin123"
