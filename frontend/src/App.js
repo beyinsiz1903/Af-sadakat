@@ -73,6 +73,11 @@ function App() {
               <Route path="reviews" element={<ReviewsPage />} />
               <Route path="offers" element={<OffersPage />} />
               <Route path="connectors" element={<ConnectorsPage />} />
+              <Route path="billing" element={<BillingPage />} />
+              <Route path="analytics" element={<AnalyticsPage />} />
+              <Route path="compliance" element={<CompliancePage />} />
+              <Route path="growth" element={<GrowthPage />} />
+              <Route path="system" element={<SystemMetricsPage />} />
               <Route path="settings" element={<SettingsPage />} />
             </Route>
             
