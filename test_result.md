@@ -239,12 +239,7 @@ metadata:
   run_ui: false
 
 test_plan:
-  current_focus:
-    - "Sprint 7: AI Sales Router and Settings"
-    - "Sprint 7: OpenAI Tool Calling Provider"
-    - "Sprint 7: AI Sales Tool Functions"
-    - "Sprint 7: Webchat AI Auto-Reply Integration"
-    - "Sprint 7: Seed Data"
+  current_focus: []
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
@@ -252,6 +247,8 @@ test_plan:
 agent_communication:
   - agent: "main"
     message: "Sprint 7 AI Sales Engine implemented. Key features: 1) AI auto-reply in webchat using OpenAI gpt-4o-mini with tool calling. 2) 4 tools: check_availability_and_price, validate_discount, create_offer, generate_payment_link. 3) Room rates admin (3 types seeded), discount rules (max 10%), business policies. 4) State machine for conversation flow. 5) AI Sales admin page with 4 tabs. 6) Guest webchat enhanced with AI badge and payment link buttons. Login: admin@grandhotel.com / admin123. AI enabled for Main property by default. Test the full flow: start webchat -> ask about rooms -> AI quotes price from DB -> ask for discount -> AI validates -> accept -> AI creates offer + payment link."
+  - agent: "testing"
+    message: "✅ SPRINT 7 AI SALES ENGINE TESTING COMPLETED: 23/23 tests passed (100% success). ALL AI Sales Engine components working perfectly: 1) AI Sales Settings API (2 properties, Main enabled) 2) Room Rates CRUD (4 types: standard 1200, deluxe 2200, suite 4500, economy 800 TRY) 3) Discount Rules (max 10%, min 3 nights) 4) Business Policies (check-in 14:00, check-out 12:00) 5) AI Stats (20/500 replies used, 1 offer created) 6) OpenAI Tool Calling Provider (LiteLLM + gpt-4o-mini working) 7) AI Tools (all 4 tools functional: pricing, discount validation, offer creation, payment links) 8) Webchat AI Auto-Reply (Turkish/English support, full booking flow: INFO→PRICE_QUOTED→PAYMENT_SENT) 9) GET Messages endpoint. FULL AI BOOKING FLOW TESTED: User asks → AI calls check_availability_and_price → AI quotes 4400 TRY for 2 nights deluxe → User confirms → AI calls create_offer + generate_payment_link → Payment URL provided. System production-ready for AI-powered hotel bookings."
 
 backend:
   - task: "Sprint 6: Health endpoint v6"
