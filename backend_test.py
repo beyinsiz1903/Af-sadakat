@@ -591,6 +591,11 @@ class ComprehensiveAPITester:
             self.test_phase5_system_metrics,
             self.test_phase5_onboarding,
             self.test_phase5_demo_reset,
+            # Phase 5+ tests
+            self.test_phase5plus_guest_tokens,
+            self.test_phase5plus_qr_generation,
+            self.test_phase5plus_comments_system,
+            self.test_phase5plus_kb_articles,
         ]
         
         # Run all tests
