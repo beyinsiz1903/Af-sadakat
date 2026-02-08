@@ -1,91 +1,83 @@
-# Sprint 5 Release Notes
-## Version 5.0.0 - Multi-Property + Offers/Reservations V2 + Mock Payments
+# Release Notes v6.0.0 - Pilot Hardening + Production Stabilization
 
-### New Features
+## Overview
+Sprint 6 focuses exclusively on stability, security, observability, and pilot readiness.
+No new business features were added. All Sprint 1-5 features are preserved.
 
-#### A) Multi-Property Support
-- **Properties CRUD**: Tenants can manage multiple properties (e.g., Main Building, Annex)
-- **Property Switcher**: Dropdown in the top bar to switch between properties
-- **Property-scoped data**: Rooms, tables, offers, and reservations can be scoped to properties
-- **Seed data**: 2 properties pre-loaded (Grand Hotel Istanbul - Main, Annex)
+## Changes
 
-#### B) Offers V2 (Sales Flow)
-- **Full lifecycle**: DRAFT -> SENT -> PAID/EXPIRED/CANCELLED
-- **Create offers** with guest details, room type, dates, price
-- **Send offers** (sets 48h expiry)
-- **Payment links**: Generate payment link URLs for guest checkout
-- **Auto-expiration**: Background task expires SENT offers past their expires_at
-- **Status filtering**: Filter offers by status in the UI
-- **Stats cards**: Offers Sent, Paid, Reservations, Conversion Rate
+### 1. Observability & Logging
+- **Request ID Middleware**: Every HTTP request gets a unique `X-Request-Id` header
+- **Structured JSON Logging**: All requests logged with `request_id`, `method`, `path`, `status`, `duration_ms`, `tenant_id`, `property_id`
+- **Global Exception Handler**: Unhandled exceptions return clean JSON errors; stack traces logged internally only
+- **Health Endpoint v6**: `GET /api/health` returns:
+  ```json
+  {
+    "status": "ok",
+    "version": "6.0.0",
+    "uptime_seconds": 123.4,
+    "services": { "mongodb": true, "redis": true }
+  }
+  ```
 
-#### C) Mock Payments V2
-- **Payment public page** at `/pay/:paymentLinkId` - guest checkout without auth
-- **Idempotent webhooks**: `POST /webhook/mock/succeed` is safe to call multiple times
-- **Checkout flow**: Initiates payment -> succeeds -> creates reservation
-- **Confirmation codes**: Human-readable codes (RES-XXXXXX)
-- **Rate limiting**: 30 requests/min per IP on public payment endpoints
+### 2. Property Header Enforcement
+- **X-Property-Id Header**: Frontend axios interceptor automatically injects from localStorage
+- **Property Resolution**: Backend validates property belongs to tenant; falls back to default property
+- **Property Change Event**: `window.dispatchEvent('property-changed')` on switch for refetch
 
-#### D) Reservations V2
-- **List/Detail**: View all reservations with confirmation codes
-- **Cancel**: Admin/Manager only can cancel reservations
-- **CSV Export**: Download reservations as CSV
+### 3. Confirmation Code Hardening
+- **New Format**: `PREFIX-YYYYMM-XXXXXX` (e.g., `GHI-202602-A7KF29`)
+- **Property Prefix**: First 3 chars of property slug (uppercase)
+- **Unique Index**: Enforced via MongoDB unique index
+- **Retry Logic**: Up to 5 retries on collision, then appends extra random chars
 
-#### E) Inbox-to-Sale Automation
-- **"Create Offer" button** in inbox conversation view
-- **Modal**: Select room type, dates, price directly from conversation
-- **Source tracking**: Offers created from inbox tagged with `source: INBOX`
-- **Contact linking**: Auto-creates/links contact from conversation
-- **After creation**: Send offer, create payment link, copy URL - all from modal
+### 4. Payment Safety
+- **Atomic Idempotency**: Uses MongoDB atomic `update_one` with `status != SUCCEEDED` guard
+- **Race Condition Prevention**: Two simultaneous webhook calls cannot create duplicate reservations
+- **Amount Validation**: Logs warning if payment amount differs from offer price
+- **Status Validation**: Logs warning if offer is EXPIRED/CANCELLED when payment succeeds
 
-#### F) Go-Live Hardening
-- **Enhanced health endpoint**: Returns MongoDB connectivity status + version
-- **Rate limiting**: Public payment endpoints limited to 30/min per IP
-- **Idempotency**: Payment succeed webhook is fully idempotent
-- **Validation**: Date range, positive price, slug uniqueness
-- **Audit logging**: All admin actions logged (offer created, sent, payment succeeded, reservation created/cancelled)
-- **Offer expiration**: Background task runs every 60s
+### 5. Notification Engine (Mock)
+- **notification_service.py**: Provider interface for future email/SMS integration
+- **MockNotificationProvider**: Logs structured JSON to console
+- **Template Types**: OFFER_SENT, PAYMENT_SUCCEEDED, RESERVATION_CONFIRMED, REQUEST_CREATED, ORDER_COMPLETED
+- **DB Records**: All notifications stored in `notifications` collection
+- **Audit Logged**: Every notification creates an audit log entry
 
-### How to Demo
+### 6. Offer Expiration Robustness
+- **Atomic Updates**: Each offer expired individually with `status: SENT` guard
+- **Contact Events**: OFFER_EXPIRED event created for contact timeline
+- **WebSocket Broadcast**: `offer.expired` event sent to connected clients
+- **No Double-Expiration**: Atomic check prevents processing already-expired offers
 
-1. **Login**: `admin@grandhotel.com` / `admin123`
-2. **Property Switcher**: Click the property name in the top bar to switch between Main and Annex
-3. **Properties Page**: `/properties` - view, create, edit, activate/deactivate properties
-4. **Offers Flow**:
-   - Go to `/offers`
-   - Click "Create Offer" -> fill details -> submit
-   - Click "Send Offer" -> offer moves to SENT status
-   - Click "Create Payment Link" -> URL is generated and copied
-   - Click "Simulate Payment" -> reservation is created
-   - Switch to Reservations tab to see confirmation code
-5. **Payment Page**:
-   - Copy a payment link URL from an offer
-   - Open it in a new browser/incognito tab (no login needed)
-   - Click "Pay Now (Mock)" -> confirmation code shown
-6. **Inbox Offer**:
-   - Go to `/inbox` -> select a conversation
-   - Click "Create Offer" button in header
-   - Fill details and submit
-   - Send offer and create payment link from the success dialog
-7. **Audit Log**: `/audit` - see all logged actions
+### 7. Rate Limiting
+- **Public Payment Endpoints**: 30 requests/min per IP
+  - `GET /api/v2/payments/pay/:id`
+  - `POST /api/v2/payments/pay/:id/checkout`
+  - `POST /api/v2/payments/webhook/mock/succeed`
+  - `POST /api/v2/payments/webhook/mock/fail`
+- **Centralized Rate Limiter**: `core/middleware.py::rate_limit_ip()`
 
-### API Endpoints
+### 8. CLI Data Export
+- **Command**: `python manage.py export --tenant grand-hotel`
+- **Exports**: contacts.csv, reservations.csv, offers.csv, loyalty_members.csv
+- **Tenant Scoped**: All exports filtered by tenant_id
+- **Output**: `/tmp/omnihub_export_{slug}_{timestamp}/`
 
-| Endpoint | Method | Auth | Description |
-|----------|--------|------|-------------|
-| `/api/v2/properties/tenants/{slug}/properties` | GET/POST | Yes | List/Create properties |
-| `/api/v2/properties/tenants/{slug}/properties/{id}` | GET/PATCH | Yes | Get/Update property |
-| `/api/v2/offers/tenants/{slug}/offers` | GET/POST | Yes | List/Create offers |
-| `/api/v2/offers/tenants/{slug}/offers/{id}/send` | POST | Yes | Send offer |
-| `/api/v2/offers/tenants/{slug}/offers/{id}/create-payment-link` | POST | Yes | Create payment link |
-| `/api/v2/payments/pay/{linkId}` | GET | No | Payment page data |
-| `/api/v2/payments/pay/{linkId}/checkout` | POST | No | Start payment |
-| `/api/v2/payments/webhook/mock/succeed` | POST | No | Mock payment success |
-| `/api/v2/reservations/tenants/{slug}/reservations` | GET | Yes | List reservations |
-| `/api/v2/reservations/tenants/{slug}/reservations/export/csv` | GET | Yes | Export CSV |
-| `/api/v2/inbox/tenants/{slug}/conversations/{id}/create-offer` | POST | Yes | Create offer from inbox |
+### 9. PII Masking
+- **mask_pii()**: Utility masks emails and phone numbers in log strings
+- **Notification Audit**: Email/phone partially masked in audit log details
 
-### Known Issues / TODOs
-- Property-scoped filtering on rooms/tables pages is available via backend but not yet wired to X-Property-Id header in frontend API calls
-- Real payment gateway integration planned for next sprint (currently mock only)
-- Guest QR URL property slug support (backward compatible with existing QRs)
-- Email/SMS notification for offer sent/payment confirmed not yet implemented
+## How to Verify
+
+1. **Health**: `curl /api/health` - check version 6.0.0, uptime, services
+2. **Request ID**: Check `X-Request-Id` header in any response
+3. **Confirmation Code**: Create offer -> payment -> check code format `XXX-YYYYMM-XXXXXX`
+4. **Idempotency**: Call mock/succeed twice -> second returns `idempotent: true`
+5. **Notifications**: Check audit logs for `NOTIFICATION_*` entries after payment
+6. **Export**: `cd /app/backend && python manage.py export --tenant grand-hotel`
+
+## Known Issues
+- Property-scoped filtering in V2 routers uses header when present; backend falls back to default
+- Real notification delivery (SMTP/SMS) requires provider integration (placeholder ready)
+- Redis shown as `true` in health but not actively used (future caching layer)
