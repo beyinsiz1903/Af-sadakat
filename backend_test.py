@@ -50,8 +50,12 @@ def login():
     if response.status_code == 200:
         data = response.json()
         token = data.get("access_token")
-        print(f"✅ Login successful, token: {token[:20]}...")
-        return token
+        if token:
+            print(f"✅ Login successful, token: {token[:20]}...")
+            return token
+        else:
+            print(f"❌ Login failed: No token in response - {data}")
+            return None
     else:
         print(f"❌ Login failed: {response.status_code} - {response.text}")
         return None
