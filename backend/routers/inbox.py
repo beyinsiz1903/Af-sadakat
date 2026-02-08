@@ -188,6 +188,83 @@ async def webchat_guest_message(conv_id: str, data: dict):
         pass
     return msg
 
+
+# ============ INBOX -> OFFER CREATION ============
+@router.post("/tenants/{tenant_slug}/conversations/{conv_id}/create-offer")
+async def create_offer_from_inbox(tenant_slug: str, conv_id: str, data: dict, user=Depends(get_current_user)):
+    """Create an offer directly from an inbox conversation"""
+    tenant = await resolve_tenant(tenant_slug)
+    tid = tenant["id"]
+
+    conv = await find_one_scoped("conversations", tid, {"id": conv_id})
+    if not conv:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+
+    # Permission check
+    if user.get("role") not in ["owner", "admin", "manager", "agent"]:
+        raise HTTPException(status_code=403, detail="Only Agent/Manager/Admin can create offers")
+
+    # Find or create contact
+    contact_id = conv.get("contact_id", "")
+    if not contact_id:
+        # Create contact from conversation guest info
+        guest_name = conv.get("guest_name", "Guest")
+        contact = await insert_scoped("contacts", tid, {
+            "name": guest_name,
+            "phone": data.get("guest_phone", ""),
+            "email": data.get("guest_email", ""),
+            "tags": ["inbox"],
+            "source_channels": ["INBOX"],
+            "consent_marketing": False,
+            "consent_data": True,
+        })
+        contact_id = contact["id"]
+        # Link contact to conversation
+        await update_scoped("conversations", tid, conv_id, {"contact_id": contact_id})
+
+    from routers.offers import router as offers_router
+    from core.config import PUBLIC_BASE_URL
+
+    # Create the offer
+    price_total = float(data.get("priceTotal", data.get("price_total", data.get("price", 0))))
+    if price_total <= 0:
+        raise HTTPException(status_code=400, detail="Price must be positive")
+
+    offer = await insert_scoped("offers", tid, {
+        "property_id": data.get("propertyId", data.get("property_id", "")),
+        "contact_id": contact_id,
+        "source": "INBOX",
+        "check_in": data.get("checkIn", data.get("check_in", "")),
+        "check_out": data.get("checkOut", data.get("check_out", "")),
+        "guests_count": int(data.get("guestsCount", data.get("guests_count", 1))),
+        "room_type": data.get("roomType", data.get("room_type", "standard")),
+        "price_total": price_total,
+        "currency": data.get("currency", "TRY"),
+        "status": "DRAFT",
+        "expires_at": None,
+        "notes": data.get("notes", ""),
+        "guest_name": data.get("guest_name", conv.get("guest_name", "")),
+        "guest_email": data.get("guest_email", ""),
+        "guest_phone": data.get("guest_phone", ""),
+        "payment_link_id": None,
+        "last_updated_by": user.get("name", ""),
+        "meta": {"conversation_id": conv_id},
+    })
+
+    await log_audit(tid, "OFFER_CREATED_FROM_INBOX", "offer", offer["id"], user.get("id", ""),
+                    {"conversation_id": conv_id, "price": price_total})
+
+    try:
+        from routers.crm import emit_contact_event
+        await emit_contact_event(tid, contact_id, "OFFER_CREATED",
+                                  f"Offer created from inbox: {data.get('room_type', 'standard')}",
+                                  ref_type="offer", ref_id=offer["id"])
+    except:
+        pass
+
+    return {"offer": offer, "contact_id": contact_id}
+
+
 # ============ CONNECTOR PULL ============
 @router.post("/tenants/{tenant_slug}/connectors/pull-now")
 async def pull_connectors_now(tenant_slug: str, user=Depends(get_current_user)):
