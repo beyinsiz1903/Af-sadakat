@@ -58,6 +58,7 @@ function App() {
           <Routes>
             {/* Auth */}
             <Route path="/login" element={<LoginPage />} />
+            <Route path="/onboarding" element={<ProtectedRoute><OnboardingPage /></ProtectedRoute>} />
             
             {/* Admin/Staff Routes */}
             <Route path="/" element={<ProtectedRoute><AdminLayout /></ProtectedRoute>}>
