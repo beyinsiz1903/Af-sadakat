@@ -1849,6 +1849,29 @@ async def seed_data():
     ]
     await db.ai_sales_settings.insert_many(ai_settings_seed)
 
+    # ========== Meta Integration Seed Data ==========
+    # Meta connector credential (DISCONNECTED by default - needs real app credentials)
+    import secrets as _sec
+    meta_verify_token = _sec.token_urlsafe(24)
+    await db.connector_credentials.update_one(
+        {"tenant_id": tenant_id, "connector_type": "META"},
+        {"$set": {
+            "tenant_id": tenant_id,
+            "connector_type": "META",
+            "meta_app_id": "",
+            "meta_app_secret": "",
+            "meta_verify_token": meta_verify_token,
+            "oauth_redirect_uri": f"https://booking-automation-2.preview.emergentagent.com/api/v2/integrations/meta/oauth/callback",
+            "access_token": "",
+            "token_expires_at": None,
+            "scopes": [],
+            "status": "DISCONNECTED",
+            "last_error": None,
+            "updated_at": now_utc().isoformat(),
+        }, "$setOnInsert": {"id": new_id(), "created_at": now_utc().isoformat()}},
+        upsert=True
+    )
+
     return {
         "message": "Seed data created successfully",
         "tenant_slug": "grand-hotel",
