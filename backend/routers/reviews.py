@@ -102,6 +102,23 @@ async def reply_to_review(tenant_slug: str, review_id: str, data: dict, user=Dep
         "replied": True, "last_updated_by": user.get("name", ""),
     })
 
+    # If Meta comment, also reply via Graph API
+    source = review.get("source_type", "")
+    if source in ("FACEBOOK_COMMENT", "INSTAGRAM_COMMENT"):
+        comment_id = review.get("extra", {}).get("comment_id", "")
+        if comment_id:
+            try:
+                from services.meta_provider import get_meta_credentials, reply_to_comment, MetaAPIError
+                cred = await get_meta_credentials(tenant["id"])
+                if cred and cred.get("access_token"):
+                    await reply_to_comment(comment_id, cred["access_token"], body)
+                    await log_audit(tenant["id"], "REVIEW_REPLY_META", "review", review_id, user.get("id", ""))
+            except MetaAPIError as e:
+                import logging as _log
+                _log.getLogger("omnihub.reviews").warning(f"Meta comment reply failed: {e}")
+            except Exception:
+                pass
+
     await log_audit(tenant["id"], "review_reply_created", "review", review_id, user.get("id", ""))
 
     try:
