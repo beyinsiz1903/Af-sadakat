@@ -41,11 +41,27 @@ const navItems = [
 ];
 
 export default function AdminLayout() {
-  const { user, tenant, logout } = useAuthStore();
+  const { user, tenant, logout, activePropertyId, setActiveProperty } = useAuthStore();
   const navigate = useNavigate();
   const wsRef = useRef(null);
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [propertyDropdownOpen, setPropertyDropdownOpen] = useState(false);
+
+  const { data: properties = [] } = useQuery({
+    queryKey: ['properties', tenant?.slug],
+    queryFn: () => propertiesAPI.list(tenant?.slug).then(r => r.data),
+    enabled: !!tenant?.slug,
+  });
+
+  // Set default property if not set
+  useEffect(() => {
+    if (properties.length > 0 && !activePropertyId) {
+      setActiveProperty(properties[0].id);
+    }
+  }, [properties, activePropertyId, setActiveProperty]);
+
+  const activeProperty = properties.find(p => p.id === activePropertyId) || properties[0];
 
   useEffect(() => {
     if (tenant?.id) {
