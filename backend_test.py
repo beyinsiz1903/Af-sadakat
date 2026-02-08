@@ -12,7 +12,7 @@ import time
 from pathlib import Path
 
 # Configuration
-BASE_URL = "https://property-payments-1.preview.emergentagent.com/api"
+BASE_URL = "https://booking-automation-2.preview.emergentagent.com/api"
 TENANT_SLUG = "grand-hotel"
 LOGIN_CREDENTIALS = {
     "email": "admin@grandhotel.com", 

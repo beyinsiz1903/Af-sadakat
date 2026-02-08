@@ -6,7 +6,7 @@ import requests
 import json
 
 def test_v2_apis():
-    base_url = "https://property-payments-1.preview.emergentagent.com/api"
+    base_url = "https://booking-automation-2.preview.emergentagent.com/api"
     
     # Get fresh token
     print("🔐 Getting authentication token...")
