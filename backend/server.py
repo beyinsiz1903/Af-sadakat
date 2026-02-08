@@ -2753,6 +2753,20 @@ try:
 except Exception as e:
     logger.warning(f"V2 reviews router not loaded: {e}")
 
+try:
+    from routers.crm import router as crm_v2_router
+    app.include_router(crm_v2_router)
+    logger.info("V2 CRM router loaded")
+except Exception as e:
+    logger.warning(f"V2 CRM router not loaded: {e}")
+
+try:
+    from routers.loyalty import router as loyalty_v2_router
+    app.include_router(loyalty_v2_router)
+    logger.info("V2 loyalty router loaded")
+except Exception as e:
+    logger.warning(f"V2 loyalty router not loaded: {e}")
+
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
