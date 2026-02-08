@@ -3106,6 +3106,13 @@ try:
 except Exception as e:
     logger.warning(f"V2 reservations router not loaded: {e}")
 
+try:
+    from routers.ai_sales import router as ai_sales_router
+    app.include_router(ai_sales_router)
+    logger.info("V2 AI sales router loaded")
+except Exception as e:
+    logger.warning(f"V2 AI sales router not loaded: {e}")
+
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
