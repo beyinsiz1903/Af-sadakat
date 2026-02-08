@@ -108,17 +108,95 @@ async def send_agent_message(tenant_slug: str, conv_id: str, data: dict, user=De
     body = data.get("text", data.get("body", "")).strip()
     if not body:
         raise HTTPException(status_code=400, detail="Message body required")
+
+    # Meta outbound: send via Graph API if channel is Meta
+    channel = conv.get("channel_type", "")
+    external = conv.get("external", {})
+    meta_send_result = None
+
+    if external.get("provider") == "META" and channel in ("WHATSAPP", "INSTAGRAM", "FACEBOOK"):
+        try:
+            from services.meta_provider import (
+                get_meta_credentials, send_whatsapp_message,
+                send_instagram_message, send_facebook_message, MetaAPIError
+            )
+            cred = await get_meta_credentials(tenant["id"])
+            if cred and cred.get("access_token"):
+                token = cred["access_token"]
+                contact_id = external.get("contact_id", "")
+                asset_id = external.get("asset_id", "")
+
+                if channel == "WHATSAPP":
+                    # Check 24h window
+                    last_in = await db.messages.find_one(
+                        {"tenant_id": tenant["id"], "conversation_id": conv_id, "direction": "IN"},
+                        {"_id": 0}, sort=[("created_at", -1)]
+                    )
+                    if last_in:
+                        from datetime import datetime as dt_cls, timezone as tz_cls, timedelta as td_cls
+                        last_time = dt_cls.fromisoformat(last_in["created_at"].replace("Z", "+00:00"))
+                        if dt_cls.now(tz_cls.utc) - last_time > td_cls(hours=24):
+                            raise HTTPException(status_code=409, detail={
+                                "code": "TEMPLATE_REQUIRED",
+                                "message": "WhatsApp 24h window expired. Use template message."
+                            })
+                    wa_phone_id = external.get("wa_phone_number_id", asset_id)
+                    wa_to = external.get("wa_from_number", contact_id)
+                    meta_send_result = await send_whatsapp_message(wa_phone_id, token, wa_to, body)
+
+                elif channel == "INSTAGRAM":
+                    # Get page token for the IG account's linked page
+                    ig_asset = await db.meta_assets.find_one(
+                        {"tenant_id": tenant["id"], "asset_type": "IG_ACCOUNT", "meta_id": asset_id},
+                        {"_id": 0}
+                    )
+                    page_id = ig_asset.get("page_id", "") if ig_asset else ""
+                    page_asset = await db.meta_assets.find_one(
+                        {"tenant_id": tenant["id"], "asset_type": "FB_PAGE", "meta_id": page_id},
+                        {"_id": 0}
+                    ) if page_id else None
+                    from security import decrypt_field as _decrypt
+                    page_token = _decrypt(page_asset.get("page_access_token", "")) if page_asset else token
+                    meta_send_result = await send_instagram_message(asset_id, page_token, contact_id, body)
+
+                elif channel == "FACEBOOK":
+                    page_asset = await db.meta_assets.find_one(
+                        {"tenant_id": tenant["id"], "asset_type": "FB_PAGE", "meta_id": asset_id},
+                        {"_id": 0}
+                    )
+                    from security import decrypt_field as _decrypt
+                    page_token = _decrypt(page_asset.get("page_access_token", "")) if page_asset else token
+                    psid = external.get("psid", contact_id)
+                    meta_send_result = await send_facebook_message(asset_id, page_token, psid, body)
+
+        except HTTPException:
+            raise
+        except MetaAPIError as e:
+            import logging as _log
+            _log.getLogger("omnihub.inbox").error(f"Meta send failed: {e}")
+            # Still store message locally even if external send fails
+            meta_send_result = {"error": str(e)}
+        except Exception as e:
+            import logging as _log
+            _log.getLogger("omnihub.inbox").error(f"Meta send error: {e}")
+
     msg = await insert_scoped("messages", tenant["id"], {
         "conversation_id": conv_id, "direction": "OUT", "body": body,
         "last_updated_by": user.get("name", "Agent"),
-        "meta": {"sender_type": "agent", "sender_id": user.get("id", "")},
+        "meta": {
+            "sender_type": "agent", "sender_id": user.get("id", ""),
+            "provider": "META" if meta_send_result else None,
+            "meta_send_result": meta_send_result,
+        },
     })
     await update_scoped("conversations", tenant["id"], conv_id, {"last_message_at": now_utc().isoformat()})
-    await log_audit(tenant["id"], "agent_message_sent", "message", msg["id"], user.get("id", ""))
+
+    action = "MESSAGE_SENT_META" if meta_send_result else "agent_message_sent"
+    await log_audit(tenant["id"], action, "message", msg["id"], user.get("id", ""))
     try:
         from server import ws_manager
         await ws_manager.broadcast_tenant(tenant["id"], "message", "message", "created", msg)
-    except:
+    except Exception:
         pass
     return msg
 
