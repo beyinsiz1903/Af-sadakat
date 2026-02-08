@@ -2,7 +2,7 @@
 Plus manual AI chat endpoint for testing.
 """
 from fastapi import APIRouter, HTTPException, Depends, Request
-from typing import Optional
+from typing import Optional, Dict
 import logging
 import json
 from functools import partial
