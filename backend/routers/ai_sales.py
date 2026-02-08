@@ -315,12 +315,6 @@ async def _run_ai_response(
     tenant_id: str, property_id: str, conversation_id: str, contact_id: str = ""
 ) -> Dict:
     """Run AI response for a conversation. Called from webchat handler or admin trigger."""
-    from services.ai_sales_tools import TOOLS_SCHEMA, execute_tool
-    from services.ai_sales_state import (
-        get_or_create_session, update_session, build_system_prompt,
-        build_conversation_messages, increment_ai_usage
-    )
-    from services.openai_provider import call_chat_with_tools
 
     # Load/create session
     session = await get_or_create_session(tenant_id, property_id, conversation_id)

@@ -124,7 +124,7 @@ async def check_availability_and_price(
         any_rates = await db.room_rates.count_documents({"tenant_id": tenant_id})
         if any_rates == 0:
             return {"error": "No room rates configured. Please contact hotel reception."}
-        return {"error": f"No rooms available for the specified criteria."}
+        return {"error": "No rooms available for the specified criteria."}
 
     # Calculate price for each available room type
     quotes = []
