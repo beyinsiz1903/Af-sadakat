@@ -156,7 +156,7 @@ async def check_availability_and_price(
                     if s_start <= current_date <= s_end:
                         day_price *= season.get("multiplier", 1.0)
                         break
-                except:
+                except (ValueError, KeyError, TypeError):
                     pass
             total += day_price
             current_date += timedelta(days=1)
