@@ -1,26 +1,30 @@
 [
   {
-    "content": "Refactor: Create modular router structure (routers/, services/, core/)",
-    "status": "completed"
+    "content": "Sprint 2: Restaurant V2 Router (tables, menu, orders with tenant_guard)",
+    "status": "in_progress"
   },
   {
-    "content": "Security: Unguessable room/table codes + QR version control",
-    "status": "completed"
+    "content": "Pilot Fix 1: last_updated_by on request/order cards",
+    "status": "pending"
   },
   {
-    "content": "Security: Centralized tenant_guard() dependency",
-    "status": "completed"
+    "content": "Pilot Fix 2: Audit Log UI page",
+    "status": "pending"
   },
   {
-    "content": "Fix: Analytics formulas (efficiency capped at 100%)",
-    "status": "completed"
+    "content": "Pilot Fix 3: QR version validation on resolve (old QR = invalid)",
+    "status": "pending"
   },
   {
-    "content": "Production: V2 hotel router coexists with V1 backward compat",
-    "status": "completed"
+    "content": "Pilot Fix 4: Guest spam protection (rate limit per room/table)",
+    "status": "pending"
   },
   {
-    "content": "Testing: Backend 94.5%, Frontend 100%",
-    "status": "completed"
+    "content": "Pilot Fix 5: Offline fallback message on guest panels",
+    "status": "pending"
+  },
+  {
+    "content": "Sprint 2: End-to-end Testing",
+    "status": "pending"
   }
 ]
