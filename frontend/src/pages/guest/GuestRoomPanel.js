@@ -284,6 +284,11 @@ export default function GuestRoomPanel() {
 
         {/* Footer */}
         <div className="text-center pb-8">
+          <div className="p-3 bg-[hsl(var(--card))] border border-[hsl(var(--border))] rounded-lg mb-4">
+            <p className="text-xs text-[hsl(var(--muted-foreground))] text-center">
+              Having connection issues? Call reception: <strong>0</strong> from your room phone
+            </p>
+          </div>
           <p className="text-xs text-[hsl(var(--muted-foreground))]">Powered by OmniHub</p>
         </div>
       </div>
