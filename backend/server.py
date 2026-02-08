@@ -2189,9 +2189,18 @@ async def create_indexes():
         await db.loyalty_accounts.create_index([("tenant_id", 1), ("contact_id", 1)])
         await db.audit_logs.create_index([("tenant_id", 1), ("created_at", -1)])
         await db.sessions.create_index([("user_id", 1), ("is_active", 1)])
+        await db.request_comments.create_index([("tenant_id", 1), ("request_id", 1)])
+        await db.kb_articles.create_index([("tenant_id", 1)])
+        await db.connector_credentials.create_index([("tenant_id", 1), ("connector_type", 1)])
         logger.info("Database indexes created successfully")
     except Exception as e:
         logger.warning(f"Index creation: {e}")
+
+# Start connector polling background task
+@app.on_event("startup")
+async def start_polling():
+    polling_task = ConnectorPollingTask(db)
+    asyncio.create_task(polling_task.start())
 
 # ============ WEBSOCKET ENDPOINT ============
 @app.websocket("/ws/{tenant_id}")
