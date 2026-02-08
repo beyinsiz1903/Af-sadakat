@@ -21,7 +21,7 @@ import random
 # Add backend dir to path for local imports
 sys.path.insert(0, str(Path(__file__).parent))
 from rbac import ROLES, has_permission, get_accessible_modules, LOYALTY_TIERS, compute_tier, next_tier_info, analyze_sentiment, CONNECTOR_TYPES, FAKE_REVIEWS
-from connectors import get_connector, StripeStubProvider
+from connectors_legacy import get_connector, StripeStubProvider
 from security import rate_limiter, brute_force, create_session_doc, encrypt_field, decrypt_field, mask_email, mask_phone, PLAN_LIMITS, get_plan_limits, check_limit
 from billing import create_billing_account, create_subscription, create_invoice, generate_mock_invoices
 from analytics_engine import compute_analytics
