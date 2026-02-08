@@ -134,10 +134,11 @@ async def checkout(payment_link_id: str, request: Request):
 
 
 @router.post("/webhook/mock/succeed")
-async def webhook_mock_succeed(data: dict):
+async def webhook_mock_succeed(data: dict, request: Request):
     """Idempotent mock payment success webhook.
     If already succeeded, returns 200 without duplicating.
     """
+    _check_rate_limit(request)
     payment_link_id = data.get("paymentLinkId", data.get("payment_link_id", ""))
     provider_payment_id = data.get("providerPaymentId", data.get("provider_payment_id", f"pi_stub_{secrets.token_hex(8)}"))
 
