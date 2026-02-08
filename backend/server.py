@@ -2664,6 +2664,12 @@ async def create_indexes():
         await db.ai_sales_settings.create_index([("tenant_id", 1), ("property_id", 1)], unique=True)
         await db.ai_sales_sessions.create_index([("tenant_id", 1), ("conversation_id", 1)], unique=True)
 
+        # Meta integration indexes
+        await db.meta_assets.create_index([("tenant_id", 1), ("asset_type", 1), ("meta_id", 1)], unique=True)
+        await db.messages.create_index([("external_id", 1)], unique=True, sparse=True)
+        await db.reviews.create_index([("external_id", 1)], unique=True, sparse=True)
+        await db.conversations.create_index([("tenant_id", 1), ("external.provider", 1), ("external.contact_id", 1), ("external.asset_id", 1)])
+
         logger.info("Database indexes created successfully")
     except Exception as e:
         logger.warning(f"Index creation: {e}")
