@@ -2275,6 +2275,10 @@ async def create_indexes():
         await db.reviews.create_index([("tenant_id", 1), ("sentiment", 1)])
         await db.review_replies.create_index([("tenant_id", 1), ("review_id", 1)])
         await db.usage_counters.create_index([("tenant_id", 1), ("month_key", 1)])
+        # Sprint 4 indexes
+        await db.contact_events.create_index([("tenant_id", 1), ("contact_id", 1), ("created_at", -1)])
+        await db.loyalty_rules.create_index([("tenant_id", 1)], unique=True)
+        await db.loyalty_ledger.create_index([("tenant_id", 1), ("contact_id", 1), ("created_at", -1)])
         logger.info("Database indexes created successfully")
     except Exception as e:
         logger.warning(f"Index creation: {e}")
