@@ -3246,6 +3246,20 @@ try:
 except Exception as e:
     logger.warning(f"V2 AI sales router not loaded: {e}")
 
+try:
+    from routers.meta_integration import router as meta_integration_router
+    app.include_router(meta_integration_router)
+    logger.info("V2 Meta integration router loaded")
+except Exception as e:
+    logger.warning(f"V2 Meta integration router not loaded: {e}")
+
+try:
+    from routers.meta_webhooks import router as meta_webhooks_router
+    app.include_router(meta_webhooks_router)
+    logger.info("V2 Meta webhooks router loaded")
+except Exception as e:
+    logger.warning(f"V2 Meta webhooks router not loaded: {e}")
+
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
