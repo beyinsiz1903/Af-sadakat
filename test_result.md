@@ -288,19 +288,24 @@ frontend:
 
 metadata:
   created_by: "main_agent"
-  version: "5.0"
-  test_sequence: 2
+  version: "6.0"
+  test_sequence: 3
   run_ui: false
 
 test_plan:
-  current_focus: []
+  current_focus:
+    - "Sprint 6: Health endpoint v6"
+    - "Sprint 6: Confirmation code format"
+    - "Sprint 6: Payment idempotency atomic"
+    - "Sprint 6: Notification engine"
+    - "Sprint 6: Rate limiting"
   stuck_tasks: []
-  test_all: false
+  test_all: true
   test_priority: "high_first"
 
 agent_communication:
   - agent: "main"
-    message: "Sprint 5 implementation complete. All V2 backend routers created (properties, offers, payments, reservations). Inbox create-offer added. Seed data includes properties, offers, payments, reservations. Frontend has property switcher, properties page, V2 offers page, payment public page. Test all backend endpoints. Login: admin@grandhotel.com / admin123"
+    message: "Sprint 6 hardening implemented. Key changes: 1) RequestID middleware (X-Request-Id in all responses). 2) Health v6.0.0 with uptime/mongo/redis. 3) Confirmation codes PREFIX-YYYYMM-XXXXXX. 4) Atomic payment succeed. 5) Mock notifications on payment. 6) Rate limiting via core/middleware.py. 7) CLI export (manage.py). 8) X-Property-Id header in frontend. Login: admin@grandhotel.com / admin123."
   - agent: "testing"
     message: "✅ SPRINT 5 V2 COMPREHENSIVE TESTING COMPLETED: 34/35 tests passed (97.1% success). ALL major functionality working: Properties V2 CRUD (8/8 tests), Offers V2 workflow (8/8 tests), Payments V2 mock+idempotency (6/7 tests), Reservations V2 CRUD+export (4/4 tests), Inbox create-offer (1/1 test), Full end-to-end flow (6/6 tests). Only minor validation issue: checkout correctly rejects cancelled offers (expected behavior). System ready for production use. FULL FLOW TESTED: Create offer → Send → Payment link → Mock payment → Reservation (RES-E4A494) ✅"
   - agent: "testing"
