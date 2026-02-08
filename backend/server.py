@@ -22,6 +22,11 @@ import random
 sys.path.insert(0, str(Path(__file__).parent))
 from rbac import ROLES, has_permission, get_accessible_modules, LOYALTY_TIERS, compute_tier, next_tier_info, analyze_sentiment, CONNECTOR_TYPES, FAKE_REVIEWS
 from connectors import get_connector, StripeStubProvider
+from security import rate_limiter, brute_force, create_session_doc, encrypt_field, decrypt_field, mask_email, mask_phone, PLAN_LIMITS, get_plan_limits, check_limit
+from billing import create_billing_account, create_subscription, create_invoice, generate_mock_invoices
+from analytics_engine import compute_analytics
+from compliance import export_guest_data, forget_guest, log_consent
+from referral import get_or_create_referral, track_referral_click, track_referral_signup, generate_referral_code
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
