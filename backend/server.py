@@ -1435,6 +1435,19 @@ async def seed_data():
         }
     }
 
+# ============ RBAC ROUTES ============
+@api_router.get("/rbac/roles")
+async def get_roles():
+    return ROLES
+
+@api_router.get("/rbac/modules")
+async def get_user_modules(user=Depends(get_current_user)):
+    return {"modules": get_accessible_modules(user.get("role", "agent")), "role": user.get("role")}
+
+@api_router.get("/rbac/tiers")
+async def get_loyalty_tiers():
+    return LOYALTY_TIERS
+
 # ============ PHASE 5: SECURITY HARDENING ============
 from fastapi import Request
 
