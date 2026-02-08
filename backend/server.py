@@ -2653,6 +2653,13 @@ try:
 except Exception as e:
     logger.warning(f"V2 hotel router not loaded: {e}")
 
+try:
+    from routers.restaurant import router as restaurant_v2_router
+    app.include_router(restaurant_v2_router)
+    logger.info("V2 restaurant router loaded")
+except Exception as e:
+    logger.warning(f"V2 restaurant router not loaded: {e}")
+
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
