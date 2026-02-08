@@ -413,6 +413,155 @@ class ComprehensiveAPITester:
         # Test demo reset endpoint (should reset demo data)
         self.run_test("Demo Reset", "POST", "demo/reset", 200)
 
+    def test_phase5plus_guest_tokens(self):
+        """Test Phase 5+ Guest JWT Token System"""
+        self.log("\n=== PHASE 5+: GUEST JWT TOKENS ===")
+        
+        # Test guest room resolution with token generation
+        success, room_data = self.run_test(
+            "Guest Resolve Room", 
+            "GET", 
+            f"guest/resolve-room?tenantSlug={self.tenant_slug}&roomCode=R101", 
+            200, 
+            headers={}
+        )
+        if success:
+            required_keys = ['guestToken', 'tenant', 'room', 'categories']
+            missing_keys = [key for key in required_keys if key not in room_data]
+            if missing_keys:
+                self.log(f"   ⚠️  Missing room resolve keys: {missing_keys}")
+            else:
+                self.log(f"   ✅ Room resolve response complete")
+                if 'guestToken' in room_data:
+                    self.log(f"   🎫 Guest token generated: {room_data['guestToken'][:20]}...")
+        
+        # Test guest table resolution with token generation
+        success, table_data = self.run_test(
+            "Guest Resolve Table", 
+            "GET", 
+            f"guest/resolve-table?tenantSlug={self.tenant_slug}&tableCode=T1", 
+            200, 
+            headers={}
+        )
+        if success:
+            required_keys = ['guestToken', 'table', 'menu']
+            missing_keys = [key for key in required_keys if key not in table_data]
+            if missing_keys:
+                self.log(f"   ⚠️  Missing table resolve keys: {missing_keys}")
+            else:
+                self.log(f"   ✅ Table resolve response complete")
+                if 'guestToken' in table_data:
+                    self.log(f"   🎫 Guest token generated: {table_data['guestToken'][:20]}...")
+
+    def test_phase5plus_qr_generation(self):
+        """Test Phase 5+ QR Code Generation (PNG & PDF)"""
+        self.log("\n=== PHASE 5+: QR GENERATION ===")
+        
+        # Get rooms first to get a room ID
+        success, rooms_data = self.run_test("Get Rooms for QR", "GET", f"tenants/{self.tenant_slug}/rooms", 200)
+        if success and rooms_data:
+            rooms = rooms_data if isinstance(rooms_data, list) else []
+            if rooms:
+                room_id = rooms[0]['id']
+                
+                # Test individual room QR PNG generation
+                # Note: This will return binary data, so we don't check JSON response
+                png_success, _ = self.run_test("Room QR PNG", "GET", f"admin/rooms/{room_id}/qr.png", 200)
+                if png_success:
+                    self.log(f"   ✅ QR PNG generated for room {room_id}")
+                
+                # Test PDF generation for multiple rooms
+                room_ids = ','.join([r['id'] for r in rooms[:3]])  # First 3 rooms
+                pdf_success, _ = self.run_test("Rooms QR PDF", "GET", f"admin/rooms/print.pdf?ids={room_ids}", 200)
+                if pdf_success:
+                    self.log(f"   ✅ QR PDF generated for {len(rooms[:3])} rooms")
+            else:
+                self.log(f"   ⚠️  No rooms available for QR testing")
+
+    def test_phase5plus_comments_system(self):
+        """Test Phase 5+ Request Comments System"""
+        self.log("\n=== PHASE 5+: REQUEST COMMENTS ===")
+        
+        # Get requests first to get a request ID
+        success, requests_data = self.run_test("Get Requests for Comments", "GET", f"tenants/{self.tenant_slug}/requests", 200)
+        if success and requests_data.get('data'):
+            requests = requests_data['data']
+            if requests:
+                request_id = requests[0]['id']
+                
+                # Test adding a comment
+                comment_data = {
+                    "body": "Test comment from API test",
+                    "user_id": "test-user-id", 
+                    "user_name": "Test User"
+                }
+                add_success, comment = self.run_test(
+                    "Add Request Comment", 
+                    "POST", 
+                    f"tenants/{self.tenant_slug}/requests/{request_id}/comments", 
+                    201, 
+                    comment_data
+                )
+                if add_success:
+                    self.log(f"   ✅ Comment added to request {request_id}")
+                
+                # Test getting comments
+                get_success, comments = self.run_test(
+                    "Get Request Comments", 
+                    "GET", 
+                    f"tenants/{self.tenant_slug}/requests/{request_id}/comments", 
+                    200
+                )
+                if get_success:
+                    comment_count = len(comments) if isinstance(comments, list) else 0
+                    self.log(f"   ✅ Retrieved {comment_count} comments for request {request_id}")
+            else:
+                self.log(f"   ⚠️  No requests available for comments testing")
+
+    def test_phase5plus_kb_articles(self):
+        """Test Phase 5+ Knowledge Base Articles System"""
+        self.log("\n=== PHASE 5+: KB ARTICLES ===")
+        
+        # Test creating a KB article
+        article_data = {
+            "title": "Test Knowledge Base Article",
+            "content": "This is a test article content for API testing",
+            "category": "general",
+            "tags": ["test", "api", "knowledge"],
+            "author_id": "test-user-id",
+            "status": "published"
+        }
+        
+        create_success, article = self.run_test(
+            "Create KB Article", 
+            "POST", 
+            f"tenants/{self.tenant_slug}/kb-articles", 
+            201, 
+            article_data
+        )
+        if create_success:
+            article_id = article.get('id', '')
+            self.log(f"   ✅ KB Article created: {article_id}")
+        
+        # Test getting KB articles
+        get_success, articles = self.run_test(
+            "Get KB Articles", 
+            "GET", 
+            f"tenants/{self.tenant_slug}/kb-articles", 
+            200
+        )
+        if get_success:
+            article_count = len(articles) if isinstance(articles, list) else 0
+            self.log(f"   ✅ Retrieved {article_count} KB articles")
+            if articles and isinstance(articles, list) and articles:
+                article = articles[0]
+                required_keys = ['id', 'title', 'content', 'category', 'created_at']
+                missing_keys = [key for key in required_keys if key not in article]
+                if missing_keys:
+                    self.log(f"   ⚠️  Missing article keys: {missing_keys}")
+                else:
+                    self.log(f"   ✅ KB Article structure complete")
+
     def run_all_tests(self):
         """Run all test suites"""
         self.log("🚀 Starting Comprehensive API Testing for Multi-tenant SaaS Platform")
