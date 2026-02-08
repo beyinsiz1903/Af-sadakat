@@ -8,11 +8,16 @@ const api = axios.create({
   headers: { 'Content-Type': 'application/json' }
 });
 
-// Add auth token to requests
+// Add auth token and X-Property-Id to requests
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('token');
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
+  }
+  // Inject X-Property-Id for property-scoped endpoints
+  const propertyId = localStorage.getItem('activePropertyId');
+  if (propertyId) {
+    config.headers['X-Property-Id'] = propertyId;
   }
   return config;
 });
