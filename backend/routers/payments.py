@@ -4,14 +4,16 @@ Public endpoints for guest checkout. Rate limited.
 """
 from fastapi import APIRouter, HTTPException, Request
 import secrets
-import time
-from collections import defaultdict
+import logging
 
 from core.config import db
 from core.tenant_guard import (
     serialize_doc, new_id, now_utc,
     find_one_scoped, insert_scoped, update_scoped, log_audit
 )
+from core.middleware import rate_limit_ip, generate_unique_confirmation_code
+
+logger = logging.getLogger("omnihub.payments")
 
 router = APIRouter(prefix="/api/v2/payments", tags=["payments"])
 
