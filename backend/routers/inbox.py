@@ -151,9 +151,15 @@ async def webchat_start(data: dict):
     tenant_slug = data.get("tenantSlug", "")
     visitor_name = data.get("visitorName", "Guest")
     tenant = await resolve_tenant(tenant_slug)
+    # Set default property for webchat (first active property)
+    default_prop = await db.properties.find_one(
+        {"tenant_id": tenant["id"], "is_active": True}, {"_id": 0}
+    )
+    property_id = default_prop["id"] if default_prop else ""
     conv = await insert_scoped("conversations", tenant["id"], {
         "channel_type": "WEBCHAT", "contact_id": None, "status": "OPEN",
         "assigned_user_id": None, "guest_name": visitor_name,
+        "property_id": property_id,
         "last_message_at": now_utc().isoformat(), "needs_attention": False,
     })
     try:
