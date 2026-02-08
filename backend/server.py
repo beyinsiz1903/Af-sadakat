@@ -27,6 +27,7 @@ from billing import create_billing_account, create_subscription, create_invoice,
 from analytics_engine import compute_analytics
 from compliance import export_guest_data, forget_guest, log_consent
 from referral import get_or_create_referral, track_referral_click, track_referral_signup, generate_referral_code
+from guest_system import create_guest_token, decode_guest_token, generate_qr_png, generate_qr_print_pdf, encrypt_credentials, decrypt_credentials, ConnectorPollingTask
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
