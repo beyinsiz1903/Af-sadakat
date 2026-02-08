@@ -30,6 +30,7 @@ const navItems = [
   { path: '/menu', label: 'Menu', icon: BookOpen },
   { path: '/contacts', label: 'Contacts', icon: Users },
   { path: '/offers', label: 'Offers', icon: Gift },
+  { path: '/ai-sales', label: 'AI Sales', icon: Bot },
   { path: '/analytics', label: 'Analytics', icon: BarChart3 },
   { type: 'separator', label: 'System' },
   { path: '/billing', label: 'Billing', icon: CreditCard },
