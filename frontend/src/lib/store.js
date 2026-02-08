@@ -27,12 +27,17 @@ export const useAuthStore = create((set, get) => ({
   },
   
   setActiveProperty: (propertyId) => {
+    const prev = get().activePropertyId;
     if (propertyId) {
       localStorage.setItem('activePropertyId', propertyId);
     } else {
       localStorage.removeItem('activePropertyId');
     }
     set({ activePropertyId: propertyId });
+    // Trigger refetch when property changes (components listen via queryKey)
+    if (prev && prev !== propertyId) {
+      window.dispatchEvent(new CustomEvent('property-changed', { detail: { propertyId } }));
+    }
   },
   
   isAuthenticated: () => !!get().token,
