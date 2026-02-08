@@ -1481,6 +1481,67 @@ async def seed_data():
         "ai_replies_used": 13, "ai_replies_limit": 500, "updated_at": now_utc().isoformat(),
     })
 
+    # Sprint 4: Loyalty rules
+    await db.loyalty_rules.insert_one({
+        "id": new_id(), "tenant_id": tenant_id, "enabled": True,
+        "earn": {"per_request_closed_points": 10, "per_order_completed_points": 5, "per_reservation_confirmed_points": 20},
+        "tiers": [
+            {"name": "Silver", "min_points": 0, "perks": ["5% off room service"]},
+            {"name": "Gold", "min_points": 500, "perks": ["10% off all services", "Late checkout"]},
+            {"name": "Platinum", "min_points": 1500, "perks": ["20% off all services", "Late checkout", "Room upgrade", "Welcome amenity"]},
+        ],
+        "updated_at": now_utc().isoformat(),
+    })
+
+    # Sprint 4: Loyalty accounts for contacts
+    john_acct_id = new_id()
+    ahmed_acct_id = new_id()
+    await db.loyalty_accounts.insert_many([
+        {"id": john_acct_id, "tenant_id": tenant_id, "contact_id": contacts[0]["id"],
+         "points_balance": 120, "tier_name": "Silver", "enrolled_at": now_utc().isoformat(), "updated_at": now_utc().isoformat()},
+        {"id": ahmed_acct_id, "tenant_id": tenant_id, "contact_id": contacts[2]["id"],
+         "points_balance": 520, "tier_name": "Gold", "enrolled_at": (now_utc() - timedelta(days=30)).isoformat(), "updated_at": now_utc().isoformat()},
+    ])
+    await db.contacts.update_one({"id": contacts[0]["id"]}, {"$set": {"loyalty_account_id": john_acct_id}})
+    await db.contacts.update_one({"id": contacts[2]["id"]}, {"$set": {"loyalty_account_id": ahmed_acct_id}})
+
+    # Sprint 4: Loyalty ledger
+    await db.loyalty_ledger.insert_many([
+        {"id": new_id(), "tenant_id": tenant_id, "contact_id": contacts[0]["id"], "direction": "EARN",
+         "points": 10, "reason": "Request completed", "ref_type": "request_closed", "created_at": (now_utc() - timedelta(days=7)).isoformat()},
+        {"id": new_id(), "tenant_id": tenant_id, "contact_id": contacts[0]["id"], "direction": "EARN",
+         "points": 5, "reason": "Order completed", "ref_type": "order_completed", "created_at": (now_utc() - timedelta(days=5)).isoformat()},
+        {"id": new_id(), "tenant_id": tenant_id, "contact_id": contacts[0]["id"], "direction": "EARN",
+         "points": 105, "reason": "Welcome bonus", "ref_type": "enrollment", "created_at": (now_utc() - timedelta(days=10)).isoformat()},
+        {"id": new_id(), "tenant_id": tenant_id, "contact_id": contacts[2]["id"], "direction": "EARN",
+         "points": 300, "reason": "Stay completed", "ref_type": "request_closed", "created_at": (now_utc() - timedelta(days=20)).isoformat()},
+        {"id": new_id(), "tenant_id": tenant_id, "contact_id": contacts[2]["id"], "direction": "EARN",
+         "points": 220, "reason": "Orders + referral bonus", "ref_type": "order_completed", "created_at": (now_utc() - timedelta(days=10)).isoformat()},
+    ])
+
+    # Sprint 4: Contact events (rich timeline)
+    contact_events = [
+        {"id": new_id(), "tenant_id": tenant_id, "contact_id": contacts[0]["id"], "type": "LOYALTY_ENROLLED",
+         "title": "Enrolled in loyalty program", "body": "", "ref_type": "", "ref_id": "", "created_at": (now_utc() - timedelta(days=10)).isoformat()},
+        {"id": new_id(), "tenant_id": tenant_id, "contact_id": contacts[0]["id"], "type": "LOYALTY_EARNED",
+         "title": "+105 pts: Welcome bonus", "body": "", "ref_type": "enrollment", "ref_id": "", "created_at": (now_utc() - timedelta(days=10)).isoformat()},
+        {"id": new_id(), "tenant_id": tenant_id, "contact_id": contacts[0]["id"], "type": "REQUEST_CREATED",
+         "title": "Room request submitted", "body": "Extra towels and pillows", "ref_type": "request", "ref_id": sample_requests[0]["id"], "created_at": (now_utc() - timedelta(days=7)).isoformat()},
+        {"id": new_id(), "tenant_id": tenant_id, "contact_id": contacts[0]["id"], "type": "LOYALTY_EARNED",
+         "title": "+10 pts: Request completed", "body": "", "ref_type": "request_closed", "ref_id": "", "created_at": (now_utc() - timedelta(days=7)).isoformat()},
+        {"id": new_id(), "tenant_id": tenant_id, "contact_id": contacts[0]["id"], "type": "MESSAGE_IN",
+         "title": "WebChat message", "body": "Hello, I'd like to request late checkout", "ref_type": "conversation", "ref_id": conv1_id, "created_at": (now_utc() - timedelta(minutes=30)).isoformat()},
+        {"id": new_id(), "tenant_id": tenant_id, "contact_id": contacts[1]["id"], "type": "MESSAGE_IN",
+         "title": "WhatsApp message", "body": "AC not working", "ref_type": "conversation", "ref_id": conv2_id, "created_at": (now_utc() - timedelta(hours=1)).isoformat()},
+        {"id": new_id(), "tenant_id": tenant_id, "contact_id": contacts[2]["id"], "type": "LOYALTY_ENROLLED",
+         "title": "Enrolled in loyalty program", "body": "", "ref_type": "", "ref_id": "", "created_at": (now_utc() - timedelta(days=30)).isoformat()},
+        {"id": new_id(), "tenant_id": tenant_id, "contact_id": contacts[2]["id"], "type": "LOYALTY_EARNED",
+         "title": "+300 pts: Stay completed", "body": "", "ref_type": "request_closed", "ref_id": "", "created_at": (now_utc() - timedelta(days=20)).isoformat()},
+        {"id": new_id(), "tenant_id": tenant_id, "contact_id": contacts[2]["id"], "type": "REQUEST_CREATED",
+         "title": "Room service request", "body": "Breakfast order", "ref_type": "request", "ref_id": sample_requests[2]["id"], "created_at": (now_utc() - timedelta(hours=3)).isoformat()},
+    ]
+    await db.contact_events.insert_many(contact_events)
+
     return {
         "message": "Seed data created successfully",
         "tenant_slug": "grand-hotel",
