@@ -2182,7 +2182,7 @@ async def get_room_qr_png(room_id: str):
     if not tenant:
         raise HTTPException(status_code=404, detail="Tenant not found")
     
-    public_url = os.environ.get("PUBLIC_BASE_URL", "https://omni-inbox-hub.preview.emergentagent.com")
+    public_url = os.environ.get("PUBLIC_BASE_URL", "https://property-payments-1.preview.emergentagent.com")
     qr_url = f"{public_url}/g/{tenant['slug']}/room/{room['room_code']}"
     png_bytes = generate_qr_png(qr_url)
     
@@ -2201,7 +2201,7 @@ async def get_rooms_print_pdf(ids: str = ""):
         raise HTTPException(status_code=404, detail="No rooms found")
     
     tenant = await db.tenants.find_one({"id": rooms[0]["tenant_id"]}, {"_id": 0})
-    public_url = os.environ.get("PUBLIC_BASE_URL", "https://omni-inbox-hub.preview.emergentagent.com")
+    public_url = os.environ.get("PUBLIC_BASE_URL", "https://property-payments-1.preview.emergentagent.com")
     
     items = [{
         "label": f"Room {r['room_number']}",
@@ -2220,7 +2220,7 @@ async def get_table_qr_png(table_id: str):
         raise HTTPException(status_code=404, detail="Table not found")
     
     tenant = await db.tenants.find_one({"id": table["tenant_id"]}, {"_id": 0})
-    public_url = os.environ.get("PUBLIC_BASE_URL", "https://omni-inbox-hub.preview.emergentagent.com")
+    public_url = os.environ.get("PUBLIC_BASE_URL", "https://property-payments-1.preview.emergentagent.com")
     qr_url = f"{public_url}/g/{tenant['slug']}/table/{table['table_code']}"
     png_bytes = generate_qr_png(qr_url)
     
@@ -2239,7 +2239,7 @@ async def get_tables_print_pdf(ids: str = ""):
         raise HTTPException(status_code=404, detail="No tables found")
     
     tenant = await db.tenants.find_one({"id": tables[0]["tenant_id"]}, {"_id": 0})
-    public_url = os.environ.get("PUBLIC_BASE_URL", "https://omni-inbox-hub.preview.emergentagent.com")
+    public_url = os.environ.get("PUBLIC_BASE_URL", "https://property-payments-1.preview.emergentagent.com")
     
     items = [{
         "label": f"Table {t['table_number']}",

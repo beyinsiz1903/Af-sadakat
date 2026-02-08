@@ -5,7 +5,7 @@ from datetime import datetime
 
 class ComprehensiveAPITester:
     def __init__(self):
-        self.base_url = "https://omni-inbox-hub.preview.emergentagent.com/api"
+        self.base_url = "https://property-payments-1.preview.emergentagent.com/api"
         self.token = None
         self.tenant_slug = "grand-hotel"
         self.tests_run = 0
