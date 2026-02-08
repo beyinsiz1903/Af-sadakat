@@ -164,7 +164,7 @@ class ConnectorPollingTask:
             try:
                 connector = get_connector(cred["connector_type"])
                 if connector:
-                    updates = await connector.fetch_updates(cred["tenant_id"])
+                    updates = await connector.fetch_updates(cred["tenant_id"], cred.get("encrypted_json", {}))
                     if updates:
                         # Store as stub messages/reviews depending on type
                         now = datetime.now(timezone.utc).isoformat()
