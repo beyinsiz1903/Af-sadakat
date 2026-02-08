@@ -147,11 +147,11 @@ class ComprehensiveAPITester:
         """Test guest JWT token resolution"""
         self.log("\n=== GUEST RESOLVE ENDPOINTS ===")
         
-        # Test guest room resolution
-        self.run_test("Guest Resolve Room", "GET", "guest/resolve-room", 200)
+        # Test guest room resolution with proper query parameters
+        self.run_test("Guest Resolve Room", "GET", f"guest/resolve-room?tenantSlug={self.tenant_slug}&roomCode=R101", 200)
         
-        # Test guest table resolution 
-        self.run_test("Guest Resolve Table", "GET", "guest/resolve-table", 200)
+        # Test guest table resolution with proper query parameters
+        self.run_test("Guest Resolve Table", "GET", f"guest/resolve-table?tenantSlug={self.tenant_slug}&tableCode=T1", 200)
 
     def test_system_status(self):
         """Test system status endpoint"""
