@@ -432,6 +432,16 @@ class ComprehensiveAPITester:
             self.test_guest_panels,
             self.test_guest_request_creation,
             self.test_guest_order_creation,
+            # Phase 5 tests
+            self.test_phase5_plan_management,
+            self.test_phase5_usage_enforcement,
+            self.test_phase5_billing,
+            self.test_phase5_analytics,
+            self.test_phase5_compliance,
+            self.test_phase5_growth_referrals,
+            self.test_phase5_system_metrics,
+            self.test_phase5_onboarding,
+            self.test_phase5_demo_reset,
         ]
         
         # Run all tests
