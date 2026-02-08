@@ -35,8 +35,9 @@ def _generate_confirmation_code() -> str:
 
 
 @router.get("/pay/{payment_link_id}")
-async def get_payment_page_data(payment_link_id: str):
+async def get_payment_page_data(payment_link_id: str, request: Request):
     """Public endpoint - returns offer summary for payment page"""
+    _check_rate_limit(request)
     pl = await db.payment_links.find_one({"id": payment_link_id}, {"_id": 0})
     if not pl:
         raise HTTPException(status_code=404, detail="Payment link not found")
