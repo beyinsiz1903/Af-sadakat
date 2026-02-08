@@ -163,6 +163,24 @@ async def webchat_start(data: dict):
         pass
     return {"conversationId": conv["id"], "tenantId": tenant["id"]}
 
+
+@router.get("/webchat/{conv_id}/messages")
+async def webchat_get_messages(conv_id: str):
+    """Public endpoint: Get messages for a webchat conversation."""
+    conv = await db.conversations.find_one({"id": conv_id}, {"_id": 0})
+    if not conv:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+    tid = conv["tenant_id"]
+    messages_cursor = db.messages.find(
+        {"tenant_id": tid, "conversation_id": conv_id},
+        {"_id": 0}
+    ).sort("created_at", 1).limit(200)
+    result = []
+    async for msg in messages_cursor:
+        result.append(serialize_doc(msg))
+    return result
+
+
 @router.post("/webchat/{conv_id}/messages")
 async def webchat_guest_message(conv_id: str, data: dict):
     body = data.get("text", data.get("body", "")).strip()
