@@ -91,6 +91,9 @@ function App() {
             <Route path="/g/:tenantSlug/room/:roomCode" element={<GuestRoomPanel />} />
             <Route path="/g/:tenantSlug/table/:tableCode" element={<GuestTablePanel />} />
             <Route path="/g/:tenantSlug/chat" element={<GuestChat />} />
+            
+            {/* Payment Public Page (no auth) */}
+            <Route path="/pay/:paymentLinkId" element={<PaymentPage />} />
           </Routes>
         </BrowserRouter>
         <Toaster position="top-right" theme="dark" />
