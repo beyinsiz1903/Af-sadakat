@@ -49,7 +49,7 @@ def login():
     
     if response.status_code == 200:
         data = response.json()
-        token = data.get("access_token")
+        token = data.get("access_token") or data.get("token")
         if token:
             print(f"✅ Login successful, token: {token[:20]}...")
             return token
