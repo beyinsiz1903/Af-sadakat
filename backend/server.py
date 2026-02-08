@@ -2656,6 +2656,14 @@ async def create_indexes():
         await db.payments.create_index([("tenant_id", 1), ("offer_id", 1)])
         await db.reservations.create_index([("tenant_id", 1), ("confirmation_code", 1)], unique=True, sparse=True)
         await db.reservations.create_index([("tenant_id", 1), ("property_id", 1), ("created_at", -1)])
+
+        # Sprint 7: AI Sales indexes
+        await db.room_rates.create_index([("tenant_id", 1), ("property_id", 1), ("room_type_code", 1)], unique=True)
+        await db.discount_rules.create_index([("tenant_id", 1), ("property_id", 1)], unique=True)
+        await db.business_policies.create_index([("tenant_id", 1), ("property_id", 1)], unique=True)
+        await db.ai_sales_settings.create_index([("tenant_id", 1), ("property_id", 1)], unique=True)
+        await db.ai_sales_sessions.create_index([("tenant_id", 1), ("conversation_id", 1)], unique=True)
+
         logger.info("Database indexes created successfully")
     except Exception as e:
         logger.warning(f"Index creation: {e}")
