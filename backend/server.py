@@ -2682,6 +2682,20 @@ try:
 except Exception as e:
     logger.warning(f"V2 restaurant router not loaded: {e}")
 
+try:
+    from routers.inbox import router as inbox_v2_router
+    app.include_router(inbox_v2_router)
+    logger.info("V2 inbox router loaded")
+except Exception as e:
+    logger.warning(f"V2 inbox router not loaded: {e}")
+
+try:
+    from routers.reviews import router as reviews_v2_router
+    app.include_router(reviews_v2_router)
+    logger.info("V2 reviews router loaded")
+except Exception as e:
+    logger.warning(f"V2 reviews router not loaded: {e}")
+
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
