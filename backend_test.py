@@ -1,535 +1,463 @@
 #!/usr/bin/env python3
 """
-Sprint 7 AI Sales Engine Test Suite
-Tests the AI-powered booking assistant with tool calling capabilities
+Backend Test Suite for Sprint 8: Meta Integration
+Testing Meta Integration Admin Router, Webhooks Router, and Provider Service
 """
 import asyncio
-import aiohttp
 import json
-import os
-import sys
-import time
-from pathlib import Path
+import requests
+import hmac
+import hashlib
+from datetime import datetime
 
 # Configuration
-BASE_URL = "https://booking-automation-2.preview.emergentagent.com/api"
-TENANT_SLUG = "grand-hotel"
-LOGIN_CREDENTIALS = {
-    "email": "admin@grandhotel.com", 
-    "password": "admin123"
-}
+BACKEND_URL = "https://booking-automation-2.preview.emergentagent.com/api"
+TENANT = "grand-hotel"
+LOGIN_EMAIL = "admin@grandhotel.com"
+LOGIN_PASSWORD = "admin123"
 
-class TestResults:
-    def __init__(self):
-        self.tests = []
-        self.passed = 0
-        self.failed = 0
-        
-    def add_test(self, name, passed, details=""):
-        self.tests.append({
-            "name": name,
-            "passed": passed,
-            "details": details
-        })
-        if passed:
-            self.passed += 1
-        else:
-            self.failed += 1
-            
-    def print_summary(self):
-        print(f"\n=== SPRINT 7 AI SALES ENGINE TEST RESULTS ===")
-        print(f"Total: {len(self.tests)}, Passed: {self.passed}, Failed: {self.failed}")
-        print(f"Success Rate: {(self.passed/len(self.tests)*100):.1f}%")
-        
-        if self.failed > 0:
-            print(f"\n=== FAILED TESTS ===")
-            for test in self.tests:
-                if not test["passed"]:
-                    print(f"❌ {test['name']}: {test['details']}")
-        
-        print(f"\n=== PASSED TESTS ===")
-        for test in self.tests:
-            if test["passed"]:
-                print(f"✅ {test['name']}")
+# Test data
+TEST_APP_ID = "123456789"
+TEST_APP_SECRET = "test_secret_key"  # From review request
+CONFIGURE_APP_ID = "test_app_123"
+CONFIGURE_APP_SECRET = "my_secret"
+CONFIGURE_VERIFY_TOKEN = "test_verify_token_123"
 
-class Sprint7Tester:
-    def __init__(self):
-        self.session = None
-        self.token = None
-        self.results = TestResults()
-        self.property_id = None
-        
-    async def setup(self):
-        """Setup HTTP session and get auth token"""
-        self.session = aiohttp.ClientSession()
-        
-        # Login to get token
-        try:
-            async with self.session.post(f"{BASE_URL}/auth/login", json=LOGIN_CREDENTIALS) as response:
-                if response.status == 200:
-                    data = await response.json()
-                    self.token = data["token"]
-                    self.results.add_test("Authentication Setup", True, "Successfully logged in")
-                    print(f"✅ Authenticated as {LOGIN_CREDENTIALS['email']}")
-                else:
-                    self.results.add_test("Authentication Setup", False, f"Login failed: {response.status}")
-                    print(f"❌ Login failed: {response.status}")
-                    return False
-        except Exception as e:
-            self.results.add_test("Authentication Setup", False, f"Login error: {str(e)}")
-            print(f"❌ Login error: {str(e)}")
-            return False
-            
-        return True
-        
-    async def cleanup(self):
-        """Close HTTP session"""
-        if self.session:
-            await self.session.close()
-            
-    def get_headers(self):
-        """Get headers with auth token"""
-        headers = {"Content-Type": "application/json"}
-        if self.token:
-            headers["Authorization"] = f"Bearer {self.token}"
-        return headers
-    
-    async def test_ai_sales_settings(self):
-        """Test 1: AI Sales Settings endpoint"""
-        print("\n🔍 Testing AI Sales Settings...")
-        try:
-            async with self.session.get(
-                f"{BASE_URL}/v2/ai-sales/tenants/{TENANT_SLUG}/settings",
-                headers=self.get_headers()
-            ) as response:
-                if response.status != 200:
-                    self.results.add_test("AI Sales Settings - Status", False, f"Expected 200, got {response.status}")
-                    return
-                
-                settings = await response.json()
-                
-                if not isinstance(settings, list):
-                    self.results.add_test("AI Sales Settings - Format", False, f"Expected list, got {type(settings)}")
-                    return
-                
-                if len(settings) >= 2:
-                    self.results.add_test("AI Sales Settings - Count", True, f"Found {len(settings)} property settings")
-                else:
-                    self.results.add_test("AI Sales Settings - Count", False, f"Expected >= 2 properties, got {len(settings)}")
-                    return
-                
-                # Find enabled property and store property_id
-                enabled_property = None
-                for setting in settings:
-                    if setting.get("enabled", False):
-                        enabled_property = setting
-                        self.property_id = setting.get("property_id")
-                        break
-                
-                if enabled_property:
-                    self.results.add_test("AI Sales Settings - Enabled Property", True, f"Found enabled property: {enabled_property.get('property_name')}")
-                else:
-                    self.results.add_test("AI Sales Settings - Enabled Property", False, "No enabled property found")
-                    
-        except Exception as e:
-            self.results.add_test("AI Sales Settings Error", False, str(e))
-    
-    async def test_room_rates(self):
-        """Test 2: Room Rates endpoint"""
-        print("\n🔍 Testing Room Rates...")
-        
-        if not self.property_id:
-            self.results.add_test("Room Rates - No Property ID", False, "Property ID not available from settings test")
-            return
-            
-        try:
-            async with self.session.get(
-                f"{BASE_URL}/v2/ai-sales/tenants/{TENANT_SLUG}/properties/{self.property_id}/room-rates",
-                headers=self.get_headers()
-            ) as response:
-                if response.status != 200:
-                    self.results.add_test("Room Rates - Status", False, f"Expected 200, got {response.status}")
-                    return
-                
-                rates = await response.json()
-                
-                if not isinstance(rates, list):
-                    self.results.add_test("Room Rates - Format", False, f"Expected list, got {type(rates)}")
-                    return
-                
-                if len(rates) >= 3:
-                    self.results.add_test("Room Rates - Count", True, f"Found {len(rates)} room rates")
-                else:
-                    self.results.add_test("Room Rates - Count", False, f"Expected >= 3 rates, got {len(rates)}")
-                
-                # Check for main property rates
-                standard_found = any(r.get("room_type_code") == "standard" for r in rates)
-                deluxe_found = any(r.get("room_type_code") == "deluxe" for r in rates)
-                suite_found = any(r.get("room_type_code") == "suite" for r in rates)
-                
-                if standard_found and deluxe_found and suite_found:
-                    self.results.add_test("Room Rates - Expected Types", True, "Found standard, deluxe, suite rates")
-                else:
-                    self.results.add_test("Room Rates - Expected Types", False, f"Missing rate types (std:{standard_found}, dlx:{deluxe_found}, ste:{suite_found})")
-                    
-        except Exception as e:
-            self.results.add_test("Room Rates Error", False, str(e))
-    
-    async def test_create_room_rate(self):
-        """Test 3: Create Room Rate endpoint"""
-        print("\n🔍 Testing Create Room Rate...")
-        
-        if not self.property_id:
-            self.results.add_test("Create Room Rate - No Property ID", False, "Property ID not available")
-            return
-            
-        try:
-            rate_data = {
-                "room_type_code": "economy",
-                "room_type_name": "Economy Room",
-                "base_price_per_night": 800,
-                "max_guests": 2
-            }
-            
-            async with self.session.post(
-                f"{BASE_URL}/v2/ai-sales/tenants/{TENANT_SLUG}/properties/{self.property_id}/room-rates",
-                json=rate_data,
-                headers=self.get_headers()
-            ) as response:
-                if response.status == 200:
-                    rate = await response.json()
-                    self.results.add_test("Create Room Rate - Success", True, f"Created rate: {rate.get('room_type_code')}")
-                    
-                    # Verify the created rate has expected fields
-                    if rate.get("base_price_per_night") == 800 and rate.get("max_guests") == 2:
-                        self.results.add_test("Create Room Rate - Data Integrity", True, "Rate data matches input")
-                    else:
-                        self.results.add_test("Create Room Rate - Data Integrity", False, f"Data mismatch: {rate}")
-                        
-                elif response.status == 409:
-                    self.results.add_test("Create Room Rate - Duplicate Handling", True, "Correctly rejected duplicate room type code")
-                else:
-                    self.results.add_test("Create Room Rate - Status", False, f"Unexpected status: {response.status}")
-                    
-        except Exception as e:
-            self.results.add_test("Create Room Rate Error", False, str(e))
-    
-    async def test_room_rate_uniqueness(self):
-        """Test 9: Room Rate Uniqueness (duplicate should return 409)"""
-        print("\n🔍 Testing Room Rate Uniqueness...")
-        
-        if not self.property_id:
-            self.results.add_test("Room Rate Uniqueness - No Property ID", False, "Property ID not available")
-            return
-            
-        try:
-            # Try to create duplicate economy room
-            rate_data = {
-                "room_type_code": "economy",
-                "room_type_name": "Another Economy Room",
-                "base_price_per_night": 900,
-                "max_guests": 2
-            }
-            
-            async with self.session.post(
-                f"{BASE_URL}/v2/ai-sales/tenants/{TENANT_SLUG}/properties/{self.property_id}/room-rates",
-                json=rate_data,
-                headers=self.get_headers()
-            ) as response:
-                if response.status == 409:
-                    self.results.add_test("Room Rate Uniqueness - 409 Response", True, "Correctly returned 409 for duplicate")
-                else:
-                    self.results.add_test("Room Rate Uniqueness - 409 Response", False, f"Expected 409, got {response.status}")
-                    
-        except Exception as e:
-            self.results.add_test("Room Rate Uniqueness Error", False, str(e))
-    
-    async def test_discount_rules(self):
-        """Test 4: Discount Rules endpoint"""
-        print("\n🔍 Testing Discount Rules...")
-        
-        if not self.property_id:
-            self.results.add_test("Discount Rules - No Property ID", False, "Property ID not available")
-            return
-            
-        try:
-            async with self.session.get(
-                f"{BASE_URL}/v2/ai-sales/tenants/{TENANT_SLUG}/properties/{self.property_id}/discount-rules",
-                headers=self.get_headers()
-            ) as response:
-                if response.status != 200:
-                    self.results.add_test("Discount Rules - Status", False, f"Expected 200, got {response.status}")
-                    return
-                
-                rules = await response.json()
-                
-                # Check for expected discount rules
-                max_discount = rules.get("max_discount_percent", 0)
-                min_nights = rules.get("min_nights_for_discount", 0)
-                
-                if max_discount >= 10:
-                    self.results.add_test("Discount Rules - Max Discount", True, f"Max discount: {max_discount}%")
-                else:
-                    self.results.add_test("Discount Rules - Max Discount", False, f"Expected >=10%, got {max_discount}%")
-                
-                if min_nights >= 3:
-                    self.results.add_test("Discount Rules - Min Nights", True, f"Min nights: {min_nights}")
-                else:
-                    self.results.add_test("Discount Rules - Min Nights", False, f"Expected >=3 nights, got {min_nights}")
-                    
-        except Exception as e:
-            self.results.add_test("Discount Rules Error", False, str(e))
-    
-    async def test_policies(self):
-        """Test 5: Business Policies endpoint"""
-        print("\n🔍 Testing Business Policies...")
-        
-        if not self.property_id:
-            self.results.add_test("Policies - No Property ID", False, "Property ID not available")
-            return
-            
-        try:
-            async with self.session.get(
-                f"{BASE_URL}/v2/ai-sales/tenants/{TENANT_SLUG}/properties/{self.property_id}/policies",
-                headers=self.get_headers()
-            ) as response:
-                if response.status != 200:
-                    self.results.add_test("Policies - Status", False, f"Expected 200, got {response.status}")
-                    return
-                
-                policies = await response.json()
-                
-                # Check for expected policies
-                check_in = policies.get("check_in_time", "")
-                check_out = policies.get("check_out_time", "")
-                
-                if "14:00" in check_in:
-                    self.results.add_test("Policies - Check-in Time", True, f"Check-in: {check_in}")
-                else:
-                    self.results.add_test("Policies - Check-in Time", False, f"Expected 14:00, got {check_in}")
-                
-                if "12:00" in check_out:
-                    self.results.add_test("Policies - Check-out Time", True, f"Check-out: {check_out}")
-                else:
-                    self.results.add_test("Policies - Check-out Time", False, f"Expected 12:00, got {check_out}")
-                    
-        except Exception as e:
-            self.results.add_test("Policies Error", False, str(e))
-    
-    async def test_ai_stats(self):
-        """Test 6: AI Stats endpoint"""
-        print("\n🔍 Testing AI Stats...")
-        try:
-            async with self.session.get(
-                f"{BASE_URL}/v2/ai-sales/tenants/{TENANT_SLUG}/stats",
-                headers=self.get_headers()
-            ) as response:
-                if response.status != 200:
-                    self.results.add_test("AI Stats - Status", False, f"Expected 200, got {response.status}")
-                    return
-                
-                stats = await response.json()
-                
-                # Check for expected stats
-                ai_replies_used = stats.get("ai_replies_used", 0)
-                ai_replies_limit = stats.get("ai_replies_limit", 0)
-                
-                if ai_replies_used > 0:
-                    self.results.add_test("AI Stats - Replies Used", True, f"AI replies used: {ai_replies_used}")
-                else:
-                    self.results.add_test("AI Stats - Replies Used", False, f"Expected >0 replies used, got {ai_replies_used}")
-                
-                if ai_replies_limit > 0:
-                    self.results.add_test("AI Stats - Replies Limit", True, f"AI replies limit: {ai_replies_limit}")
-                else:
-                    self.results.add_test("AI Stats - Replies Limit", False, f"Expected >0 limit, got {ai_replies_limit}")
-                
-                # Check other stats exist
-                required_fields = ["ai_offers_created", "ai_offers_paid", "active_sessions", "month"]
-                for field in required_fields:
-                    if field in stats:
-                        self.results.add_test(f"AI Stats - {field.title()}", True, f"{field}: {stats[field]}")
-                    else:
-                        self.results.add_test(f"AI Stats - {field.title()}", False, f"Missing field: {field}")
-                        
-        except Exception as e:
-            self.results.add_test("AI Stats Error", False, str(e))
-    
-    async def test_webchat_ai_flow(self):
-        """Test 7: Webchat AI Flow (start conversation + send message)"""
-        print("\n🔍 Testing Webchat AI Flow...")
-        
-        conv_id = None
-        
-        # Step 1: Start webchat conversation
-        try:
-            start_data = {
-                "tenantSlug": TENANT_SLUG,
-                "visitorName": "Test"
-            }
-            
-            async with self.session.post(
-                f"{BASE_URL}/v2/inbox/webchat/start",
-                json=start_data
-            ) as response:
-                if response.status == 200:
-                    conv_data = await response.json()
-                    conv_id = conv_data.get("conversationId")
-                    self.results.add_test("Webchat Start - Success", True, f"Conversation ID: {conv_id}")
-                else:
-                    self.results.add_test("Webchat Start - Status", False, f"Expected 200, got {response.status}")
-                    return
-                    
-        except Exception as e:
-            self.results.add_test("Webchat Start Error", False, str(e))
-            return
-        
-        if not conv_id:
-            self.results.add_test("Webchat Start - No Conversation ID", False, "No conversation ID returned")
-            return
-        
-        # Step 2: Send message and expect AI reply
-        try:
-            message_data = {
-                "text": "Merhaba, oda fiyatlariniz nedir?",
-                "senderName": "Test"
-            }
-            
-            async with self.session.post(
-                f"{BASE_URL}/v2/inbox/webchat/{conv_id}/messages",
-                json=message_data
-            ) as response:
-                if response.status == 200:
-                    msg_result = await response.json()
-                    
-                    # Check if AI reply is present
-                    if "ai_reply" in msg_result:
-                        ai_reply = msg_result["ai_reply"]
-                        self.results.add_test("Webchat AI Reply - Present", True, "AI reply received")
-                        
-                        # Check AI reply structure
-                        if "ai_text" in ai_reply and "tool_calls" in ai_reply:
-                            self.results.add_test("Webchat AI Reply - Structure", True, f"AI text length: {len(ai_reply.get('ai_text', ''))}")
-                        else:
-                            self.results.add_test("Webchat AI Reply - Structure", False, f"Missing fields in AI reply: {ai_reply.keys()}")
-                    else:
-                        self.results.add_test("Webchat AI Reply - Present", False, "No ai_reply in response")
-                        
-                else:
-                    self.results.add_test("Webchat Message - Status", False, f"Expected 200, got {response.status}")
-                    
-        except Exception as e:
-            self.results.add_test("Webchat Message Error", False, str(e))
-    
-    async def test_get_messages(self):
-        """Test 8: GET messages endpoint"""
-        print("\n🔍 Testing GET Messages...")
-        
-        # Create a conversation first
-        conv_id = None
-        try:
-            start_data = {
-                "tenantSlug": TENANT_SLUG,
-                "visitorName": "MessageTest"
-            }
-            
-            async with self.session.post(
-                f"{BASE_URL}/v2/inbox/webchat/start",
-                json=start_data
-            ) as response:
-                if response.status == 200:
-                    conv_data = await response.json()
-                    conv_id = conv_data.get("conversationId")
-                    
-        except Exception as e:
-            self.results.add_test("GET Messages - Setup Error", False, str(e))
-            return
-        
-        if not conv_id:
-            self.results.add_test("GET Messages - No Conversation", False, "Could not create test conversation")
-            return
-        
-        # Send a message first
-        try:
-            message_data = {
-                "text": "Test message for GET endpoint",
-                "senderName": "MessageTest"
-            }
-            
-            await self.session.post(
-                f"{BASE_URL}/v2/inbox/webchat/{conv_id}/messages",
-                json=message_data
-            )
-            
-            # Small delay to ensure message is processed
-            await asyncio.sleep(1)
-            
-        except Exception as e:
-            self.results.add_test("GET Messages - Send Message Error", False, str(e))
-            return
-        
-        # Now test GET messages
-        try:
-            async with self.session.get(
-                f"{BASE_URL}/v2/inbox/webchat/{conv_id}/messages"
-            ) as response:
-                if response.status == 200:
-                    messages = await response.json()
-                    
-                    if isinstance(messages, list):
-                        self.results.add_test("GET Messages - Format", True, f"Received {len(messages)} messages")
-                        
-                        # Check for AI replies in messages
-                        ai_messages = [msg for msg in messages if msg.get("meta", {}).get("ai", False)]
-                        if ai_messages:
-                            self.results.add_test("GET Messages - AI Messages", True, f"Found {len(ai_messages)} AI messages")
-                        else:
-                            self.results.add_test("GET Messages - AI Messages", False, "No AI messages found")
-                    else:
-                        self.results.add_test("GET Messages - Format", False, f"Expected list, got {type(messages)}")
-                        
-                else:
-                    self.results.add_test("GET Messages - Status", False, f"Expected 200, got {response.status}")
-                    
-        except Exception as e:
-            self.results.add_test("GET Messages Error", False, str(e))
+def get_headers(token=None):
+    """Get request headers with optional auth token."""
+    headers = {
+        "Content-Type": "application/json",
+        "Accept": "application/json"
+    }
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+    return headers
 
-    async def run_all_tests(self):
-        """Run all Sprint 7 tests"""
-        print("🚀 Starting Sprint 7 AI Sales Engine Test Suite...")
-        
-        if not await self.setup():
-            return
-        
-        try:
-            # Run all tests in order
-            await self.test_ai_sales_settings()
-            await self.test_room_rates()
-            await self.test_create_room_rate()
-            await self.test_discount_rules()
-            await self.test_policies()
-            await self.test_ai_stats()
-            await self.test_webchat_ai_flow()
-            await self.test_get_messages()
-            await self.test_room_rate_uniqueness()
-            
-        finally:
-            await self.cleanup()
-        
-        # Print results
-        self.results.print_summary()
-        return self.results
-
-async def main():
-    """Main test runner"""
-    tester = Sprint7Tester()
-    results = await tester.run_all_tests()
+def login():
+    """Login and get auth token."""
+    print("🔐 Logging in...")
     
-    # Exit with proper code
-    if results.failed > 0:
-        sys.exit(1)
+    response = requests.post(
+        f"{BACKEND_URL}/auth/login",
+        json={
+            "email": LOGIN_EMAIL,
+            "password": LOGIN_PASSWORD
+        },
+        headers=get_headers(),
+        timeout=30
+    )
+    
+    if response.status_code == 200:
+        data = response.json()
+        token = data.get("access_token")
+        print(f"✅ Login successful, token: {token[:20]}...")
+        return token
     else:
-        sys.exit(0)
+        print(f"❌ Login failed: {response.status_code} - {response.text}")
+        return None
+
+def generate_hmac_signature(payload_body, secret_key):
+    """Generate HMAC SHA256 signature for webhook verification."""
+    signature = hmac.new(
+        secret_key.encode('utf-8'),
+        payload_body,
+        hashlib.sha256
+    ).hexdigest()
+    return f"sha256={signature}"
+
+def test_meta_status_initial(token):
+    """Test 1: Initial Meta Status - should show DISCONNECTED with app_id 123456789"""
+    print("\n🧪 Test 1: Meta Status (Initial)")
+    
+    response = requests.get(
+        f"{BACKEND_URL}/v2/integrations/meta/tenants/{TENANT}/status",
+        headers=get_headers(token),
+        timeout=30
+    )
+    
+    print(f"Status Code: {response.status_code}")
+    print(f"Response: {response.text}")
+    
+    if response.status_code == 200:
+        data = response.json()
+        status = data.get("status")
+        app_id = data.get("meta_app_id")
+        webhook_url = data.get("webhook_url")
+        
+        print(f"Status: {status}")
+        print(f"App ID: {app_id}")
+        print(f"Webhook URL: {webhook_url}")
+        
+        # Should either be NOT_CONFIGURED or DISCONNECTED
+        if status in ["NOT_CONFIGURED", "DISCONNECTED"]:
+            print("✅ Meta status endpoint working")
+            return True
+        else:
+            print(f"❌ Unexpected status: {status}")
+            return False
+    else:
+        print(f"❌ Meta status test failed: {response.status_code}")
+        return False
+
+def test_configure_meta(token):
+    """Test 2: Configure Meta - POST credentials"""
+    print("\n🧪 Test 2: Configure Meta")
+    
+    payload = {
+        "meta_app_id": CONFIGURE_APP_ID,
+        "meta_app_secret": CONFIGURE_APP_SECRET,
+        "meta_verify_token": CONFIGURE_VERIFY_TOKEN
+    }
+    
+    response = requests.post(
+        f"{BACKEND_URL}/v2/integrations/meta/tenants/{TENANT}/configure",
+        json=payload,
+        headers=get_headers(token),
+        timeout=30
+    )
+    
+    print(f"Status Code: {response.status_code}")
+    print(f"Response: {response.text}")
+    
+    if response.status_code == 200:
+        data = response.json()
+        if data.get("ok") and data.get("webhook_url"):
+            print("✅ Meta configuration successful")
+            return True
+        else:
+            print(f"❌ Configure response missing expected fields")
+            return False
+    else:
+        print(f"❌ Configure Meta test failed: {response.status_code}")
+        return False
+
+def test_webhook_verify_success():
+    """Test 3: Webhook Verification - Success case"""
+    print("\n🧪 Test 3: Webhook Verify Success")
+    
+    params = {
+        "hub.mode": "subscribe",
+        "hub.verify_token": CONFIGURE_VERIFY_TOKEN,
+        "hub.challenge": "test_challenge_abc"
+    }
+    
+    response = requests.get(
+        f"{BACKEND_URL}/v2/webhooks/meta/{TENANT}",
+        params=params,
+        timeout=30
+    )
+    
+    print(f"Status Code: {response.status_code}")
+    print(f"Response: {response.text}")
+    
+    if response.status_code == 200 and response.text == "test_challenge_abc":
+        print("✅ Webhook verification success working")
+        return True
+    else:
+        print(f"❌ Webhook verify success failed")
+        return False
+
+def test_webhook_verify_fail():
+    """Test 4: Webhook Verification - Fail case"""
+    print("\n🧪 Test 4: Webhook Verify Fail")
+    
+    params = {
+        "hub.mode": "subscribe",
+        "hub.verify_token": "wrong_token",
+        "hub.challenge": "test"
+    }
+    
+    response = requests.get(
+        f"{BACKEND_URL}/v2/webhooks/meta/{TENANT}",
+        params=params,
+        timeout=30
+    )
+    
+    print(f"Status Code: {response.status_code}")
+    print(f"Response: {response.text}")
+    
+    if response.status_code == 403:
+        print("✅ Webhook verification fail working")
+        return True
+    else:
+        print(f"❌ Webhook verify fail should return 403, got {response.status_code}")
+        return False
+
+def test_webhook_whatsapp_message():
+    """Test 5: Webhook WhatsApp Message with proper HMAC signature"""
+    print("\n🧪 Test 5: Webhook WhatsApp Message")
+    
+    # Create WhatsApp Cloud API message event
+    webhook_payload = {
+        "object": "whatsapp_business_account",
+        "entry": [{
+            "id": "123456789",
+            "changes": [{
+                "field": "messages",
+                "value": {
+                    "messaging_product": "whatsapp",
+                    "metadata": {
+                        "display_phone_number": "+1234567890",
+                        "phone_number_id": "1234567890"
+                    },
+                    "contacts": [{
+                        "profile": {"name": "John Doe"},
+                        "wa_id": "+1234567890"
+                    }],
+                    "messages": [{
+                        "from": "+1234567890",
+                        "id": "wamid.test123",
+                        "timestamp": "1644955284",
+                        "text": {"body": "Hello, I need help with booking"},
+                        "type": "text"
+                    }]
+                }
+            }]
+        }]
+    }
+    
+    payload_json = json.dumps(webhook_payload)
+    payload_bytes = payload_json.encode('utf-8')
+    
+    # Generate HMAC signature using configured app secret
+    signature = generate_hmac_signature(payload_bytes, CONFIGURE_APP_SECRET)
+    
+    headers = {
+        "Content-Type": "application/json",
+        "X-Hub-Signature-256": signature
+    }
+    
+    response = requests.post(
+        f"{BACKEND_URL}/v2/webhooks/meta/{TENANT}",
+        data=payload_bytes,
+        headers=headers,
+        timeout=30
+    )
+    
+    print(f"Status Code: {response.status_code}")
+    print(f"Response: {response.text}")
+    print(f"Signature used: {signature}")
+    
+    if response.status_code == 200:
+        data = response.json()
+        if data.get("status") == "ok":
+            print("✅ WhatsApp webhook message processing working")
+            return True
+        else:
+            print(f"❌ Unexpected webhook response: {data}")
+            return False
+    else:
+        print(f"❌ WhatsApp webhook test failed: {response.status_code}")
+        return False
+
+def test_webhook_invalid_signature():
+    """Test 6: Webhook with invalid signature - should return 403"""
+    print("\n🧪 Test 6: Webhook Invalid Signature")
+    
+    webhook_payload = {
+        "object": "whatsapp_business_account",
+        "entry": [{"id": "123456789", "changes": []}]
+    }
+    
+    payload_json = json.dumps(webhook_payload)
+    payload_bytes = payload_json.encode('utf-8')
+    
+    # Use wrong signature
+    headers = {
+        "Content-Type": "application/json",
+        "X-Hub-Signature-256": "sha256=wrong_signature_here"
+    }
+    
+    response = requests.post(
+        f"{BACKEND_URL}/v2/webhooks/meta/{TENANT}",
+        data=payload_bytes,
+        headers=headers,
+        timeout=30
+    )
+    
+    print(f"Status Code: {response.status_code}")
+    print(f"Response: {response.text}")
+    
+    if response.status_code == 403:
+        print("✅ Invalid signature properly rejected")
+        return True
+    else:
+        print(f"❌ Invalid signature should return 403, got {response.status_code}")
+        return False
+
+def test_webhook_facebook_comment():
+    """Test 7: Webhook Facebook Comment - should create review"""
+    print("\n🧪 Test 7: Webhook Facebook Comment")
+    
+    # Create Facebook feed comment event
+    webhook_payload = {
+        "object": "page",
+        "entry": [{
+            "id": "page_123456789",
+            "time": 1644955284,
+            "changes": [{
+                "field": "feed",
+                "value": {
+                    "item": "comment",
+                    "verb": "add",
+                    "comment_id": "comment_123456",
+                    "post_id": "post_123456",
+                    "message": "Great hotel! Loved our stay here.",
+                    "from": {
+                        "name": "Jane Smith",
+                        "id": "user_123456"
+                    },
+                    "created_time": "2022-02-15T19:21:24+0000",
+                    "permalink_url": "https://facebook.com/comment/123456"
+                }
+            }]
+        }]
+    }
+    
+    payload_json = json.dumps(webhook_payload)
+    payload_bytes = payload_json.encode('utf-8')
+    
+    # Generate proper HMAC signature
+    signature = generate_hmac_signature(payload_bytes, CONFIGURE_APP_SECRET)
+    
+    headers = {
+        "Content-Type": "application/json",
+        "X-Hub-Signature-256": signature
+    }
+    
+    response = requests.post(
+        f"{BACKEND_URL}/v2/webhooks/meta/{TENANT}",
+        data=payload_bytes,
+        headers=headers,
+        timeout=30
+    )
+    
+    print(f"Status Code: {response.status_code}")
+    print(f"Response: {response.text}")
+    
+    if response.status_code == 200:
+        data = response.json()
+        if data.get("status") == "ok":
+            print("✅ Facebook comment webhook processing working")
+            return True
+        else:
+            print(f"❌ Unexpected webhook response: {data}")
+            return False
+    else:
+        print(f"❌ Facebook comment webhook test failed: {response.status_code}")
+        return False
+
+def test_meta_status_after_events(token):
+    """Test 8: Meta Status After Events - should still be working"""
+    print("\n🧪 Test 8: Meta Status After Events")
+    
+    response = requests.get(
+        f"{BACKEND_URL}/v2/integrations/meta/tenants/{TENANT}/status",
+        headers=get_headers(token),
+        timeout=30
+    )
+    
+    print(f"Status Code: {response.status_code}")
+    print(f"Response: {response.text}")
+    
+    if response.status_code == 200:
+        data = response.json()
+        status = data.get("status")
+        app_id = data.get("meta_app_id")
+        
+        print(f"Status: {status}")
+        print(f"App ID: {app_id}")
+        
+        if status == "DISCONNECTED" and app_id == CONFIGURE_APP_ID:
+            print("✅ Meta status after events working correctly")
+            return True
+        else:
+            print(f"❌ Unexpected status after events: {status}, app_id: {app_id}")
+            return False
+    else:
+        print(f"❌ Meta status after events test failed: {response.status_code}")
+        return False
+
+def test_disconnect_meta(token):
+    """Test 9: Disconnect Meta Integration"""
+    print("\n🧪 Test 9: Disconnect Meta")
+    
+    response = requests.post(
+        f"{BACKEND_URL}/v2/integrations/meta/tenants/{TENANT}/disconnect",
+        json={},
+        headers=get_headers(token),
+        timeout=30
+    )
+    
+    print(f"Status Code: {response.status_code}")
+    print(f"Response: {response.text}")
+    
+    if response.status_code == 200:
+        data = response.json()
+        if data.get("ok"):
+            print("✅ Meta disconnect working")
+            return True
+        else:
+            print(f"❌ Disconnect response missing 'ok' field")
+            return False
+    else:
+        print(f"❌ Meta disconnect test failed: {response.status_code}")
+        return False
+
+def run_all_tests():
+    """Run all Meta Integration tests in sequence."""
+    print("🚀 Starting Sprint 8 Meta Integration Backend Tests")
+    print("=" * 60)
+    
+    # Login first
+    token = login()
+    if not token:
+        print("❌ Cannot proceed without authentication")
+        return
+    
+    test_results = []
+    
+    # Run all tests in sequence
+    tests = [
+        ("Meta Status (Initial)", lambda: test_meta_status_initial(token)),
+        ("Configure Meta", lambda: test_configure_meta(token)),
+        ("Webhook Verify Success", test_webhook_verify_success),
+        ("Webhook Verify Fail", test_webhook_verify_fail),
+        ("Webhook WhatsApp Message", test_webhook_whatsapp_message),
+        ("Webhook Invalid Signature", test_webhook_invalid_signature),
+        ("Webhook Facebook Comment", test_webhook_facebook_comment),
+        ("Meta Status After Events", lambda: test_meta_status_after_events(token)),
+        ("Disconnect Meta", lambda: test_disconnect_meta(token))
+    ]
+    
+    for test_name, test_func in tests:
+        try:
+            result = test_func()
+            test_results.append((test_name, result))
+        except Exception as e:
+            print(f"❌ Test '{test_name}' crashed: {str(e)}")
+            test_results.append((test_name, False))
+    
+    # Summary
+    print("\n" + "=" * 60)
+    print("📊 SPRINT 8 META INTEGRATION TEST RESULTS")
+    print("=" * 60)
+    
+    passed = 0
+    total = len(test_results)
+    
+    for test_name, result in test_results:
+        status = "✅ PASS" if result else "❌ FAIL"
+        print(f"{status} - {test_name}")
+        if result:
+            passed += 1
+    
+    print(f"\nSUMMARY: {passed}/{total} tests passed ({passed/total*100:.1f}%)")
+    
+    if passed == total:
+        print("🎉 ALL META INTEGRATION TESTS PASSED!")
+    else:
+        print("⚠️  Some tests failed. Check logs above for details.")
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    run_all_tests()
