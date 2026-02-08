@@ -1724,6 +1724,131 @@ async def seed_data():
     ]
     await db.contact_events.insert_many(offer_res_events)
 
+    # ========== Sprint 7: AI Sales Engine Seed Data ==========
+    
+    # Room Rates for Main property
+    room_rates_seed = [
+        {"id": new_id(), "tenant_id": tenant_id, "property_id": prop_main_id,
+         "room_type_code": "standard", "room_type_name": "Standard Room",
+         "description": "Comfortable room with city view, 25m2",
+         "base_price_per_night": 1200.0, "currency": "TRY",
+         "weekend_multiplier": 1.2, "season_rules": [
+             {"start": "2025-06-01", "end": "2025-09-30", "multiplier": 1.3},
+             {"start": "2025-12-20", "end": "2026-01-05", "multiplier": 1.5},
+         ],
+         "min_stay_nights": 1, "max_guests": 2,
+         "refundable": True, "breakfast_included": False, "is_active": True,
+         "last_updated_by": "Admin User",
+         "created_at": now_utc().isoformat(), "updated_at": now_utc().isoformat()},
+        {"id": new_id(), "tenant_id": tenant_id, "property_id": prop_main_id,
+         "room_type_code": "deluxe", "room_type_name": "Deluxe Room",
+         "description": "Spacious room with Bosphorus view, 35m2, minibar included",
+         "base_price_per_night": 2200.0, "currency": "TRY",
+         "weekend_multiplier": 1.15, "season_rules": [
+             {"start": "2025-06-01", "end": "2025-09-30", "multiplier": 1.25},
+             {"start": "2025-12-20", "end": "2026-01-05", "multiplier": 1.4},
+         ],
+         "min_stay_nights": 1, "max_guests": 3,
+         "refundable": True, "breakfast_included": True, "is_active": True,
+         "last_updated_by": "Admin User",
+         "created_at": now_utc().isoformat(), "updated_at": now_utc().isoformat()},
+        {"id": new_id(), "tenant_id": tenant_id, "property_id": prop_main_id,
+         "room_type_code": "suite", "room_type_name": "Suite",
+         "description": "Luxury suite with panoramic Bosphorus view, 55m2, living area, jacuzzi",
+         "base_price_per_night": 4500.0, "currency": "TRY",
+         "weekend_multiplier": 1.1, "season_rules": [
+             {"start": "2025-06-01", "end": "2025-09-30", "multiplier": 1.2},
+             {"start": "2025-12-20", "end": "2026-01-05", "multiplier": 1.35},
+         ],
+         "min_stay_nights": 2, "max_guests": 4,
+         "refundable": True, "breakfast_included": True, "is_active": True,
+         "last_updated_by": "Admin User",
+         "created_at": now_utc().isoformat(), "updated_at": now_utc().isoformat()},
+    ]
+    await db.room_rates.insert_many(room_rates_seed)
+
+    # Room Rates for Annex property
+    annex_rates = [
+        {"id": new_id(), "tenant_id": tenant_id, "property_id": prop_annex_id,
+         "room_type_code": "standard", "room_type_name": "Standard Room",
+         "description": "Cozy room in Annex building, 22m2",
+         "base_price_per_night": 900.0, "currency": "TRY",
+         "weekend_multiplier": 1.15, "season_rules": [],
+         "min_stay_nights": 1, "max_guests": 2,
+         "refundable": True, "breakfast_included": False, "is_active": True,
+         "last_updated_by": "Admin User",
+         "created_at": now_utc().isoformat(), "updated_at": now_utc().isoformat()},
+        {"id": new_id(), "tenant_id": tenant_id, "property_id": prop_annex_id,
+         "room_type_code": "deluxe", "room_type_name": "Deluxe Room",
+         "description": "Premium room in Annex building, 30m2, balcony",
+         "base_price_per_night": 1600.0, "currency": "TRY",
+         "weekend_multiplier": 1.1, "season_rules": [],
+         "min_stay_nights": 1, "max_guests": 3,
+         "refundable": True, "breakfast_included": True, "is_active": True,
+         "last_updated_by": "Admin User",
+         "created_at": now_utc().isoformat(), "updated_at": now_utc().isoformat()},
+    ]
+    await db.room_rates.insert_many(annex_rates)
+
+    # Discount Rules
+    discount_rules_seed = [
+        {"id": new_id(), "tenant_id": tenant_id, "property_id": prop_main_id,
+         "enabled": True, "max_discount_percent": 10,
+         "min_nights_for_discount": 3,
+         "allowed_channels": ["webchat", "whatsapp", "instagram"],
+         "blackouts": [{"start": "2025-12-20", "end": "2026-01-05"}],
+         "created_at": now_utc().isoformat(), "updated_at": now_utc().isoformat(),
+         "last_updated_by": "Admin User"},
+        {"id": new_id(), "tenant_id": tenant_id, "property_id": prop_annex_id,
+         "enabled": True, "max_discount_percent": 15,
+         "min_nights_for_discount": 2,
+         "allowed_channels": ["webchat"],
+         "blackouts": [],
+         "created_at": now_utc().isoformat(), "updated_at": now_utc().isoformat(),
+         "last_updated_by": "Admin User"},
+    ]
+    await db.discount_rules.insert_many(discount_rules_seed)
+
+    # Business Policies
+    policies_seed = [
+        {"id": new_id(), "tenant_id": tenant_id, "property_id": prop_main_id,
+         "check_in_time": "14:00", "check_out_time": "12:00",
+         "cancellation_policy_text": "Free cancellation up to 48 hours before check-in. Late cancellation: 1 night charge.",
+         "pets_allowed": False, "smoking_policy": "Non-smoking property",
+         "parking_info": "Free valet parking available",
+         "location_info": "Located in Beyoglu, 5 min walk to Istiklal Street",
+         "contact_phone": "+90 212 555 0001",
+         "created_at": now_utc().isoformat(), "updated_at": now_utc().isoformat(),
+         "last_updated_by": "Admin User"},
+        {"id": new_id(), "tenant_id": tenant_id, "property_id": prop_annex_id,
+         "check_in_time": "15:00", "check_out_time": "11:00",
+         "cancellation_policy_text": "Free cancellation up to 24 hours before check-in.",
+         "pets_allowed": True, "smoking_policy": "Smoking areas available",
+         "parking_info": "Street parking only",
+         "location_info": "Located in Sisli, near metro station",
+         "contact_phone": "+90 212 555 0002",
+         "created_at": now_utc().isoformat(), "updated_at": now_utc().isoformat(),
+         "last_updated_by": "Admin User"},
+    ]
+    await db.business_policies.insert_many(policies_seed)
+
+    # AI Sales Settings (enabled for Main, disabled for Annex by default)
+    ai_settings_seed = [
+        {"id": new_id(), "tenant_id": tenant_id, "property_id": prop_main_id,
+         "enabled": True, "allowed_languages": ["TR", "EN"],
+         "max_messages_without_human": 20,
+         "escalation_keywords": ["complaint", "manager", "lawyer", "sikayet", "mudur", "avukat"],
+         "created_at": now_utc().isoformat(), "updated_at": now_utc().isoformat(),
+         "last_updated_by": "Admin User"},
+        {"id": new_id(), "tenant_id": tenant_id, "property_id": prop_annex_id,
+         "enabled": False, "allowed_languages": ["TR", "EN"],
+         "max_messages_without_human": 20,
+         "escalation_keywords": ["complaint", "manager", "lawyer", "sikayet", "mudur"],
+         "created_at": now_utc().isoformat(), "updated_at": now_utc().isoformat(),
+         "last_updated_by": "Admin User"},
+    ]
+    await db.ai_sales_settings.insert_many(ai_settings_seed)
+
     return {
         "message": "Seed data created successfully",
         "tenant_slug": "grand-hotel",
