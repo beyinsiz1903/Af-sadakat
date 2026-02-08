@@ -340,9 +340,24 @@ frontend:
 
 metadata:
   created_by: "main_agent"
-  version: "7.0"
-  test_sequence: 4
+  version: "8.0"
+  test_sequence: 5
   run_ui: false
+
+test_plan:
+  current_focus:
+    - "Sprint 8: Meta Integration Admin Router"
+    - "Sprint 8: Meta Webhooks Router"
+    - "Sprint 8: Meta Provider Service"
+    - "Sprint 8: Outbound Meta Messaging in Inbox"
+    - "Sprint 8: DB Indexes and Seed Data"
+  stuck_tasks: []
+  test_all: false
+  test_priority: "high_first"
+
+agent_communication:
+  - agent: "main"
+    message: "Sprint 8 Meta Integration implemented. Key features: 1) Admin endpoints for configure/OAuth/discover/enable/disable/disconnect. 2) Public webhooks with HMAC signature verification for WhatsApp, Facebook, Instagram messages and comments. 3) Outbound messaging via Graph API for all 3 channels (WA 24h window check included). 4) Comment ingestion as reviews with reply support. 5) Token refresh background job every 6h. 6) Frontend: Meta Platform card with Configure dialog, Connect OAuth button, Assets management. Login: admin@grandhotel.com / admin123. Test webhook: POST /api/v2/webhooks/meta/grand-hotel with proper HMAC signature. Configure endpoint already tested with app_id=123456789."
 
 test_plan:
   current_focus: []
