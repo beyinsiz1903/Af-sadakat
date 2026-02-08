@@ -1,15 +1,19 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuthStore } from '../lib/store';
-import api from '../lib/api';
+import api, { inboxOffersAPI, offersAPI } from '../lib/api';
 import { Card, CardContent } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Badge } from '../components/ui/badge';
 import { ScrollArea } from '../components/ui/scroll-area';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
-import { MessageSquare, Send, Sparkles, AlertTriangle, User, Bot, Loader2, X, Phone, Instagram, Globe, ChevronDown } from 'lucide-react';
-import { timeAgo } from '../lib/utils';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/dialog';
+import {
+  MessageSquare, Send, Sparkles, AlertTriangle, User, Bot, Loader2, X,
+  Phone, Instagram, Globe, Gift, Link2, Copy, ExternalLink, CheckCircle2
+} from 'lucide-react';
+import { timeAgo, formatCurrency } from '../lib/utils';
 import { toast } from 'sonner';
 
 const channelIcons = {
@@ -26,6 +30,7 @@ const channelColors = {
 export default function InboxPage() {
   const tenant = useAuthStore((s) => s.tenant);
   const user = useAuthStore((s) => s.user);
+  const activePropertyId = useAuthStore((s) => s.activePropertyId);
   const queryClient = useQueryClient();
   const [selectedConv, setSelectedConv] = useState(null);
   const [newMessage, setNewMessage] = useState('');
@@ -33,6 +38,14 @@ export default function InboxPage() {
   const [aiLoading, setAiLoading] = useState(false);
   const [channelFilter, setChannelFilter] = useState('all');
   const messagesEndRef = useRef(null);
+
+  // Offer creation state
+  const [offerModalOpen, setOfferModalOpen] = useState(false);
+  const [createdOffer, setCreatedOffer] = useState(null);
+  const [offerForm, setOfferForm] = useState({
+    room_type: 'standard', check_in: '', check_out: '',
+    price: '', currency: 'TRY', guests_count: '2', notes: ''
+  });
 
   // V2 API: list conversations
   const { data: convsData, refetch: refetchConvs } = useQuery({
@@ -92,6 +105,39 @@ export default function InboxPage() {
     onSuccess: () => { refetchConvs(); refetchDetail(); toast.success('Conversation reopened'); },
   });
 
+  // Create offer from conversation
+  const createOfferMutation = useMutation({
+    mutationFn: (data) => inboxOffersAPI.createFromConversation(tenant?.slug, selectedConv?.id, data),
+    onSuccess: (res) => {
+      const offer = res.data?.offer;
+      setCreatedOffer(offer);
+      toast.success('Offer created from conversation!');
+      queryClient.invalidateQueries(['offers-v2']);
+    },
+    onError: (e) => toast.error(e.response?.data?.detail || 'Failed to create offer'),
+  });
+
+  // Send offer
+  const sendOfferMutation = useMutation({
+    mutationFn: (offerId) => offersAPI.send(tenant?.slug, offerId),
+    onSuccess: () => {
+      toast.success('Offer sent');
+      if (createdOffer) setCreatedOffer({ ...createdOffer, status: 'SENT' });
+    },
+  });
+
+  // Create payment link
+  const createPaymentLinkMutation = useMutation({
+    mutationFn: (offerId) => offersAPI.createPaymentLink(tenant?.slug, offerId),
+    onSuccess: (res) => {
+      const url = res.data?.url;
+      if (url) {
+        navigator.clipboard.writeText(url).then(() => toast.success('Payment link created & copied!')).catch(() => toast.success('Payment link created'));
+        if (createdOffer) setCreatedOffer({ ...createdOffer, payment_link: res.data, payment_link_id: res.data?.id, status: 'SENT' });
+      }
+    },
+  });
+
   // WS listener
   useEffect(() => {
     if (!window.__ws) return;
@@ -105,6 +151,27 @@ export default function InboxPage() {
 
   const handleSend = () => {
     if (newMessage.trim()) sendMutation.mutate(newMessage.trim());
+  };
+
+  const handleCreateOffer = () => {
+    const guestName = convDetail?.conversation?.guest_name || selectedConv?.guest_name || 'Guest';
+    createOfferMutation.mutate({
+      property_id: activePropertyId || '',
+      room_type: offerForm.room_type,
+      check_in: offerForm.check_in,
+      check_out: offerForm.check_out,
+      price_total: parseFloat(offerForm.price) || 0,
+      currency: offerForm.currency,
+      guests_count: parseInt(offerForm.guests_count) || 2,
+      notes: offerForm.notes,
+      guest_name: guestName,
+    });
+  };
+
+  const resetOfferModal = () => {
+    setOfferModalOpen(false);
+    setCreatedOffer(null);
+    setOfferForm({ room_type: 'standard', check_in: '', check_out: '', price: '', currency: 'TRY', guests_count: '2', notes: '' });
   };
 
   return (
@@ -127,6 +194,100 @@ export default function InboxPage() {
         </Select>
       </div>
 
+      {/* Create Offer Modal */}
+      <Dialog open={offerModalOpen} onOpenChange={(open) => { if (!open) resetOfferModal(); else setOfferModalOpen(true); }}>
+        <DialogContent className="bg-[hsl(var(--card))] border-[hsl(var(--border))] max-w-lg">
+          <DialogHeader>
+            <DialogTitle>{createdOffer ? 'Offer Created' : 'Create Offer from Conversation'}</DialogTitle>
+          </DialogHeader>
+
+          {!createdOffer ? (
+            <div className="space-y-3">
+              <p className="text-sm text-[hsl(var(--muted-foreground))]">
+                Creating offer for: <span className="font-medium text-[hsl(var(--foreground))]">{convDetail?.conversation?.guest_name || selectedConv?.guest_name || 'Guest'}</span>
+              </p>
+              <div className="grid grid-cols-3 gap-3">
+                <Select value={offerForm.room_type} onValueChange={(v) => setOfferForm({...offerForm, room_type: v})}>
+                  <SelectTrigger className="bg-[hsl(var(--secondary))]"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="standard">Standard</SelectItem>
+                    <SelectItem value="deluxe">Deluxe</SelectItem>
+                    <SelectItem value="suite">Suite</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Input type="number" value={offerForm.guests_count} onChange={(e) => setOfferForm({...offerForm, guests_count: e.target.value})} placeholder="Guests" className="bg-[hsl(var(--secondary))]" />
+                <Select value={offerForm.currency} onValueChange={(v) => setOfferForm({...offerForm, currency: v})}>
+                  <SelectTrigger className="bg-[hsl(var(--secondary))]"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="TRY">TRY</SelectItem>
+                    <SelectItem value="USD">USD</SelectItem>
+                    <SelectItem value="EUR">EUR</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs text-[hsl(var(--muted-foreground))] mb-1 block">Check-in</label>
+                  <Input type="date" value={offerForm.check_in} onChange={(e) => setOfferForm({...offerForm, check_in: e.target.value})} className="bg-[hsl(var(--secondary))]" />
+                </div>
+                <div>
+                  <label className="text-xs text-[hsl(var(--muted-foreground))] mb-1 block">Check-out</label>
+                  <Input type="date" value={offerForm.check_out} onChange={(e) => setOfferForm({...offerForm, check_out: e.target.value})} className="bg-[hsl(var(--secondary))]" />
+                </div>
+              </div>
+              <Input type="number" value={offerForm.price} onChange={(e) => setOfferForm({...offerForm, price: e.target.value})} placeholder="Total Price" className="bg-[hsl(var(--secondary))]" />
+              <Input value={offerForm.notes} onChange={(e) => setOfferForm({...offerForm, notes: e.target.value})} placeholder="Notes / Inclusions" className="bg-[hsl(var(--secondary))]" />
+              <Button onClick={handleCreateOffer} disabled={!offerForm.price || createOfferMutation.isPending} className="w-full" data-testid="inbox-submit-offer-btn">
+                {createOfferMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Gift className="w-4 h-4 mr-2" />}
+                Create Offer
+              </Button>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="bg-emerald-500/10 border border-emerald-500/25 rounded-lg p-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <CheckCircle2 className="w-5 h-5 text-emerald-400" />
+                  <span className="font-medium text-emerald-400">Offer Created Successfully</span>
+                </div>
+                <div className="text-sm space-y-1 text-[hsl(var(--muted-foreground))]">
+                  <p>Room: <span className="text-[hsl(var(--foreground))] capitalize">{createdOffer.room_type}</span></p>
+                  <p>Dates: {createdOffer.check_in} to {createdOffer.check_out}</p>
+                  <p>Price: <span className="font-bold text-[hsl(var(--foreground))]">{formatCurrency(createdOffer.price_total)} {createdOffer.currency}</span></p>
+                  <p>Status: <Badge className="bg-gray-500/10 text-gray-400 border-gray-500/25 border text-xs">{createdOffer.status}</Badge></p>
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-2">
+                {createdOffer.status === 'DRAFT' && (
+                  <Button onClick={() => sendOfferMutation.mutate(createdOffer.id)} disabled={sendOfferMutation.isPending} variant="outline">
+                    <Send className="w-4 h-4 mr-2" /> Send Offer
+                  </Button>
+                )}
+                <Button onClick={() => createPaymentLinkMutation.mutate(createdOffer.id)} disabled={createPaymentLinkMutation.isPending}>
+                  <Link2 className="w-4 h-4 mr-2" /> Create Payment Link
+                </Button>
+                {createdOffer.payment_link?.url && (
+                  <div className="flex gap-2">
+                    <Button variant="outline" className="flex-1" onClick={() => {
+                      navigator.clipboard.writeText(createdOffer.payment_link.url);
+                      toast.success('Payment URL copied!');
+                    }}>
+                      <Copy className="w-4 h-4 mr-2" /> Copy Payment URL
+                    </Button>
+                    <Button variant="outline" onClick={() => window.open(createdOffer.payment_link.url, '_blank')}>
+                      <ExternalLink className="w-4 h-4" />
+                    </Button>
+                  </div>
+                )}
+                <Button variant="ghost" onClick={() => { resetOfferModal(); window.location.href = '/offers'; }}>
+                  View in Offers Page
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
       <div className="flex gap-4 h-[calc(100%-60px)]">
         {/* Conversation List */}
         <div className="w-80 flex-shrink-0 border-r border-[hsl(var(--border))] pr-4" data-testid="inbox-conversation-list">
@@ -143,7 +304,7 @@ export default function InboxPage() {
                         ? 'bg-[hsl(var(--primary)/0.08)] border-[hsl(var(--primary))]'
                         : 'bg-[hsl(var(--card))] border-[hsl(var(--border))]'
                     }`}
-                    onClick={() => { setSelectedConv(conv); setAiSuggestion(null); }}
+                    onClick={() => { setSelectedConv(conv); setAiSuggestion(null); setCreatedOffer(null); }}
                     data-testid={`conversation-${conv.id}`}
                   >
                     <CardContent className="p-3">
@@ -202,6 +363,9 @@ export default function InboxPage() {
                   </div>
                 </div>
                 <div className="flex gap-2">
+                  <Button size="sm" variant="outline" onClick={() => setOfferModalOpen(true)} data-testid="inbox-create-offer-btn">
+                    <Gift className="w-3.5 h-3.5 mr-1" /> Create Offer
+                  </Button>
                   {(convDetail?.conversation?.status || selectedConv.status) === 'OPEN' ? (
                     <Button size="sm" variant="outline" onClick={() => closeMutation.mutate()} data-testid="close-conv-btn">Close</Button>
                   ) : (
