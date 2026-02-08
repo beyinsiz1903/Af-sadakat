@@ -1432,6 +1432,55 @@ async def seed_data():
     ]
     await db.orders.insert_many(sample_orders)
     
+    # Sprint 3: Seed conversations + messages
+    conv1_id = new_id()
+    conv2_id = new_id()
+    conv3_id = new_id()
+    await db.conversations.insert_many([
+        {"id": conv1_id, "tenant_id": tenant_id, "channel_type": "WEBCHAT", "contact_id": contacts[0]["id"],
+         "status": "OPEN", "assigned_user_id": None, "guest_name": "John Smith",
+         "last_message_at": now_utc().isoformat(), "needs_attention": False, "created_at": now_utc().isoformat(), "updated_at": now_utc().isoformat()},
+        {"id": conv2_id, "tenant_id": tenant_id, "channel_type": "WHATSAPP", "contact_id": contacts[1]["id"],
+         "status": "OPEN", "assigned_user_id": None, "guest_name": "Maria Garcia",
+         "last_message_at": (now_utc() - timedelta(hours=1)).isoformat(), "needs_attention": True, "created_at": (now_utc() - timedelta(hours=2)).isoformat(), "updated_at": now_utc().isoformat()},
+        {"id": conv3_id, "tenant_id": tenant_id, "channel_type": "INSTAGRAM", "contact_id": None,
+         "status": "OPEN", "assigned_user_id": None, "guest_name": "@travel_adventures",
+         "last_message_at": (now_utc() - timedelta(hours=3)).isoformat(), "created_at": (now_utc() - timedelta(hours=3)).isoformat(), "updated_at": now_utc().isoformat()},
+    ])
+    await db.messages.insert_many([
+        {"id": new_id(), "tenant_id": tenant_id, "conversation_id": conv1_id, "direction": "IN",
+         "body": "Hello, I'd like to request late checkout for tomorrow.", "created_at": (now_utc() - timedelta(minutes=30)).isoformat(),
+         "meta": {"sender_type": "guest", "sender_name": "John Smith"}},
+        {"id": new_id(), "tenant_id": tenant_id, "conversation_id": conv1_id, "direction": "OUT",
+         "body": "Of course! We can extend your checkout to 2 PM. Would that work?", "created_at": (now_utc() - timedelta(minutes=25)).isoformat(),
+         "last_updated_by": "Admin User", "meta": {"sender_type": "agent"}},
+        {"id": new_id(), "tenant_id": tenant_id, "conversation_id": conv1_id, "direction": "IN",
+         "body": "Perfect, thank you so much!", "created_at": now_utc().isoformat(),
+         "meta": {"sender_type": "guest", "sender_name": "John Smith"}},
+        {"id": new_id(), "tenant_id": tenant_id, "conversation_id": conv2_id, "direction": "IN",
+         "body": "The AC in my room is not working. This is urgent!", "created_at": (now_utc() - timedelta(hours=1)).isoformat(),
+         "meta": {"sender_type": "guest", "channel": "WHATSAPP", "is_stub": True}},
+        {"id": new_id(), "tenant_id": tenant_id, "conversation_id": conv3_id, "direction": "IN",
+         "body": "Love your hotel photos! Do you have availability next month?", "created_at": (now_utc() - timedelta(hours=3)).isoformat(),
+         "meta": {"sender_type": "guest", "channel": "INSTAGRAM", "is_stub": True}},
+    ])
+
+    # Sprint 3: Seed connector credentials (enabled stubs)
+    for ct in ["WEBCHAT", "WHATSAPP", "INSTAGRAM", "GOOGLE_REVIEWS", "TRIPADVISOR"]:
+        await db.connector_credentials.insert_one({
+            "id": new_id(), "tenant_id": tenant_id, "connector_type": ct,
+            "enabled": True, "encrypted_json": "", "last_sync_at": now_utc().isoformat() if ct != "WEBCHAT" else None,
+            "status": "active" if ct == "WEBCHAT" else "synced",
+            "created_at": now_utc().isoformat(), "updated_at": now_utc().isoformat(),
+        })
+
+    # Sprint 3: Seed usage counter
+    month_key = now_utc().strftime("%Y-%m")
+    await db.usage_counters.insert_one({
+        "id": new_id(), "tenant_id": tenant_id, "month_key": month_key,
+        "ai_replies_used": 13, "ai_replies_limit": 500, "updated_at": now_utc().isoformat(),
+    })
+
     return {
         "message": "Seed data created successfully",
         "tenant_slug": "grand-hotel",
