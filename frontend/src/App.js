@@ -25,6 +25,7 @@ import AnalyticsPage from './pages/AnalyticsPage';
 import CompliancePage from './pages/CompliancePage';
 import GrowthPage from './pages/GrowthPage';
 import SystemMetricsPage from './pages/SystemMetricsPage';
+import AuditLogPage from './pages/AuditLogPage';
 
 // Guest Pages
 import GuestRoomPanel from './pages/guest/GuestRoomPanel';
