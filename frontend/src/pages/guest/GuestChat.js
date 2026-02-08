@@ -87,34 +87,15 @@ export default function GuestChat() {
     setMessages(prev => [...prev, tempMsg]);
 
     try {
-      const res = await api.post(`/v2/inbox/webchat/${conversationId}/messages`, {
+      await api.post(`/v2/inbox/webchat/${conversationId}/messages`, {
         text: content,
         senderName: guestName || 'Guest',
       });
 
-      // Replace temp message with real one
-      setMessages(prev => {
-        const filtered = prev.filter(m => m.id !== tempMsg.id);
-        filtered.push({
-          id: res.data.id,
-          direction: 'IN',
-          body: content,
-          meta: { sender_type: 'guest' },
-          created_at: res.data.created_at,
-        });
-        return filtered;
-      });
-
-      // If AI auto-replied, add the AI message
-      if (res.data.ai_reply?.message) {
-        const aiMsg = res.data.ai_reply.message;
-        setMessages(prev => [...prev, {
-          id: aiMsg.id,
-          direction: 'OUT',
-          body: aiMsg.body,
-          meta: aiMsg.meta || { sender_type: 'ai', ai: true },
-          created_at: aiMsg.created_at,
-        }]);
+      // Fetch all messages from server to get the canonical state (including AI reply)
+      const msgRes = await api.get(`/v2/inbox/webchat/${conversationId}/messages`);
+      if (msgRes.data) {
+        setMessages(msgRes.data);
       }
     } catch (e) {
       toast.error('Failed to send message');
