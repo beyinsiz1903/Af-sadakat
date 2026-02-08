@@ -219,6 +219,9 @@ frontend:
       - working: true
         agent: "main"
         comment: "Meta Platform card with status, Configure dialog (App ID, Secret, Verify Token, Webhook URL), Connect Meta OAuth button, Assets dialog with enable/disable toggles, Disconnect button."
+      - working: true
+        agent: "testing"
+        comment: "✅ Meta Platform card working correctly: Verified card is visible with 'Meta Platform' heading and 'Facebook · Instagram · WhatsApp' subtitle. Status badge shows 'Not Connected'. Both 'Configure' and 'Connect Meta' buttons are properly displayed. Configure dialog opens correctly showing setup steps guide, all required fields (Meta App ID, App Secret, Webhook Verify Token, Webhook Callback URL), and copy buttons for token and URL are functional."
 
   - task: "Sprint 8: Inbox FACEBOOK channel support"
     implemented: true
