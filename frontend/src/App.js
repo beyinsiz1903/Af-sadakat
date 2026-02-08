@@ -80,6 +80,7 @@ function App() {
               <Route path="compliance" element={<CompliancePage />} />
               <Route path="growth" element={<GrowthPage />} />
               <Route path="system" element={<SystemMetricsPage />} />
+              <Route path="audit" element={<AuditLogPage />} />
               <Route path="settings" element={<SettingsPage />} />
             </Route>
             
