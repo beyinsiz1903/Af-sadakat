@@ -107,6 +107,60 @@ class ComprehensiveAPITester:
             else:
                 self.log(f"   ✅ Dashboard has all required KPIs")
 
+    def test_analytics_engine_fix(self):
+        """Test fixed analytics engine - AI efficiency should be <= 100%"""
+        self.log("\n=== ANALYTICS ENGINE (FIXED) ===")
+        success, analytics = self.run_test("Get Analytics", "GET", f"tenants/{self.tenant_slug}/analytics", 200)
+        if success:
+            ai_efficiency = analytics.get("ai", {}).get("efficiency_pct", 0)
+            self.log(f"   AI Efficiency: {ai_efficiency}%")
+            if ai_efficiency > 100:
+                self.log(f"   ❌ AI Efficiency still broken: {ai_efficiency}% (should be <= 100%)")
+                self.failed_tests.append(f"AI Efficiency broken: {ai_efficiency}%")
+            else:
+                self.log(f"   ✅ AI Efficiency fixed: {ai_efficiency}%")
+
+    def test_v2_modular_routes(self):
+        """Test V2 modular hotel routes"""
+        self.log("\n=== V2 MODULAR ROUTES ===")
+        
+        # Test V2 rooms list
+        success, rooms = self.run_test("V2 Rooms List", "GET", f"v2/hotel/tenants/{self.tenant_slug}/rooms", 200)
+        if success:
+            self.log(f"   Found {len(rooms)} rooms in V2 API")
+        
+        # Test V2 requests list
+        success, requests_data = self.run_test("V2 Requests List", "GET", f"v2/hotel/tenants/{self.tenant_slug}/requests", 200)
+        if success:
+            requests = requests_data.get('data', [])
+            total = requests_data.get('total', 0)
+            self.log(f"   Found {len(requests)}/{total} requests in V2 API")
+        
+        # Test QR PNG generation for a room
+        if rooms:
+            room_id = rooms[0]["id"]
+            success, _ = self.run_test("V2 Room QR PNG", "GET", f"v2/hotel/rooms/{room_id}/qr.png", 200)
+            if success:
+                self.log(f"   ✅ QR PNG generation working")
+
+    def test_guest_resolve_endpoints(self):
+        """Test guest JWT token resolution"""
+        self.log("\n=== GUEST RESOLVE ENDPOINTS ===")
+        
+        # Test guest room resolution
+        self.run_test("Guest Resolve Room", "GET", "guest/resolve-room", 200)
+        
+        # Test guest table resolution 
+        self.run_test("Guest Resolve Table", "GET", "guest/resolve-table", 200)
+
+    def test_system_status(self):
+        """Test system status endpoint"""
+        self.log("\n=== SYSTEM STATUS ===")
+        success, status = self.run_test("System Status", "GET", "system/status", 200)
+        if success:
+            operational = status.get("operational", False)
+            self.log(f"   System operational: {operational}")
+
     def test_reviews_system(self):
         """Test reviews management and AI reply system"""
         self.log("\n=== REVIEWS SYSTEM ===")
