@@ -7,6 +7,7 @@ import {
   BedDouble, TableProperties, BookOpen, Users, Settings, LogOut, Hotel, ChevronLeft, Menu,
   Star, Gift, Plug
 } from 'lucide-react';
+import { BarChart3, CreditCard, Shield, Share2, Server } from 'lucide-react';
 import { Button } from '../ui/button';
 import { ScrollArea } from '../ui/scroll-area';
 import { Separator } from '../ui/separator';
@@ -24,8 +25,13 @@ const navItems = [
   { path: '/menu', label: 'Menu', icon: BookOpen },
   { path: '/contacts', label: 'Contacts', icon: Users },
   { path: '/offers', label: 'Offers', icon: Gift },
+  { path: '/analytics', label: 'Analytics', icon: BarChart3 },
   { type: 'separator', label: 'System' },
+  { path: '/billing', label: 'Billing', icon: CreditCard },
   { path: '/connectors', label: 'Integrations', icon: Plug },
+  { path: '/compliance', label: 'Compliance', icon: Shield },
+  { path: '/growth', label: 'Growth', icon: Share2 },
+  { path: '/system', label: 'System', icon: Server },
   { path: '/settings', label: 'Settings', icon: Settings },
 ];
 
