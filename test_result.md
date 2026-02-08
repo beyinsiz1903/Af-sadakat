@@ -102,7 +102,7 @@
 # Testing Data - Main Agent and testing sub agent both should log testing data below this section
 #====================================================================================================
 
-user_problem_statement: "Sprint 5: Multi-Property + Offers/Reservations V2 + Mock Payments V2 + Inbox-to-Sale + Go-Live Hardening for multi-tenant SaaS hotel management platform"
+user_problem_statement: "Sprint 6: Pilot Hardening + Production Stabilization - property header enforcement, observability, notification engine, confirmation code hardening, payment safety, CLI export"
 
 backend:
   - task: "Properties V2 CRUD"
