@@ -2758,6 +2758,61 @@ async def start_offer_expiration_task():
             await asyncio.sleep(60)
     asyncio.create_task(expire_offers_loop())
 
+# Meta token refresh background task (runs every 6 hours)
+@app.on_event("startup")
+async def start_meta_token_refresh_task():
+    async def meta_token_refresh_loop():
+        while True:
+            try:
+                await asyncio.sleep(21600)  # 6 hours
+                # Find META credentials expiring within 7 days
+                from datetime import timedelta as _td
+                threshold = (now_utc() + _td(days=7)).isoformat()
+                cursor = db.connector_credentials.find(
+                    {"connector_type": "META", "status": "CONNECTED",
+                     "token_expires_at": {"$lt": threshold, "$ne": None}},
+                    {"_id": 0}
+                )
+                async for cred_doc in cursor:
+                    try:
+                        from security import decrypt_field as _dec, encrypt_field as _enc
+                        from services.meta_provider import refresh_long_lived_token
+                        app_id = cred_doc.get("meta_app_id", "")
+                        app_secret = _dec(cred_doc.get("meta_app_secret", ""))
+                        current_token = _dec(cred_doc.get("access_token", ""))
+                        if not app_id or not app_secret or not current_token:
+                            continue
+                        result = await refresh_long_lived_token(app_id, app_secret, current_token)
+                        if result and result.get("access_token"):
+                            expires_in = result.get("expires_in", 5184000)
+                            await db.connector_credentials.update_one(
+                                {"id": cred_doc["id"]},
+                                {"$set": {
+                                    "access_token": _enc(result["access_token"]),
+                                    "token_expires_at": (now_utc() + _td(seconds=expires_in)).isoformat(),
+                                    "last_error": None,
+                                    "updated_at": now_utc().isoformat(),
+                                }}
+                            )
+                            await db.audit_log.insert_one({
+                                "id": new_id(), "tenant_id": cred_doc["tenant_id"],
+                                "action": "META_TOKEN_REFRESHED", "entity_type": "connector",
+                                "entity_id": "META", "user_id": "system",
+                                "created_at": now_utc().isoformat(),
+                            })
+                            logger.info(f"Refreshed Meta token for tenant {cred_doc['tenant_id']}")
+                        else:
+                            await db.connector_credentials.update_one(
+                                {"id": cred_doc["id"]},
+                                {"$set": {"status": "ERROR", "last_error": "Token refresh failed",
+                                          "updated_at": now_utc().isoformat()}}
+                            )
+                    except Exception as te:
+                        logger.error(f"Meta token refresh error: {te}")
+            except Exception as e:
+                logger.error(f"Meta token refresh loop error: {e}")
+    asyncio.create_task(meta_token_refresh_loop())
+
 # ============ WEBSOCKET ENDPOINT ============
 @app.websocket("/ws/{tenant_id}")
 async def websocket_endpoint(websocket: WebSocket, tenant_id: str):
