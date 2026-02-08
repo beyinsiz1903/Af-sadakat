@@ -1,9 +1,11 @@
 """Payments V2 Router: Mock payment provider with idempotent webhook simulation.
 No real payment gateway. Provides provider interface + StripeStub.
-Public endpoints for guest checkout.
+Public endpoints for guest checkout. Rate limited.
 """
 from fastapi import APIRouter, HTTPException, Request
 import secrets
+import time
+from collections import defaultdict
 
 from core.config import db
 from core.tenant_guard import (
@@ -12,6 +14,19 @@ from core.tenant_guard import (
 )
 
 router = APIRouter(prefix="/api/v2/payments", tags=["payments"])
+
+# Simple in-memory rate limiter for public payment endpoints (30/min per IP)
+_rate_store = defaultdict(list)
+_RATE_LIMIT = 30
+_RATE_WINDOW = 60  # seconds
+
+def _check_rate_limit(request: Request):
+    ip = request.client.host if request.client else "unknown"
+    now = time.time()
+    _rate_store[ip] = [t for t in _rate_store[ip] if now - t < _RATE_WINDOW]
+    if len(_rate_store[ip]) >= _RATE_LIMIT:
+        raise HTTPException(status_code=429, detail="Rate limit exceeded. Try again later.")
+    _rate_store[ip].append(now)
 
 
 def _generate_confirmation_code() -> str:
