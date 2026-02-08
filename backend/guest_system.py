@@ -154,7 +154,7 @@ class ConnectorPollingTask:
     
     async def _poll_all(self):
         """Poll all enabled connectors for all tenants"""
-        from connectors import get_connector
+        from connectors.registry import get_connector_instance as get_connector
         
         credentials = await self.db.connector_credentials.find(
             {"enabled": True, "connector_type": {"$ne": "WEBCHAT"}}
