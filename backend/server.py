@@ -1542,6 +1542,165 @@ async def seed_data():
     ]
     await db.contact_events.insert_many(contact_events)
 
+    # ============ SPRINT 5: PROPERTIES, OFFERS, RESERVATIONS ============
+    # Properties
+    prop_main_id = new_id()
+    prop_annex_id = new_id()
+    properties = [
+        {"id": prop_main_id, "tenant_id": tenant_id, "name": "Grand Hotel Istanbul - Main", "slug": "main",
+         "timezone": "Europe/Istanbul", "address": "Beyoglu, Istanbul", "phone": "+90 212 555 0001",
+         "email": "main@grandhotel.com", "is_active": True, "last_updated_by": "Admin User",
+         "created_at": (now_utc() - timedelta(days=90)).isoformat(), "updated_at": now_utc().isoformat()},
+        {"id": prop_annex_id, "tenant_id": tenant_id, "name": "Grand Hotel Istanbul - Annex", "slug": "annex",
+         "timezone": "Europe/Istanbul", "address": "Sisli, Istanbul", "phone": "+90 212 555 0002",
+         "email": "annex@grandhotel.com", "is_active": True, "last_updated_by": "Admin User",
+         "created_at": (now_utc() - timedelta(days=60)).isoformat(), "updated_at": now_utc().isoformat()},
+    ]
+    await db.properties.insert_many(properties)
+
+    # Update existing rooms with property_id (first 4 to main, last 2 to annex)
+    for i, room in enumerate(rooms):
+        pid = prop_main_id if i < 4 else prop_annex_id
+        await db.rooms.update_one({"id": room["id"]}, {"$set": {"property_id": pid}})
+
+    # Update existing tables with property_id
+    for i, table in enumerate(tables):
+        pid = prop_main_id if i < 2 else prop_annex_id
+        await db.tables.update_one({"id": table["id"]}, {"$set": {"property_id": pid}})
+
+    # Offers (4 total: 2 SENT, 1 PAID, 1 EXPIRED)
+    offer_sent_1_id = new_id()
+    offer_sent_2_id = new_id()
+    offer_paid_id = new_id()
+    offer_expired_id = new_id()
+    pl_sent_1_id = new_id()
+    pl_sent_2_id = new_id()
+    pl_paid_id = new_id()
+
+    offers_seed = [
+        {"id": offer_sent_1_id, "tenant_id": tenant_id, "property_id": prop_main_id,
+         "contact_id": contacts[0]["id"], "source": "MANUAL",
+         "check_in": (now_utc() + timedelta(days=14)).strftime("%Y-%m-%d"),
+         "check_out": (now_utc() + timedelta(days=17)).strftime("%Y-%m-%d"),
+         "guests_count": 2, "room_type": "deluxe", "price_total": 4500.0, "currency": "TRY",
+         "status": "SENT", "expires_at": (now_utc() + timedelta(hours=24)).isoformat(),
+         "notes": "Includes breakfast and spa access",
+         "guest_name": "John Smith", "guest_email": "", "guest_phone": "+905551234567",
+         "payment_link_id": pl_sent_1_id, "last_updated_by": "Admin User", "meta": {},
+         "created_at": (now_utc() - timedelta(hours=6)).isoformat(), "updated_at": now_utc().isoformat()},
+        {"id": offer_sent_2_id, "tenant_id": tenant_id, "property_id": prop_main_id,
+         "contact_id": contacts[1]["id"], "source": "INBOX",
+         "check_in": (now_utc() + timedelta(days=7)).strftime("%Y-%m-%d"),
+         "check_out": (now_utc() + timedelta(days=10)).strftime("%Y-%m-%d"),
+         "guests_count": 1, "room_type": "standard", "price_total": 2700.0, "currency": "TRY",
+         "status": "SENT", "expires_at": (now_utc() + timedelta(hours=36)).isoformat(),
+         "notes": "Room with city view",
+         "guest_name": "Maria Garcia", "guest_email": "maria@email.com", "guest_phone": "+905559876543",
+         "payment_link_id": pl_sent_2_id, "last_updated_by": "Admin User", "meta": {},
+         "created_at": (now_utc() - timedelta(hours=12)).isoformat(), "updated_at": now_utc().isoformat()},
+        {"id": offer_paid_id, "tenant_id": tenant_id, "property_id": prop_main_id,
+         "contact_id": contacts[2]["id"], "source": "MANUAL",
+         "check_in": (now_utc() + timedelta(days=3)).strftime("%Y-%m-%d"),
+         "check_out": (now_utc() + timedelta(days=5)).strftime("%Y-%m-%d"),
+         "guests_count": 2, "room_type": "suite", "price_total": 8000.0, "currency": "TRY",
+         "status": "PAID", "expires_at": (now_utc() - timedelta(hours=12)).isoformat(),
+         "notes": "VIP guest - suite with Bosphorus view",
+         "guest_name": "Ahmed Hassan", "guest_email": "", "guest_phone": "+905553456789",
+         "payment_link_id": pl_paid_id, "last_updated_by": "Admin User", "meta": {},
+         "created_at": (now_utc() - timedelta(days=2)).isoformat(), "updated_at": (now_utc() - timedelta(hours=12)).isoformat()},
+        {"id": offer_expired_id, "tenant_id": tenant_id, "property_id": prop_annex_id,
+         "contact_id": "", "source": "MANUAL",
+         "check_in": (now_utc() + timedelta(days=1)).strftime("%Y-%m-%d"),
+         "check_out": (now_utc() + timedelta(days=3)).strftime("%Y-%m-%d"),
+         "guests_count": 1, "room_type": "standard", "price_total": 1800.0, "currency": "TRY",
+         "status": "EXPIRED", "expires_at": (now_utc() - timedelta(hours=48)).isoformat(),
+         "notes": "Walk-in inquiry",
+         "guest_name": "Walk-in Guest", "guest_email": "", "guest_phone": "",
+         "payment_link_id": None, "last_updated_by": "Admin User", "meta": {},
+         "created_at": (now_utc() - timedelta(days=3)).isoformat(), "updated_at": (now_utc() - timedelta(hours=48)).isoformat()},
+    ]
+    await db.offers.insert_many(offers_seed)
+
+    # Payment links
+    public_url = os.environ.get("PUBLIC_BASE_URL", "https://property-payments-1.preview.emergentagent.com")
+    payment_links_seed = [
+        {"id": pl_sent_1_id, "tenant_id": tenant_id, "offer_id": offer_sent_1_id,
+         "provider": "STRIPE_STUB", "url": f"{public_url}/pay/{pl_sent_1_id}",
+         "status": "PENDING", "idempotency_key": f"offer_{offer_sent_1_id}_abc123",
+         "amount": 4500.0, "currency": "TRY",
+         "created_at": (now_utc() - timedelta(hours=6)).isoformat(), "updated_at": now_utc().isoformat()},
+        {"id": pl_sent_2_id, "tenant_id": tenant_id, "offer_id": offer_sent_2_id,
+         "provider": "STRIPE_STUB", "url": f"{public_url}/pay/{pl_sent_2_id}",
+         "status": "PENDING", "idempotency_key": f"offer_{offer_sent_2_id}_def456",
+         "amount": 2700.0, "currency": "TRY",
+         "created_at": (now_utc() - timedelta(hours=12)).isoformat(), "updated_at": now_utc().isoformat()},
+        {"id": pl_paid_id, "tenant_id": tenant_id, "offer_id": offer_paid_id,
+         "provider": "STRIPE_STUB", "url": f"{public_url}/pay/{pl_paid_id}",
+         "status": "SUCCEEDED", "idempotency_key": f"offer_{offer_paid_id}_ghi789",
+         "amount": 8000.0, "currency": "TRY",
+         "created_at": (now_utc() - timedelta(days=1)).isoformat(), "updated_at": (now_utc() - timedelta(hours=12)).isoformat()},
+    ]
+    await db.payment_links.insert_many(payment_links_seed)
+
+    # Payments
+    await db.payments.insert_one({
+        "id": new_id(), "tenant_id": tenant_id, "offer_id": offer_paid_id,
+        "payment_link_id": pl_paid_id, "provider": "STRIPE_STUB",
+        "amount": 8000.0, "currency": "TRY", "status": "SUCCEEDED",
+        "provider_payment_id": "pi_stub_seed12345678",
+        "created_at": (now_utc() - timedelta(hours=12)).isoformat(),
+        "updated_at": (now_utc() - timedelta(hours=12)).isoformat(),
+    })
+
+    # Reservations (2 confirmed)
+    res1_id = new_id()
+    res2_id = new_id()
+    reservations_seed = [
+        {"id": res1_id, "tenant_id": tenant_id, "property_id": prop_main_id,
+         "contact_id": contacts[2]["id"], "offer_id": offer_paid_id,
+         "status": "CONFIRMED", "confirmation_code": "RES-A1B2C3",
+         "guest_name": "Ahmed Hassan", "guest_email": "", "guest_phone": "+905553456789",
+         "room_type": "suite",
+         "check_in": (now_utc() + timedelta(days=3)).strftime("%Y-%m-%d"),
+         "check_out": (now_utc() + timedelta(days=5)).strftime("%Y-%m-%d"),
+         "guests_count": 2, "price_total": 8000.0, "currency": "TRY",
+         "last_updated_by": "system",
+         "created_at": (now_utc() - timedelta(hours=12)).isoformat(),
+         "updated_at": (now_utc() - timedelta(hours=12)).isoformat()},
+        {"id": res2_id, "tenant_id": tenant_id, "property_id": prop_main_id,
+         "contact_id": contacts[0]["id"], "offer_id": "",
+         "status": "CONFIRMED", "confirmation_code": "RES-D4E5F6",
+         "guest_name": "John Smith", "guest_email": "", "guest_phone": "+905551234567",
+         "room_type": "deluxe",
+         "check_in": (now_utc() - timedelta(days=2)).strftime("%Y-%m-%d"),
+         "check_out": (now_utc() + timedelta(days=1)).strftime("%Y-%m-%d"),
+         "guests_count": 2, "price_total": 6000.0, "currency": "TRY",
+         "last_updated_by": "system",
+         "created_at": (now_utc() - timedelta(days=5)).isoformat(),
+         "updated_at": (now_utc() - timedelta(days=5)).isoformat()},
+    ]
+    await db.reservations.insert_many(reservations_seed)
+
+    # Additional contact events for offers/reservations
+    offer_res_events = [
+        {"id": new_id(), "tenant_id": tenant_id, "contact_id": contacts[2]["id"], "type": "OFFER_CREATED",
+         "title": "Offer created: suite", "body": "VIP guest - suite with Bosphorus view",
+         "ref_type": "offer", "ref_id": offer_paid_id, "created_at": (now_utc() - timedelta(days=2)).isoformat()},
+        {"id": new_id(), "tenant_id": tenant_id, "contact_id": contacts[2]["id"], "type": "OFFER_SENT",
+         "title": "Offer sent", "body": "",
+         "ref_type": "offer", "ref_id": offer_paid_id, "created_at": (now_utc() - timedelta(days=1, hours=12)).isoformat()},
+        {"id": new_id(), "tenant_id": tenant_id, "contact_id": contacts[2]["id"], "type": "RESERVATION_CONFIRMED",
+         "title": "Reservation RES-A1B2C3 confirmed", "body": "Payment received",
+         "ref_type": "reservation", "ref_id": res1_id, "created_at": (now_utc() - timedelta(hours=12)).isoformat()},
+        {"id": new_id(), "tenant_id": tenant_id, "contact_id": contacts[0]["id"], "type": "OFFER_CREATED",
+         "title": "Offer created: deluxe", "body": "Includes breakfast and spa access",
+         "ref_type": "offer", "ref_id": offer_sent_1_id, "created_at": (now_utc() - timedelta(hours=6)).isoformat()},
+        {"id": new_id(), "tenant_id": tenant_id, "contact_id": contacts[0]["id"], "type": "OFFER_SENT",
+         "title": "Offer sent", "body": "",
+         "ref_type": "offer", "ref_id": offer_sent_1_id, "created_at": (now_utc() - timedelta(hours=5)).isoformat()},
+    ]
+    await db.contact_events.insert_many(offer_res_events)
+
     return {
         "message": "Seed data created successfully",
         "tenant_slug": "grand-hotel",
