@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { BarChart3, CreditCard, Shield, Share2, Server } from 'lucide-react';
 import { FileText as AuditIcon } from 'lucide-react';
+import { Bot } from 'lucide-react';
 import { Button } from '../ui/button';
 import { ScrollArea } from '../ui/scroll-area';
 import { Separator } from '../ui/separator';
