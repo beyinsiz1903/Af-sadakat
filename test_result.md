@@ -111,11 +111,14 @@ backend:
     file: "routers/ai_sales.py"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: true
         agent: "main"
         comment: "Created AI Sales router with settings, room rates CRUD, discount rules CRUD, policies CRUD, AI stats, manual AI trigger, session info endpoints."
+      - working: true
+        agent: "testing"
+        comment: "✅ All AI Sales endpoints working: GET /v2/ai-sales/tenants/grand-hotel/settings returns 2 properties (Main enabled). Room rates CRUD tested - 4 types found (standard, deluxe, suite, economy). POST room-rates correctly handles duplicates with 409 status. Discount rules show max 10%, min 3 nights. Policies return check-in 14:00, check-out 12:00. AI stats show 20 replies used, 500 limit, 1 offer created, 4 active sessions."
 
   - task: "Sprint 7: OpenAI Tool Calling Provider"
     implemented: true
@@ -123,11 +126,14 @@ backend:
     file: "services/openai_provider.py"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: true
         agent: "main"
         comment: "LiteLLM wrapper with Emergent proxy, multi-round tool calling loop, safety limits."
+      - working: true
+        agent: "testing"
+        comment: "✅ OpenAI provider working perfectly: LiteLLM integration with gpt-4o-mini model. Tool calling loop functional - tested check_availability_and_price, create_offer, generate_payment_link tools in sequence. Token usage tracked (996 tokens for example conversation). Multi-round tool execution working correctly."
 
   - task: "Sprint 7: AI Sales Tool Functions"
     implemented: true
@@ -135,11 +141,14 @@ backend:
     file: "services/ai_sales_tools.py"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: true
         agent: "main"
         comment: "4 tools: check_availability_and_price (calculates from room_rates DB), validate_discount (enforces max%), create_offer (creates V2 offer), generate_payment_link (creates payment link). All tenant+property scoped."
+      - working: true
+        agent: "testing"
+        comment: "✅ All 4 AI tools working correctly: 1) check_availability_and_price calculates accurate pricing (4400 TRY for 2 nights deluxe = 2200×2), handles availability logic. 2) Tool functions properly scoped to tenant+property. 3) create_offer successfully creates offers with source='AI_WEBCHAT'. 4) generate_payment_link creates working payment URLs. Tools integrate seamlessly with OpenAI function calling."
 
   - task: "Sprint 7: AI Sales State Machine"
     implemented: true
@@ -147,11 +156,14 @@ backend:
     file: "services/ai_sales_state.py"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: true
         agent: "main"
         comment: "Session management with states: INFO, COLLECT_DATES, PRICE_QUOTED, DISCOUNT_NEGOTIATION, PAYMENT_SENT, CONFIRMED, ESCALATED. Usage limits, property check, API key check."
+      - working: true
+        agent: "testing"
+        comment: "✅ AI Sales state machine working perfectly: Session state transitions correctly (INFO → PRICE_QUOTED → PAYMENT_SENT). Should_ai_respond checks working - AI enabled for Main property, usage limits respected (20/500 used). Session management tracks conversation flow. AI usage increment working. System prompt generation includes hotel context, room types, policies."
 
   - task: "Sprint 7: Webchat AI Auto-Reply Integration"
     implemented: true
@@ -159,11 +171,14 @@ backend:
     file: "routers/inbox.py"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: true
         agent: "main"
         comment: "Modified webchat guest message handler to auto-trigger AI response when enabled. Added GET messages endpoint for polling. Property_id set on conversation start."
+      - working: true
+        agent: "testing"
+        comment: "✅ Webchat AI integration working perfectly: POST /v2/inbox/webchat/{convId}/messages auto-triggers AI responses when enabled. AI replies include ai_reply field with ai_text, tool_calls, tokens_used, session_state. GET /v2/inbox/webchat/{convId}/messages returns all messages including AI responses marked with meta.ai=true. Full booking flow tested: Turkish/English language support, tool calling sequence works end-to-end."
 
   - task: "Sprint 7: Seed Data (room_rates, discount_rules, policies, ai_settings)"
     implemented: true
@@ -171,11 +186,14 @@ backend:
     file: "server.py"
     stuck_count: 0
     priority: "medium"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: true
         agent: "main"
         comment: "3 room types (Standard 1200 TRY, Deluxe 2200 TRY, Suite 4500 TRY) with weekend/season multipliers. Discount rules (max 10%, min 3 nights). Business policies. AI enabled for Main property."
+      - working: true
+        agent: "testing"
+        comment: "✅ Seed data complete and working: 4 room types found (standard 1200 TRY, deluxe 2200 TRY, suite 4500 TRY, economy 800 TRY). Discount rules: max 10%, min 3 nights. Policies: check-in 14:00, check-out 12:00. AI settings: enabled for Main property (1971fb13-6cc3-45a5-bf11-53535103f932), disabled for Annex. All data properly seeded and accessible via APIs."
 
 frontend:
   - task: "Sprint 7: AI Sales Admin Page"
