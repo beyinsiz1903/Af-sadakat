@@ -198,3 +198,44 @@ export const inboxOffersAPI = {
   createFromConversation: (slug, convId, data) =>
     api.post(`/v2/inbox/tenants/${slug}/conversations/${convId}/create-offer`, data),
 };
+
+// AI Sales V2
+export const aiSalesAPI = {
+  // Settings
+  getSettings: (slug) => api.get(`/v2/ai-sales/tenants/${slug}/settings`),
+  updateSettings: (slug, propertyId, data) =>
+    api.put(`/v2/ai-sales/tenants/${slug}/properties/${propertyId}/settings`, data),
+
+  // Room Rates
+  listRoomRates: (slug, propertyId) =>
+    api.get(`/v2/ai-sales/tenants/${slug}/properties/${propertyId}/room-rates`),
+  createRoomRate: (slug, propertyId, data) =>
+    api.post(`/v2/ai-sales/tenants/${slug}/properties/${propertyId}/room-rates`, data),
+  updateRoomRate: (slug, propertyId, rateId, data) =>
+    api.patch(`/v2/ai-sales/tenants/${slug}/properties/${propertyId}/room-rates/${rateId}`, data),
+  deleteRoomRate: (slug, propertyId, rateId) =>
+    api.delete(`/v2/ai-sales/tenants/${slug}/properties/${propertyId}/room-rates/${rateId}`),
+
+  // Discount Rules
+  getDiscountRules: (slug, propertyId) =>
+    api.get(`/v2/ai-sales/tenants/${slug}/properties/${propertyId}/discount-rules`),
+  updateDiscountRules: (slug, propertyId, data) =>
+    api.put(`/v2/ai-sales/tenants/${slug}/properties/${propertyId}/discount-rules`, data),
+
+  // Policies
+  getPolicies: (slug, propertyId) =>
+    api.get(`/v2/ai-sales/tenants/${slug}/properties/${propertyId}/policies`),
+  updatePolicies: (slug, propertyId, data) =>
+    api.put(`/v2/ai-sales/tenants/${slug}/properties/${propertyId}/policies`, data),
+
+  // Stats
+  getStats: (slug) => api.get(`/v2/ai-sales/tenants/${slug}/stats`),
+
+  // Manual AI trigger
+  triggerAI: (slug, convId) =>
+    api.post(`/v2/ai-sales/tenants/${slug}/conversations/${convId}/ai-respond`),
+
+  // Session info
+  getSession: (slug, convId) =>
+    api.get(`/v2/ai-sales/tenants/${slug}/conversations/${convId}/session`),
+};
