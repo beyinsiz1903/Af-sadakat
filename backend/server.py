@@ -1971,14 +1971,21 @@ async def resolve_room(tenantSlug: str, roomCode: str, request: Request = None):
     }
 
 @api_router.get("/guest/resolve-table")
-async def resolve_table(tenantSlug: str, tableCode: str):
-    """Resolve table by tenant slug + table code, issue guest token"""
+async def resolve_table(tenantSlug: str, tableCode: str, request: Request = None):
+    """Resolve table with QR validation + rate limiting"""
+    client_ip = request.client.host if request else "unknown"
+    rate_key = f"guest_resolve:{client_ip}"
+    if rate_limiter.is_rate_limited(rate_key, max_requests=10, window_seconds=60):
+        raise HTTPException(status_code=429, detail="Too many requests. Please wait.")
+    
     tenant = await get_tenant_by_slug(tenantSlug)
     table = await db.tables.find_one({"tenant_id": tenant["id"], "table_code": tableCode}, {"_id": 0})
     if not table:
-        raise HTTPException(status_code=404, detail="Table not found")
+        raise HTTPException(status_code=404, detail="Table not found or QR code invalid")
     
     table_doc = serialize_doc(table)
+    if not table_doc.get("is_active", True):
+        raise HTTPException(status_code=410, detail="This QR code has been deactivated")
     categories = await db.menu_categories.find({"tenant_id": tenant["id"]}, {"_id": 0}).sort("sort_order", 1).to_list(50)
     items = await db.menu_items.find({"tenant_id": tenant["id"], "available": True}, {"_id": 0}).to_list(500)
     
