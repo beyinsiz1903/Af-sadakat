@@ -56,11 +56,13 @@ async def compute_analytics(db, tenant_id: str) -> dict:
     except:
         avg_resolution_min = 0
     
-    # AI efficiency
+    # AI efficiency (% of conversations with AI-assisted replies)
     total_ai = await db.tenants.find_one({"id": tenant_id})
     ai_replies = total_ai.get("usage_counters", {}).get("ai_replies_this_month", 0) if total_ai else 0
+    total_messages = await db.messages.count_documents({"tenant_id": tenant_id})
     total_conversations = await db.conversations.count_documents({"tenant_id": tenant_id})
-    ai_efficiency = round(ai_replies / max(total_conversations, 1) * 100, 1)
+    # AI assists ratio: how many messages got AI help (capped at 100%)
+    ai_efficiency = min(100, round(ai_replies / max(total_messages, 1) * 100, 1))
     
     # Loyalty retention
     loyalty_count = await db.loyalty_accounts.count_documents({"tenant_id": tenant_id})
