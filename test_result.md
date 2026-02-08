@@ -252,6 +252,9 @@ frontend:
       - working: true
         agent: "main"
         comment: "Full V2 offers page with status filter, create, send, cancel, payment link, simulate payment. Stats cards."
+      - working: true
+        agent: "testing"
+        comment: "✅ Verified Offers page loads correctly with stats cards (Offers Sent, Paid Offers, Reservations, Conversion Rate). Successfully created a new offer 'Playwright Test' and verified it appeared in the list. Found offers with various statuses (SENT, PAID, EXPIRED, DRAFT, CANCELLED)."
 
   - task: "Payment Public Page"
     implemented: true
