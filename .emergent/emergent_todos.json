@@ -1,42 +1,30 @@
 [
   {
-    "content": "Guest Token JWT system (short-lived signed tokens for guest QR actions)",
-    "status": "completed"
+    "content": "Refactor: Create modular router structure (routers/, services/, core/)",
+    "status": "in_progress"
   },
   {
-    "content": "QR PNG generation + PDF print sheet endpoints",
-    "status": "completed"
+    "content": "Security: Unguessable room/table codes + QR version control",
+    "status": "pending"
   },
   {
-    "content": "Request comments collection + API + UI",
-    "status": "completed"
+    "content": "Security: Centralized tenant_guard() dependency",
+    "status": "pending"
   },
   {
-    "content": "Drag & Drop Kanban (dnd-kit) for Requests + Orders boards",
-    "status": "completed"
+    "content": "Fix: Analytics formulas (efficiency %, resolution time)",
+    "status": "pending"
   },
   {
-    "content": "Connector background polling loop (asyncio task)",
-    "status": "completed"
+    "content": "UI: Credential masking in connector settings",
+    "status": "pending"
   },
   {
-    "content": "KB Articles collection for AI context",
-    "status": "completed"
+    "content": "Production: Update seed with secure codes",
+    "status": "pending"
   },
   {
-    "content": "Fernet credential vault encryption",
-    "status": "completed"
-  },
-  {
-    "content": "Enhanced seed data (comprehensive demo)",
-    "status": "completed"
-  },
-  {
-    "content": "Frontend fixes: QR actions in rooms/tables",
-    "status": "completed"
-  },
-  {
-    "content": "End-to-end Testing - Backend 93.8%, all features verified",
-    "status": "completed"
+    "content": "Testing: Full E2E after refactor",
+    "status": "pending"
   }
 ]
