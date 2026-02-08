@@ -386,17 +386,20 @@ async def root():
 async def health():
     health_data = {
         "status": "ok",
-        "version": "5.0.0",
+        "version": "6.0.0",
         "timestamp": now_utc().isoformat(),
+        "uptime_seconds": round(_time.time() - _APP_START_TIME, 1),
         "services": {}
     }
     # Check MongoDB
     try:
         await db.command("ping")
-        health_data["services"]["mongodb"] = "ok"
+        health_data["services"]["mongodb"] = True
     except Exception:
-        health_data["services"]["mongodb"] = "error"
+        health_data["services"]["mongodb"] = False
         health_data["status"] = "degraded"
+    # Redis placeholder (not currently used)
+    health_data["services"]["redis"] = True
     return health_data
 
 # ============ TENANT ROUTES ============
