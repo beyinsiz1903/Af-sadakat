@@ -639,7 +639,7 @@ async def list_all_requests(tenant_slug: str, department: Optional[str] = None, 
     return {"data": [serialize_doc(r) for r in requests_list], "total": total, "page": page}
 
 @api_router.patch("/tenants/{tenant_slug}/requests/{request_id}")
-async def update_guest_request(tenant_slug: str, request_id: str, data: GuestRequestUpdate):
+async def update_guest_request(tenant_slug: str, request_id: str, data: GuestRequestUpdate, user=Depends(get_optional_user)):
     tenant = await get_tenant_by_slug(tenant_slug)
     req = await db.guest_requests.find_one({"id": request_id, "tenant_id": tenant["id"]})
     if not req:
@@ -652,7 +652,6 @@ async def update_guest_request(tenant_slug: str, request_id: str, data: GuestReq
             update_data["first_response_at"] = now_utc().isoformat()
         if data.status.upper() in ["DONE", "CLOSED"]:
             update_data["resolved_at"] = now_utc().isoformat()
-            # Award loyalty points
             if data.status.upper() == "DONE":
                 await _award_loyalty_points(tenant, "request", req)
     if data.assigned_to is not None:
@@ -660,6 +659,9 @@ async def update_guest_request(tenant_slug: str, request_id: str, data: GuestReq
     if data.notes is not None:
         update_data["notes"] = data.notes
     
+    # Pilot Fix 1: Track who made the update
+    update_data["last_updated_by"] = user.get("name", "System") if user else "System"
+    update_data["last_updated_by_id"] = user.get("id", "") if user else ""
     update_data["updated_at"] = now_utc().isoformat()
     await db.guest_requests.update_one({"id": request_id}, {"$set": update_data})
     
