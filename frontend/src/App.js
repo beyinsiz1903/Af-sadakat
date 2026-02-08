@@ -76,6 +76,7 @@ function App() {
               <Route path="inbox" element={<InboxPage />} />
               <Route path="reviews" element={<ReviewsPage />} />
               <Route path="offers" element={<OffersPage />} />
+              <Route path="properties" element={<PropertiesPage />} />
               <Route path="connectors" element={<ConnectorsPage />} />
               <Route path="billing" element={<BillingPage />} />
               <Route path="analytics" element={<AnalyticsPage />} />
