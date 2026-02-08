@@ -236,7 +236,7 @@ frontend:
         comment: "Added FACEBOOK to channel icons and colors map."
       - working: true
         agent: "testing"
-        comment: "✅ All AI Sales endpoints working: GET /v2/ai-sales/tenants/grand-hotel/settings returns 2 properties (Main enabled). Room rates CRUD tested - 4 types found (standard, deluxe, suite, economy). POST room-rates correctly handles duplicates with 409 status. Discount rules show max 10%, min 3 nights. Policies return check-in 14:00, check-out 12:00. AI stats show 20 replies used, 500 limit, 1 offer created, 4 active sessions."
+        comment: "✅ WhatsApp channel integration verified: Inbox page loads correctly showing WhatsApp conversations with proper channel filtering. Found 3 WhatsApp conversations with the green phone icon indicator (John Doe, Ali Yilmaz, and Maria Garcia). WhatsApp filter dropdown works properly. FACEBOOK channel type also properly added to the channel icons and colors map in the code."
 
   - task: "Sprint 7: OpenAI Tool Calling Provider"
     implemented: true
