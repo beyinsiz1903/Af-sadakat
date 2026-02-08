@@ -100,6 +100,7 @@ export default function RoomsPage() {
             </div>
           </DialogContent>
         </Dialog>
+        </div>
       </div>
 
       <Card className="bg-[hsl(var(--card))] border-[hsl(var(--border))]">
