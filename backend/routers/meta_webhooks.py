@@ -297,7 +297,7 @@ async def webhook_event(tenant_slug: str, request: Request):
                 message_data = messaging_event.get("message", {})
                 msg_id = message_data.get("mid", "")
                 text = message_data.get("text", "")
-                timestamp_ms = messaging_event.get("timestamp", 0)
+                _timestamp_ms = messaging_event.get("timestamp", 0)
 
                 if not text or not sender_id:
                     continue
@@ -333,7 +333,7 @@ async def webhook_event(tenant_slug: str, request: Request):
                     if item == "comment" and verb in ("add", "edited"):
                         comment_id = value.get("comment_id", "")
                         post_id = value.get("post_id", "")
-                        parent_id = value.get("parent_id", "")
+                        _parent_id = value.get("parent_id", "")
                         message_text = value.get("message", "")
                         sender_name = value.get("from", {}).get("name", "Unknown")
                         created_time = value.get("created_time", now_utc().isoformat())

@@ -186,7 +186,7 @@ async def oauth_callback(code: str = "", state: str = "", error: str = ""):
         return HTMLResponse("<html><body><h2>Invalid or expired state</h2></body></html>", status_code=400)
 
     tid = payload.get("tenant_id", "")
-    tenant_slug = payload.get("tenant_slug", "")
+    _tenant_slug = payload.get("tenant_slug", "")
 
     cred = await get_meta_credentials(tid)
     if not cred:
