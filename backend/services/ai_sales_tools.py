@@ -259,7 +259,7 @@ async def create_offer_tool(
         co = dt_date.fromisoformat(check_out)
         if co <= ci:
             return {"error": "Invalid dates"}
-    except:
+    except (ValueError, TypeError):
         return {"error": "Invalid date format"}
 
     if price_total <= 0:
