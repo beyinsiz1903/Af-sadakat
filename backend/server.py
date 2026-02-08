@@ -2541,33 +2541,59 @@ async def start_polling():
     polling_task = ConnectorPollingTask(db)
     asyncio.create_task(polling_task.start())
 
-# Start offer expiration background task
+# Start offer expiration background task (Sprint 6: atomic + contact events + WS)
 @app.on_event("startup")
 async def start_offer_expiration_task():
     async def expire_offers_loop():
         while True:
             try:
                 now_iso = now_utc().isoformat()
-                result = await db.offers.update_many(
+                # Find offers to expire (atomic: only SENT status)
+                cursor = db.offers.find(
                     {"status": "SENT", "expires_at": {"$lt": now_iso, "$ne": None}},
-                    {"$set": {"status": "EXPIRED", "updated_at": now_iso}}
+                    {"_id": 0}
                 )
-                if result.modified_count > 0:
-                    logger.info(f"Expired {result.modified_count} offers")
-                    # Log audit for each expired offer
-                    expired_offers = await db.offers.find(
-                        {"status": "EXPIRED", "updated_at": now_iso}, {"_id": 0, "id": 1, "tenant_id": 1}
-                    ).to_list(100)
-                    for o in expired_offers:
+                to_expire = await cursor.to_list(200)
+                for offer_doc in to_expire:
+                    oid = offer_doc.get("id", "")
+                    tid = offer_doc.get("tenant_id", "")
+                    # Atomic update: only if still SENT (prevents double expiration)
+                    res = await db.offers.update_one(
+                        {"id": oid, "status": "SENT"},
+                        {"$set": {"status": "EXPIRED", "updated_at": now_iso}}
+                    )
+                    if res.modified_count > 0:
+                        # Audit log
                         await db.audit_logs.insert_one({
-                            "id": str(uuid.uuid4()), "tenant_id": o.get("tenant_id", ""),
+                            "id": str(uuid.uuid4()), "tenant_id": tid,
                             "action": "OFFER_EXPIRED", "entity_type": "offer",
-                            "entity_id": o.get("id", ""), "actor_user_id": "system",
+                            "entity_id": oid, "actor_user_id": "system",
                             "details": {"reason": "Auto-expired"}, "created_at": now_iso
                         })
+                        # Contact event
+                        contact_id = offer_doc.get("contact_id", "")
+                        if contact_id:
+                            await db.contact_events.insert_one({
+                                "id": str(uuid.uuid4()), "tenant_id": tid,
+                                "contact_id": contact_id, "type": "OFFER_EXPIRED",
+                                "title": "Offer expired",
+                                "body": f"Offer for {offer_doc.get('room_type','')} expired",
+                                "ref_type": "offer", "ref_id": oid,
+                                "created_at": now_iso
+                            })
+                        # WebSocket broadcast
+                        try:
+                            await ws_manager.broadcast_tenant(
+                                tid, "offer", "offer", "expired",
+                                {"id": oid, "status": "EXPIRED"}
+                            )
+                        except Exception:
+                            pass
+                if to_expire:
+                    logger.info("Expired %d offers", len(to_expire))
             except Exception as e:
-                logger.warning(f"Offer expiration task error: {e}")
-            await asyncio.sleep(60)  # Run every minute
+                logger.error("Offer expiration task error: %s", str(e))
+            await asyncio.sleep(60)
     asyncio.create_task(expire_offers_loop())
 
 # ============ WEBSOCKET ENDPOINT ============
