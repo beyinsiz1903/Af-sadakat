@@ -1933,14 +1933,27 @@ async def reset_demo():
 from fastapi.responses import Response
 
 @api_router.get("/guest/resolve-room")
-async def resolve_room(tenantSlug: str, roomCode: str):
-    """Resolve room by tenant slug + room code, issue guest token"""
+async def resolve_room(tenantSlug: str, roomCode: str, request: Request = None):
+    """Resolve room by tenant slug + room code, issue guest token.
+    Validates: room exists, is_active, QR version valid.
+    Rate limited: max 10 resolves per IP per minute.
+    """
+    # Rate limit (Pilot Fix 4: guest spam protection)
+    client_ip = request.client.host if request else "unknown"
+    rate_key = f"guest_resolve:{client_ip}"
+    if rate_limiter.is_rate_limited(rate_key, max_requests=10, window_seconds=60):
+        raise HTTPException(status_code=429, detail="Too many requests. Please wait.")
+    
     tenant = await get_tenant_by_slug(tenantSlug)
     room = await db.rooms.find_one({"tenant_id": tenant["id"], "room_code": roomCode}, {"_id": 0})
     if not room:
-        raise HTTPException(status_code=404, detail="Room not found")
+        raise HTTPException(status_code=404, detail="Room not found or QR code invalid")
     
+    # Pilot Fix 3: QR version validation - inactive rooms reject
     room_doc = serialize_doc(room)
+    if not room_doc.get("is_active", True):
+        raise HTTPException(status_code=410, detail="This QR code has been deactivated")
+    
     categories = await db.service_categories.find({"tenant_id": tenant["id"]}, {"_id": 0}).to_list(50)
     
     guest_token = create_guest_token(
