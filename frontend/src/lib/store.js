@@ -4,6 +4,7 @@ export const useAuthStore = create((set, get) => ({
   user: JSON.parse(localStorage.getItem('user') || 'null'),
   tenant: JSON.parse(localStorage.getItem('tenant') || 'null'),
   token: localStorage.getItem('token') || null,
+  activePropertyId: localStorage.getItem('activePropertyId') || null,
   
   login: (token, user, tenant) => {
     localStorage.setItem('token', token);
@@ -16,12 +17,22 @@ export const useAuthStore = create((set, get) => ({
     localStorage.removeItem('token');
     localStorage.removeItem('user');
     localStorage.removeItem('tenant');
-    set({ token: null, user: null, tenant: null });
+    localStorage.removeItem('activePropertyId');
+    set({ token: null, user: null, tenant: null, activePropertyId: null });
   },
   
   updateTenant: (tenant) => {
     localStorage.setItem('tenant', JSON.stringify(tenant));
     set({ tenant });
+  },
+  
+  setActiveProperty: (propertyId) => {
+    if (propertyId) {
+      localStorage.setItem('activePropertyId', propertyId);
+    } else {
+      localStorage.removeItem('activePropertyId');
+    }
+    set({ activePropertyId: propertyId });
   },
   
   isAuthenticated: () => !!get().token,
