@@ -2218,6 +2218,14 @@ async def create_indexes():
         await db.request_comments.create_index([("tenant_id", 1), ("request_id", 1)])
         await db.kb_articles.create_index([("tenant_id", 1)])
         await db.connector_credentials.create_index([("tenant_id", 1), ("connector_type", 1)])
+        # Sprint 3 indexes
+        await db.conversations.create_index([("tenant_id", 1), ("last_message_at", -1)])
+        await db.conversations.create_index([("tenant_id", 1), ("contact_id", 1)])
+        await db.messages.create_index([("tenant_id", 1), ("conversation_id", 1), ("created_at", 1)])
+        await db.reviews.create_index([("tenant_id", 1), ("source_type", 1)])
+        await db.reviews.create_index([("tenant_id", 1), ("sentiment", 1)])
+        await db.review_replies.create_index([("tenant_id", 1), ("review_id", 1)])
+        await db.usage_counters.create_index([("tenant_id", 1), ("month_key", 1)])
         logger.info("Database indexes created successfully")
     except Exception as e:
         logger.warning(f"Index creation: {e}")
