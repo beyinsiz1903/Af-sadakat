@@ -1,42 +1,42 @@
 [
   {
-    "content": "Sprint 3: Backend - Inbox V2 router (/api/v2/inbox/*)",
+    "content": "Sprint 3: Backend - Inbox V2 router",
     "status": "completed"
   },
   {
-    "content": "Sprint 3: Backend - Reviews V2 router (/api/v2/reviews/*)",
+    "content": "Sprint 3: Backend - Reviews V2 router",
     "status": "completed"
   },
   {
-    "content": "Sprint 3: Backend - Connector stubs refactor + registry",
+    "content": "Sprint 3: Backend - Connector stubs + registry",
     "status": "completed"
   },
   {
-    "content": "Sprint 3: Backend - WebChat real flow + widget endpoint",
+    "content": "Sprint 3: Backend - WebChat + widget endpoint",
     "status": "completed"
   },
   {
-    "content": "Sprint 3: Backend - AI usage counter enforcement",
+    "content": "Sprint 3: Backend - AI usage enforcement",
     "status": "completed"
   },
   {
-    "content": "Sprint 3: Backend - Seed data (conversations, messages, reviews)",
+    "content": "Sprint 3: Backend - Seed data",
     "status": "completed"
   },
   {
-    "content": "Sprint 3: Frontend - Inbox V2 page (channel icons, AI suggest, close/reopen)",
+    "content": "Sprint 3: Frontend - Inbox V2",
     "status": "completed"
   },
   {
-    "content": "Sprint 3: Frontend - Reviews V2 page (sentiment, AI reply, pull now)",
+    "content": "Sprint 3: Frontend - Reviews V2",
     "status": "completed"
   },
   {
-    "content": "Sprint 3: Frontend - Integrations polish (status, last sync, pull, widget embed)",
+    "content": "Sprint 3: Frontend - Integrations polish",
     "status": "completed"
   },
   {
-    "content": "Sprint 3: Testing with Testing Agent",
-    "status": "in_progress"
+    "content": "Sprint 3: Testing - Backend 100%, Frontend verified via screenshots",
+    "status": "completed"
   }
 ]
