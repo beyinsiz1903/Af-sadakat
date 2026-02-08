@@ -111,11 +111,14 @@ backend:
     file: "routers/properties.py"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: true
         agent: "main"
         comment: "Created properties router with list, create, get, update, activate, deactivate. Tested via curl - returns 2 seeded properties."
+      - working: true
+        agent: "testing"
+        comment: "✅ ALL Properties V2 CRUD tests passed: List (2 properties), Create, Get, Update, Deactivate, Activate, Slug uniqueness validation (409). All endpoints working correctly with proper tenant isolation and audit logging."
 
   - task: "Offers V2 CRUD with send/cancel/payment-link"
     implemented: true
@@ -123,11 +126,14 @@ backend:
     file: "routers/offers.py"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: true
         agent: "main"
         comment: "Created offers V2 router with list (filter by status/property), create, get, update (DRAFT only), send, cancel, create-payment-link. Returns 4 seeded offers."
+      - working: true
+        agent: "testing"
+        comment: "✅ ALL Offers V2 CRUD tests passed: List (4 offers), Status filtering (SENT), Create, Send (DRAFT->SENT), Payment link creation, Cancel. Price validation (<= 0 rejected) and date validation (check_out > check_in) working properly."
 
   - task: "Payments V2 Mock with idempotency"
     implemented: true
@@ -135,11 +141,14 @@ backend:
     file: "routers/payments.py"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: true
         agent: "main"
         comment: "Created payments V2 router with public payment data, checkout, mock succeed (idempotent), mock fail. Creates reservation on success."
+      - working: true
+        agent: "testing"
+        comment: "✅ Payments V2 Mock system working: Get payment page data (public), Mock succeed with reservation creation (RES-8A16E1), IDEMPOTENCY confirmed (returns existing reservation), Mock fail handled. Minor: checkout validation correctly rejects cancelled offers (400)."
 
   - task: "Reservations V2 CRUD with export"
     implemented: true
@@ -147,11 +156,14 @@ backend:
     file: "routers/reservations.py"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: true
         agent: "main"
         comment: "Created reservations V2 router with list, get, cancel (admin only), export CSV. Returns 2 seeded reservations."
+      - working: true
+        agent: "testing"
+        comment: "✅ ALL Reservations V2 tests passed: List (3 reservations found), Get detail, Cancel (admin-only), CSV export with proper headers. All endpoints working correctly."
 
   - task: "Inbox create-offer endpoint"
     implemented: true
@@ -159,11 +171,14 @@ backend:
     file: "routers/inbox.py"
     stuck_count: 0
     priority: "medium"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: true
         agent: "main"
         comment: "Added POST /conversations/:id/create-offer to inbox V2 router."
+      - working: true
+        agent: "testing"
+        comment: "✅ Inbox create-offer working: Successfully created offer (ID: 13cd7a5d-6691-4b71-b681-6f801cda8ac1) from conversation with contact creation/linking (ID: 9f25240c-ee40-45b8-a594-0f9ea8316e09), source correctly set to INBOX."
 
   - task: "Offer expiration background task"
     implemented: true
@@ -171,11 +186,14 @@ backend:
     file: "server.py"
     stuck_count: 0
     priority: "medium"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: true
         agent: "main"
         comment: "Added background task that runs every 60s to expire offers past expires_at."
+      - working: true
+        agent: "testing"
+        comment: "Background task implementation verified in server.py - not directly tested as it's time-based, but expires_at field is properly set when offers are sent."
 
   - task: "Seed data with properties, offers, payments, reservations"
     implemented: true
@@ -183,11 +201,14 @@ backend:
     file: "server.py"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: true
         agent: "main"
         comment: "Added 2 properties, 4 offers, 3 payment links, 1 payment, 2 reservations to seed data."
+      - working: true
+        agent: "testing"
+        comment: "✅ Seed data verified: Found 2 properties, 4 offers, 3 reservations as expected. All seeded data properly accessible via V2 APIs."
 
 frontend:
   - task: "Property Switcher in top bar"
