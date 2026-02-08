@@ -2218,8 +2218,6 @@ async def websocket_endpoint(websocket: WebSocket, tenant_id: str):
         logger.error(f"WebSocket error: {e}")
         ws_manager.disconnect(websocket, channel)
 
-# Include router
-app.include_router(api_router)
 @api_router.get("/tenants/{tenant_slug}/reviews")
 async def list_reviews(tenant_slug: str, source: Optional[str] = None, page: int = 1, limit: int = 20):
     tenant = await get_tenant_by_slug(tenant_slug)
