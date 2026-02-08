@@ -216,9 +216,24 @@ frontend:
 
 metadata:
   created_by: "main_agent"
-  version: "6.0"
-  test_sequence: 3
+  version: "7.0"
+  test_sequence: 4
   run_ui: false
+
+test_plan:
+  current_focus:
+    - "Sprint 7: AI Sales Router and Settings"
+    - "Sprint 7: OpenAI Tool Calling Provider"
+    - "Sprint 7: AI Sales Tool Functions"
+    - "Sprint 7: Webchat AI Auto-Reply Integration"
+    - "Sprint 7: Seed Data"
+  stuck_tasks: []
+  test_all: false
+  test_priority: "high_first"
+
+agent_communication:
+  - agent: "main"
+    message: "Sprint 7 AI Sales Engine implemented. Key features: 1) AI auto-reply in webchat using OpenAI gpt-4o-mini with tool calling. 2) 4 tools: check_availability_and_price, validate_discount, create_offer, generate_payment_link. 3) Room rates admin (3 types seeded), discount rules (max 10%), business policies. 4) State machine for conversation flow. 5) AI Sales admin page with 4 tabs. 6) Guest webchat enhanced with AI badge and payment link buttons. Login: admin@grandhotel.com / admin123. AI enabled for Main property by default. Test the full flow: start webchat -> ask about rooms -> AI quotes price from DB -> ask for discount -> AI validates -> accept -> AI creates offer + payment link."
 
 backend:
   - task: "Sprint 6: Health endpoint v6"
