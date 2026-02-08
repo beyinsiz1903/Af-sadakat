@@ -256,6 +256,163 @@ class ComprehensiveAPITester:
         }
         self.run_test("Create Guest Order", "POST", f"g/{self.tenant_slug}/table/T1/orders", 200, order_data, headers={})
 
+    def test_phase5_plan_management(self):
+        """Test Phase 5 plan management APIs"""
+        self.log("\n=== PHASE 5: PLAN MANAGEMENT ===")
+        
+        # Test plans endpoint
+        success, plans = self.run_test("Get Plans", "GET", "plans", 200)
+        if success and plans:
+            expected_plans = ['basic', 'pro', 'enterprise']
+            plan_names = [plan.get('name', '').lower() for plan in plans] if isinstance(plans, list) else []
+            missing_plans = [p for p in expected_plans if p not in plan_names]
+            if missing_plans:
+                self.log(f"   ⚠️  Missing plan types: {missing_plans}")
+            else:
+                self.log(f"   ✅ All expected plans present: {plan_names}")
+
+    def test_phase5_usage_enforcement(self):
+        """Test Phase 5 usage limits and enforcement"""
+        self.log("\n=== PHASE 5: USAGE ENFORCEMENT ===")
+        
+        success, usage = self.run_test("Get Usage Metrics", "GET", f"tenants/{self.tenant_slug}/usage", 200)
+        if success:
+            required_keys = ['current', 'limits', 'plan', 'metrics']
+            missing_keys = [key for key in required_keys if key not in usage]
+            if missing_keys:
+                self.log(f"   ⚠️  Missing usage keys: {missing_keys}")
+            else:
+                self.log(f"   ✅ Usage metrics structure complete")
+                if 'current' in usage and 'limits' in usage:
+                    self.log(f"   📊 Current usage: {usage['current']}")
+                    self.log(f"   📊 Plan limits: {usage['limits']}")
+
+    def test_phase5_billing(self):
+        """Test Phase 5 billing system"""
+        self.log("\n=== PHASE 5: BILLING ===")
+        
+        success, billing = self.run_test("Get Billing Info", "GET", f"tenants/{self.tenant_slug}/billing", 200)
+        if success:
+            required_keys = ['account', 'subscription', 'invoices']
+            missing_keys = [key for key in required_keys if key not in billing]
+            if missing_keys:
+                self.log(f"   ⚠️  Missing billing keys: {missing_keys}")
+            else:
+                self.log(f"   ✅ Billing structure complete")
+                if 'invoices' in billing:
+                    invoice_count = len(billing['invoices']) if isinstance(billing['invoices'], list) else 0
+                    self.log(f"   📋 Found {invoice_count} invoices")
+
+    def test_phase5_analytics(self):
+        """Test Phase 5 analytics engine"""
+        self.log("\n=== PHASE 5: ANALYTICS ===")
+        
+        success, analytics = self.run_test("Get Analytics", "GET", f"tenants/{self.tenant_slug}/analytics", 200)
+        if success:
+            required_sections = ['revenue', 'guests', 'operations', 'ai']
+            missing_sections = [section for section in required_sections if section not in analytics]
+            if missing_sections:
+                self.log(f"   ⚠️  Missing analytics sections: {missing_sections}")
+            else:
+                self.log(f"   ✅ Analytics sections complete")
+                
+                # Check revenue section
+                if 'revenue' in analytics:
+                    revenue = analytics['revenue']
+                    if 'total' in revenue:
+                        self.log(f"   💰 Total revenue: {revenue.get('currency', 'TRY')} {revenue['total']}")
+                
+                # Check AI metrics
+                if 'ai' in analytics:
+                    ai_metrics = analytics['ai']
+                    if 'efficiency_pct' in ai_metrics:
+                        self.log(f"   🤖 AI efficiency: {ai_metrics['efficiency_pct']}%")
+
+    def test_phase5_compliance(self):
+        """Test Phase 5 GDPR/KVKK compliance"""
+        self.log("\n=== PHASE 5: COMPLIANCE ===")
+        
+        # Test getting guest data for compliance
+        success, contacts = self.run_test("Get Contacts for Compliance", "GET", f"tenants/{self.tenant_slug}/contacts", 200)
+        if success and contacts.get('data'):
+            contact_list = contacts['data']
+            if contact_list:
+                contact_id = contact_list[0]['id']
+                
+                # Test data export
+                export_success, export_data = self.run_test("Export Guest Data", "GET", 
+                                                          f"tenants/{self.tenant_slug}/compliance/export/{contact_id}", 200)
+                if export_success:
+                    expected_keys = ['contact', 'requests', 'orders', 'consent_logs']
+                    missing_keys = [key for key in expected_keys if key not in export_data]
+                    if missing_keys:
+                        self.log(f"   ⚠️  Missing export keys: {missing_keys}")
+                    else:
+                        self.log(f"   ✅ Data export structure complete")
+                
+                # Test retention policy endpoint
+                self.run_test("Get Retention Policy", "GET", f"tenants/{self.tenant_slug}/compliance/retention", 200)
+                
+                # Test consent logs
+                self.run_test("Get Consent Logs", "GET", f"tenants/{self.tenant_slug}/compliance/consent-logs", 200)
+
+    def test_phase5_growth_referrals(self):
+        """Test Phase 5 referral and growth system"""
+        self.log("\n=== PHASE 5: GROWTH & REFERRALS ===")
+        
+        success, referral = self.run_test("Get Referral Code", "GET", f"tenants/{self.tenant_slug}/growth/referral", 200)
+        if success:
+            required_keys = ['code', 'clicks', 'signups', 'rewards_earned']
+            missing_keys = [key for key in required_keys if key not in referral]
+            if missing_keys:
+                self.log(f"   ⚠️  Missing referral keys: {missing_keys}")
+            else:
+                self.log(f"   ✅ Referral structure complete")
+                if 'code' in referral:
+                    self.log(f"   🔗 Referral code: {referral['code']}")
+                    self.log(f"   📊 Stats - Clicks: {referral.get('clicks', 0)}, Signups: {referral.get('signups', 0)}")
+
+    def test_phase5_system_metrics(self):
+        """Test Phase 5 system-wide metrics"""
+        self.log("\n=== PHASE 5: SYSTEM METRICS ===")
+        
+        # Test system status
+        self.run_test("System Status", "GET", "system/status", 200)
+        
+        # Test system metrics
+        success, metrics = self.run_test("System Metrics", "GET", "system/metrics", 200)
+        if success:
+            expected_keys = ['tenants', 'users', 'requests', 'orders', 'messages', 'mrr']
+            missing_keys = [key for key in expected_keys if key not in metrics]
+            if missing_keys:
+                self.log(f"   ⚠️  Missing system metric keys: {missing_keys}")
+            else:
+                self.log(f"   ✅ System metrics complete")
+                self.log(f"   🏢 Tenants: {metrics.get('tenants', 0)}")
+                self.log(f"   👥 Users: {metrics.get('users', 0)}")
+                if 'mrr' in metrics:
+                    self.log(f"   💰 MRR: ${metrics['mrr']}")
+
+    def test_phase5_onboarding(self):
+        """Test Phase 5 onboarding wizard"""
+        self.log("\n=== PHASE 5: ONBOARDING ===")
+        
+        success, onboarding = self.run_test("Get Onboarding Progress", "GET", f"tenants/{self.tenant_slug}/onboarding", 200)
+        if success:
+            if 'steps' in onboarding:
+                total_steps = len(onboarding['steps']) if isinstance(onboarding['steps'], list) else 0
+                completed_steps = sum(1 for step in onboarding['steps'] if step.get('completed', False)) if isinstance(onboarding['steps'], list) else 0
+                self.log(f"   📝 Onboarding progress: {completed_steps}/{total_steps} steps completed")
+            else:
+                self.log(f"   ⚠️  Missing onboarding steps structure")
+
+    def test_phase5_demo_reset(self):
+        """Test Phase 5 demo reset functionality"""
+        self.log("\n=== PHASE 5: DEMO RESET ===")
+        
+        # Test demo reset endpoint (should reset demo data)
+        self.run_test("Demo Reset", "POST", "demo/reset", 200)
+
     def run_all_tests(self):
         """Run all test suites"""
         self.log("🚀 Starting Comprehensive API Testing for Multi-tenant SaaS Platform")
