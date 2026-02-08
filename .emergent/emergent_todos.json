@@ -1,46 +1,50 @@
 [
   {
-    "content": "Phase 5.1: Security Hardening (refresh tokens, sessions, rate limiting, brute-force, audit expansion)",
+    "content": "Phase 5.1: Security Hardening - refresh tokens, sessions, rate limiting, brute-force, audit, encryption",
     "status": "completed"
   },
   {
-    "content": "Phase 5.2: Plan Enforcement + Usage Metering (BASIC/PRO/ENTERPRISE limits)",
+    "content": "Phase 5.2: Plan Enforcement - BASIC/PRO/ENTERPRISE limits, usage metering",
     "status": "completed"
   },
   {
-    "content": "Phase 5.3: Billing Ready Architecture (models + UI)",
+    "content": "Phase 5.3: Billing Ready - BillingAccount, Subscription, Invoice models + UI",
     "status": "completed"
   },
   {
-    "content": "Phase 5.4: Onboarding Wizard (7-step flow)",
+    "content": "Phase 5.4: Onboarding Wizard - 7-step flow with auto-detection",
     "status": "completed"
   },
   {
-    "content": "Phase 5.5: Guest Intelligence v2 + GuestProfileCard",
+    "content": "Phase 5.5: Guest Intelligence v2 - lifetime_value, churn_risk, satisfaction_trend",
     "status": "completed"
   },
   {
-    "content": "Phase 5.6: Revenue Analytics Engine + Charts",
+    "content": "Phase 5.6: Revenue Analytics Engine - revenue, repeat rate, AI efficiency",
     "status": "completed"
   },
   {
-    "content": "Phase 5.7: GDPR/KVKK Compliance (export, delete, retention)",
+    "content": "Phase 5.7: GDPR/KVKK - export, forget, consent logs, retention policy",
     "status": "completed"
   },
   {
-    "content": "Phase 5.8: Referral/Growth Engine",
+    "content": "Phase 5.8: Performance - DB indexes on all collections, pagination",
     "status": "completed"
   },
   {
-    "content": "Phase 5.9: Observability + Demo Mode + Investor Metrics",
+    "content": "Phase 5.9: Referral/Growth - codes, tracking, rewards",
     "status": "completed"
   },
   {
-    "content": "Phase 5: Frontend - All new pages and enhancements",
+    "content": "Phase 5.10: Observability - system status, metrics, demo mode",
     "status": "completed"
   },
   {
-    "content": "Phase 5: End-to-end Testing - Backend 94.6%, Frontend working, All APIs verified",
+    "content": "Phase 5: All Frontend pages - 6 new pages implemented and tested",
+    "status": "completed"
+  },
+  {
+    "content": "Phase 5: Testing - Backend 97.4%, Frontend 95%, Guest Panels 100%",
     "status": "completed"
   }
 ]
