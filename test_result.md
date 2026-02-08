@@ -237,6 +237,9 @@ frontend:
       - working: true
         agent: "main"
         comment: "Full CRUD for properties with create dialog, edit, activate/deactivate."
+      - working: true
+        agent: "testing"
+        comment: "✅ Verified Properties page successfully loads and displays all properties (3 properties shown). Create property dialog opens and closes correctly."
 
   - task: "Offers V2 Page"
     implemented: true
