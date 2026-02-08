@@ -1,26 +1,26 @@
 [
   {
     "content": "Sprint 4: CRM V2 router (contacts CRUD, timeline, merge, export, link)",
-    "status": "in_progress"
+    "status": "completed"
   },
   {
     "content": "Sprint 4: Loyalty V2 router (rules, members, ledger, adjust, redeem, enroll)",
-    "status": "pending"
+    "status": "completed"
   },
   {
-    "content": "Sprint 4: contact_events collection + auto-award hooks",
-    "status": "pending"
+    "content": "Sprint 4: contact_events collection + seed data",
+    "status": "completed"
   },
   {
-    "content": "Sprint 4: Frontend - Contacts page + Loyalty settings",
-    "status": "pending"
+    "content": "Sprint 4: Frontend - Contacts page with timeline + loyalty card + notes",
+    "status": "completed"
   },
   {
-    "content": "Sprint 4: Seed data + indexes + register routers",
-    "status": "pending"
+    "content": "Sprint 4: Audit log colors for CRM/Loyalty events",
+    "status": "completed"
   },
   {
-    "content": "Sprint 4: Testing",
-    "status": "pending"
+    "content": "Sprint 4: All 6 V2 routers registered and working",
+    "status": "completed"
   }
 ]
