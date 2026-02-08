@@ -146,3 +146,50 @@ export const guestAPI = {
   sendMessage: (slug, convId, data) => api.post(`/g/${slug}/chat/${convId}/messages`, data),
   joinLoyalty: (slug, data) => api.post(`/g/${slug}/loyalty/join`, data),
 };
+
+// ============ V2 APIs ============
+
+// Properties V2
+export const propertiesAPI = {
+  list: (slug) => api.get(`/v2/properties/tenants/${slug}/properties`),
+  create: (slug, data) => api.post(`/v2/properties/tenants/${slug}/properties`, data),
+  get: (slug, id) => api.get(`/v2/properties/tenants/${slug}/properties/${id}`),
+  update: (slug, id, data) => api.patch(`/v2/properties/tenants/${slug}/properties/${id}`, data),
+  deactivate: (slug, id) => api.post(`/v2/properties/tenants/${slug}/properties/${id}/deactivate`),
+  activate: (slug, id) => api.post(`/v2/properties/tenants/${slug}/properties/${id}/activate`),
+};
+
+// Offers V2
+export const offersAPI = {
+  list: (slug, params) => api.get(`/v2/offers/tenants/${slug}/offers`, { params }),
+  create: (slug, data) => api.post(`/v2/offers/tenants/${slug}/offers`, data),
+  get: (slug, id) => api.get(`/v2/offers/tenants/${slug}/offers/${id}`),
+  update: (slug, id, data) => api.patch(`/v2/offers/tenants/${slug}/offers/${id}`, data),
+  send: (slug, id) => api.post(`/v2/offers/tenants/${slug}/offers/${id}/send`),
+  cancel: (slug, id) => api.post(`/v2/offers/tenants/${slug}/offers/${id}/cancel`),
+  createPaymentLink: (slug, id) => api.post(`/v2/offers/tenants/${slug}/offers/${id}/create-payment-link`),
+};
+
+// Payments V2 (public - no auth)
+export const paymentsAPI = {
+  getPaymentData: (linkId) => api.get(`/v2/payments/pay/${linkId}`),
+  checkout: (linkId) => api.post(`/v2/payments/pay/${linkId}/checkout`),
+  mockSucceed: (data) => api.post(`/v2/payments/webhook/mock/succeed`, data),
+  mockFail: (data) => api.post(`/v2/payments/webhook/mock/fail`, data),
+};
+
+// Reservations V2
+export const reservationsAPI = {
+  list: (slug, params) => api.get(`/v2/reservations/tenants/${slug}/reservations`, { params }),
+  get: (slug, id) => api.get(`/v2/reservations/tenants/${slug}/reservations/${id}`),
+  cancel: (slug, id) => api.post(`/v2/reservations/tenants/${slug}/reservations/${id}/cancel`),
+  exportCSV: (slug, params) => api.get(`/v2/reservations/tenants/${slug}/reservations/export/csv`, {
+    params, responseType: 'blob'
+  }),
+};
+
+// Inbox V2 - create offer from conversation
+export const inboxOffersAPI = {
+  createFromConversation: (slug, convId, data) =>
+    api.post(`/v2/inbox/tenants/${slug}/conversations/${convId}/create-offer`, data),
+};
