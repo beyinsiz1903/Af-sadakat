@@ -163,6 +163,7 @@ CONNECTOR_REGISTRY: Dict[str, ConnectorBase] = {
 
 CONNECTOR_TYPES_META = [
     {"type": "WEBCHAT", "label": "Web Chat", "icon": "MessageSquare", "is_real": True, "credential_fields": []},
+    {"type": "META", "label": "Meta (FB/IG/WA)", "icon": "Share2", "is_real": True, "credential_fields": ["meta_app_id", "meta_app_secret"]},
     {"type": "WHATSAPP", "label": "WhatsApp Business", "icon": "MessageCircle", "is_real": False, "credential_fields": ["phone_number_id", "access_token"]},
     {"type": "INSTAGRAM", "label": "Instagram DM", "icon": "Instagram", "is_real": False, "credential_fields": ["page_id", "access_token"]},
     {"type": "GOOGLE_REVIEWS", "label": "Google Reviews", "icon": "Star", "is_real": False, "credential_fields": ["place_id", "api_key"]},
