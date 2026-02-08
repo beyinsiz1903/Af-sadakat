@@ -102,189 +102,117 @@
 # Testing Data - Main Agent and testing sub agent both should log testing data below this section
 #====================================================================================================
 
-user_problem_statement: "Sprint 6: Pilot Hardening + Production Stabilization - property header enforcement, observability, notification engine, confirmation code hardening, payment safety, CLI export"
+user_problem_statement: "Sprint 7: AI Reservation Sales Engine - OpenAI tool calling, state machine, room rates, discount rules, auto-reply in webchat"
 
 backend:
-  - task: "Properties V2 CRUD"
+  - task: "Sprint 7: AI Sales Router and Settings"
     implemented: true
     working: true
-    file: "routers/properties.py"
+    file: "routers/ai_sales.py"
     stuck_count: 0
     priority: "high"
-    needs_retesting: false
+    needs_retesting: true
     status_history:
       - working: true
         agent: "main"
-        comment: "Created properties router with list, create, get, update, activate, deactivate. Tested via curl - returns 2 seeded properties."
-      - working: true
-        agent: "testing"
-        comment: "✅ ALL Properties V2 CRUD tests passed: List (2 properties), Create, Get, Update, Deactivate, Activate, Slug uniqueness validation (409). All endpoints working correctly with proper tenant isolation and audit logging."
+        comment: "Created AI Sales router with settings, room rates CRUD, discount rules CRUD, policies CRUD, AI stats, manual AI trigger, session info endpoints."
 
-  - task: "Offers V2 CRUD with send/cancel/payment-link"
+  - task: "Sprint 7: OpenAI Tool Calling Provider"
     implemented: true
     working: true
-    file: "routers/offers.py"
+    file: "services/openai_provider.py"
     stuck_count: 0
     priority: "high"
-    needs_retesting: false
+    needs_retesting: true
     status_history:
       - working: true
         agent: "main"
-        comment: "Created offers V2 router with list (filter by status/property), create, get, update (DRAFT only), send, cancel, create-payment-link. Returns 4 seeded offers."
-      - working: true
-        agent: "testing"
-        comment: "✅ ALL Offers V2 CRUD tests passed: List (4 offers), Status filtering (SENT), Create, Send (DRAFT->SENT), Payment link creation, Cancel. Price validation (<= 0 rejected) and date validation (check_out > check_in) working properly."
+        comment: "LiteLLM wrapper with Emergent proxy, multi-round tool calling loop, safety limits."
 
-  - task: "Payments V2 Mock with idempotency"
+  - task: "Sprint 7: AI Sales Tool Functions"
     implemented: true
     working: true
-    file: "routers/payments.py"
+    file: "services/ai_sales_tools.py"
     stuck_count: 0
     priority: "high"
-    needs_retesting: false
+    needs_retesting: true
     status_history:
       - working: true
         agent: "main"
-        comment: "Created payments V2 router with public payment data, checkout, mock succeed (idempotent), mock fail. Creates reservation on success."
-      - working: true
-        agent: "testing"
-        comment: "✅ Payments V2 Mock system working: Get payment page data (public), Mock succeed with reservation creation (RES-8A16E1), IDEMPOTENCY confirmed (returns existing reservation), Mock fail handled. Minor: checkout validation correctly rejects cancelled offers (400)."
+        comment: "4 tools: check_availability_and_price (calculates from room_rates DB), validate_discount (enforces max%), create_offer (creates V2 offer), generate_payment_link (creates payment link). All tenant+property scoped."
 
-  - task: "Reservations V2 CRUD with export"
+  - task: "Sprint 7: AI Sales State Machine"
     implemented: true
     working: true
-    file: "routers/reservations.py"
+    file: "services/ai_sales_state.py"
     stuck_count: 0
     priority: "high"
-    needs_retesting: false
+    needs_retesting: true
     status_history:
       - working: true
         agent: "main"
-        comment: "Created reservations V2 router with list, get, cancel (admin only), export CSV. Returns 2 seeded reservations."
-      - working: true
-        agent: "testing"
-        comment: "✅ ALL Reservations V2 tests passed: List (3 reservations found), Get detail, Cancel (admin-only), CSV export with proper headers. All endpoints working correctly."
+        comment: "Session management with states: INFO, COLLECT_DATES, PRICE_QUOTED, DISCOUNT_NEGOTIATION, PAYMENT_SENT, CONFIRMED, ESCALATED. Usage limits, property check, API key check."
 
-  - task: "Inbox create-offer endpoint"
+  - task: "Sprint 7: Webchat AI Auto-Reply Integration"
     implemented: true
     working: true
     file: "routers/inbox.py"
     stuck_count: 0
-    priority: "medium"
-    needs_retesting: false
-    status_history:
-      - working: true
-        agent: "main"
-        comment: "Added POST /conversations/:id/create-offer to inbox V2 router."
-      - working: true
-        agent: "testing"
-        comment: "✅ Inbox create-offer working: Successfully created offer (ID: 13cd7a5d-6691-4b71-b681-6f801cda8ac1) from conversation with contact creation/linking (ID: 9f25240c-ee40-45b8-a594-0f9ea8316e09), source correctly set to INBOX."
-
-  - task: "Offer expiration background task"
-    implemented: true
-    working: true
-    file: "server.py"
-    stuck_count: 0
-    priority: "medium"
-    needs_retesting: false
-    status_history:
-      - working: true
-        agent: "main"
-        comment: "Added background task that runs every 60s to expire offers past expires_at."
-      - working: true
-        agent: "testing"
-        comment: "Background task implementation verified in server.py - not directly tested as it's time-based, but expires_at field is properly set when offers are sent."
-
-  - task: "Seed data with properties, offers, payments, reservations"
-    implemented: true
-    working: true
-    file: "server.py"
-    stuck_count: 0
     priority: "high"
-    needs_retesting: false
+    needs_retesting: true
     status_history:
       - working: true
         agent: "main"
-        comment: "Added 2 properties, 4 offers, 3 payment links, 1 payment, 2 reservations to seed data."
+        comment: "Modified webchat guest message handler to auto-trigger AI response when enabled. Added GET messages endpoint for polling. Property_id set on conversation start."
+
+  - task: "Sprint 7: Seed Data (room_rates, discount_rules, policies, ai_settings)"
+    implemented: true
+    working: true
+    file: "server.py"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: true
+    status_history:
       - working: true
-        agent: "testing"
-        comment: "✅ Seed data verified: Found 2 properties, 4 offers, 3 reservations as expected. All seeded data properly accessible via V2 APIs."
+        agent: "main"
+        comment: "3 room types (Standard 1200 TRY, Deluxe 2200 TRY, Suite 4500 TRY) with weekend/season multipliers. Discount rules (max 10%, min 3 nights). Business policies. AI enabled for Main property."
 
 frontend:
-  - task: "Property Switcher in top bar"
+  - task: "Sprint 7: AI Sales Admin Page"
     implemented: true
     working: true
-    file: "components/layout/AdminLayout.js"
+    file: "pages/AISalesPage.js"
     stuck_count: 0
     priority: "high"
     needs_retesting: false
     status_history:
       - working: true
         agent: "main"
-        comment: "Property switcher dropdown in top bar. Stores active property in localStorage."
-      - working: true
-        agent: "testing"
-        comment: "✅ Verified property switcher is visible in top bar and works correctly. Successfully switched between 'Main' and 'Annex' properties."
+        comment: "Full admin page with 4 tabs: Settings (enable/disable, languages, escalation), Room Rates (CRUD with dialog), Discount Rules (max%, min nights), Policies (check-in/out, cancellation, etc). Stats cards."
 
-  - task: "Properties Page"
+  - task: "Sprint 7: Guest WebChat AI Integration"
     implemented: true
     working: true
-    file: "pages/PropertiesPage.js"
+    file: "pages/guest/GuestChat.js"
     stuck_count: 0
     priority: "high"
     needs_retesting: false
     status_history:
       - working: true
         agent: "main"
-        comment: "Full CRUD for properties with create dialog, edit, activate/deactivate."
-      - working: true
-        agent: "testing"
-        comment: "✅ Verified Properties page successfully loads and displays all properties (3 properties shown). Create property dialog opens and closes correctly."
+        comment: "Rewritten to use V2 webchat endpoints. AI badge on auto-replies. Payment link rendered as clickable button. Typing indicator. Message polling."
 
-  - task: "Offers V2 Page"
-    implemented: true
-    working: true
-    file: "pages/OffersPage.js"
-    stuck_count: 0
-    priority: "high"
-    needs_retesting: false
-    status_history:
-      - working: true
-        agent: "main"
-        comment: "Full V2 offers page with status filter, create, send, cancel, payment link, simulate payment. Stats cards."
-      - working: true
-        agent: "testing"
-        comment: "✅ Verified Offers page loads correctly with stats cards (Offers Sent, Paid Offers, Reservations, Conversion Rate). Successfully created a new offer 'Playwright Test' and verified it appeared in the list. Found offers with various statuses (SENT, PAID, EXPIRED, DRAFT, CANCELLED)."
-
-  - task: "Payment Public Page"
-    implemented: true
-    working: true
-    file: "pages/PaymentPage.js"
-    stuck_count: 0
-    priority: "high"
-    needs_retesting: false
-    status_history:
-      - working: true
-        agent: "main"
-        comment: "Guest checkout page at /pay/:paymentLinkId with offer summary, pay mock button, confirmation code."
-      - working: true
-        agent: "testing"
-        comment: "✅ Verified Payment page error handling works correctly. Payment page shows proper error message for nonexistent payment link IDs. Proper error handling is in place."
-
-  - task: "V2 API Client endpoints"
+  - task: "Sprint 7: API Client AI Sales endpoints"
     implemented: true
     working: true
     file: "lib/api.js"
     stuck_count: 0
-    priority: "high"
+    priority: "medium"
     needs_retesting: false
     status_history:
       - working: true
         agent: "main"
-        comment: "Added propertiesAPI, offersAPI, paymentsAPI, reservationsAPI, inboxOffersAPI."
-      - working: true
-        agent: "testing"
-        comment: "✅ API client endpoints working correctly. Successfully used propertiesAPI, offersAPI, and paymentsAPI during testing. All endpoints responded as expected."
+        comment: "Added aiSalesAPI with all settings, room rates, discount rules, policies, stats, AI trigger, session endpoints."
 
 metadata:
   created_by: "main_agent"
