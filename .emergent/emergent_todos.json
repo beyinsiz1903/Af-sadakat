@@ -1,46 +1,46 @@
 [
   {
     "content": "Phase 5.1: Security Hardening (refresh tokens, sessions, rate limiting, brute-force, audit expansion)",
-    "status": "in_progress"
+    "status": "completed"
   },
   {
     "content": "Phase 5.2: Plan Enforcement + Usage Metering (BASIC/PRO/ENTERPRISE limits)",
-    "status": "pending"
+    "status": "completed"
   },
   {
     "content": "Phase 5.3: Billing Ready Architecture (models + UI)",
-    "status": "pending"
+    "status": "completed"
   },
   {
     "content": "Phase 5.4: Onboarding Wizard (7-step flow)",
-    "status": "pending"
+    "status": "completed"
   },
   {
     "content": "Phase 5.5: Guest Intelligence v2 + GuestProfileCard",
-    "status": "pending"
+    "status": "completed"
   },
   {
     "content": "Phase 5.6: Revenue Analytics Engine + Charts",
-    "status": "pending"
+    "status": "completed"
   },
   {
     "content": "Phase 5.7: GDPR/KVKK Compliance (export, delete, retention)",
-    "status": "pending"
+    "status": "completed"
   },
   {
     "content": "Phase 5.8: Referral/Growth Engine",
-    "status": "pending"
+    "status": "completed"
   },
   {
     "content": "Phase 5.9: Observability + Demo Mode + Investor Metrics",
-    "status": "pending"
+    "status": "completed"
   },
   {
     "content": "Phase 5: Frontend - All new pages and enhancements",
-    "status": "pending"
+    "status": "completed"
   },
   {
     "content": "Phase 5: End-to-end Testing with Testing Agent",
-    "status": "pending"
+    "status": "in_progress"
   }
 ]
