@@ -2638,8 +2638,16 @@ async def websocket_endpoint(websocket: WebSocket, tenant_id: str):
         logger.error(f"WebSocket error: {e}")
         ws_manager.disconnect(websocket, channel)
 
-# Include router
+# Include routers (v1 legacy + v2 modular)
 app.include_router(api_router)
+
+# V2 modular routers (refactored architecture)
+try:
+    from routers.hotel import router as hotel_v2_router
+    app.include_router(hotel_v2_router)
+    logger.info("V2 hotel router loaded")
+except Exception as e:
+    logger.warning(f"V2 hotel router not loaded: {e}")
 
 app.add_middleware(
     CORSMiddleware,
