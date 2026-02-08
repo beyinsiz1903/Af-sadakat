@@ -1346,7 +1346,7 @@ async def seed_data():
     ]
     await db.service_categories.insert_many(service_cats)
     
-    # Rooms
+    # Rooms (using simple codes for demo - production uses secure random codes)
     rooms = []
     for floor in range(1, 4):
         for room_num in range(1, 3):
@@ -1356,19 +1356,23 @@ async def seed_data():
                 "room_number": rn, "room_code": f"R{rn}",
                 "room_type": "deluxe" if floor == 3 else "standard",
                 "floor": str(floor),
+                "is_active": True,
+                "qr_version": 1,
                 "qr_link": f"/g/grand-hotel/room/R{rn}",
                 "status": "available",
                 "created_at": now_utc().isoformat()
             })
     await db.rooms.insert_many(rooms)
     
-    # Tables
+    # Tables (using simple codes for demo)
     tables = []
     for t in range(1, 4):
         tables.append({
             "id": new_id(), "tenant_id": tenant_id,
             "table_number": str(t), "table_code": f"T{t}",
             "capacity": 4, "section": "terrace" if t <= 2 else "indoor",
+            "is_active": True,
+            "qr_version": 1,
             "qr_link": f"/g/grand-hotel/table/T{t}",
             "created_at": now_utc().isoformat()
         })
