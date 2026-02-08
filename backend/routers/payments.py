@@ -17,29 +17,11 @@ logger = logging.getLogger("omnihub.payments")
 
 router = APIRouter(prefix="/api/v2/payments", tags=["payments"])
 
-# Simple in-memory rate limiter for public payment endpoints (30/min per IP)
-_rate_store = defaultdict(list)
-_RATE_LIMIT = 30
-_RATE_WINDOW = 60  # seconds
-
-def _check_rate_limit(request: Request):
-    ip = request.client.host if request.client else "unknown"
-    now = time.time()
-    _rate_store[ip] = [t for t in _rate_store[ip] if now - t < _RATE_WINDOW]
-    if len(_rate_store[ip]) >= _RATE_LIMIT:
-        raise HTTPException(status_code=429, detail="Rate limit exceeded. Try again later.")
-    _rate_store[ip].append(now)
-
-
-def _generate_confirmation_code() -> str:
-    """Generate a human-readable confirmation code like RES-XXXXXX"""
-    return f"RES-{secrets.token_hex(3).upper()}"
-
 
 @router.get("/pay/{payment_link_id}")
 async def get_payment_page_data(payment_link_id: str, request: Request):
     """Public endpoint - returns offer summary for payment page"""
-    _check_rate_limit(request)
+    rate_limit_ip(request, 30, 60)
     pl = await db.payment_links.find_one({"id": payment_link_id}, {"_id": 0})
     if not pl:
         raise HTTPException(status_code=404, detail="Payment link not found")
