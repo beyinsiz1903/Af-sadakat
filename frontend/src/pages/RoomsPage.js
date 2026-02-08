@@ -113,9 +113,17 @@ export default function RoomsPage() {
                 <TableCell className="capitalize">{room.room_type}</TableCell>
                 <TableCell>{room.floor}</TableCell>
                 <TableCell>
-                  <Button variant="ghost" size="sm" className="text-xs h-7" onClick={() => copyQrLink(room)} data-testid={`copy-qr-${room.room_code}`}>
-                    <Copy className="w-3 h-3 mr-1" /> Copy Link
-                  </Button>
+                  <div className="flex gap-1">
+                    <Button variant="ghost" size="sm" className="text-xs h-7" onClick={() => copyQrLink(room)} data-testid={`copy-qr-${room.room_code}`}>
+                      <Copy className="w-3 h-3 mr-1" /> Copy
+                    </Button>
+                    <Button variant="ghost" size="sm" className="text-xs h-7" onClick={() => {
+                      const url = `${process.env.REACT_APP_BACKEND_URL}/api/admin/rooms/${room.id}/qr.png`;
+                      window.open(url, '_blank');
+                    }} data-testid={`download-qr-${room.room_code}`}>
+                      <Download className="w-3 h-3 mr-1" /> QR
+                    </Button>
+                  </div>
                 </TableCell>
                 <TableCell>
                   <Button variant="ghost" size="icon" className="h-8 w-8 text-[hsl(var(--destructive))]" onClick={() => deleteMutation.mutate(room.id)}>
