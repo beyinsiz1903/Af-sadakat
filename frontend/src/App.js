@@ -86,6 +86,7 @@ function App() {
               <Route path="growth" element={<GrowthPage />} />
               <Route path="system" element={<SystemMetricsPage />} />
               <Route path="audit" element={<AuditLogPage />} />
+              <Route path="ai-sales" element={<AISalesPage />} />
               <Route path="settings" element={<SettingsPage />} />
             </Route>
             
