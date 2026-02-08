@@ -817,6 +817,22 @@ class ComprehensiveAPITester:
                 self.log(f"\n❌ Test section failed: {str(e)}")
                 self.failed_tests.append(f"Test section error: {str(e)}")
         
+        # Sprint 3 V2 API Tests
+        sprint3_tests = [
+            self.test_sprint3_v2_inbox_apis,
+            self.test_sprint3_v2_reviews_apis, 
+            self.test_sprint3_webchat_apis,
+            self.test_sprint3_ai_usage_enforcement,
+            self.test_sprint3_channel_filtering,
+        ]
+        
+        for test_method in sprint3_tests:
+            try:
+                test_method()
+            except Exception as e:
+                self.log(f"\n❌ Sprint 3 test section failed: {str(e)}")
+                self.failed_tests.append(f"Sprint 3 test error: {str(e)}")
+        
         # Print results
         self.log(f"\n" + "=" * 80)
         self.log(f"📊 TEST RESULTS")
