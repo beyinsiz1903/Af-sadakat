@@ -19,6 +19,12 @@ import InboxPage from './pages/InboxPage';
 import ReviewsPage from './pages/ReviewsPage';
 import OffersPage from './pages/OffersPage';
 import ConnectorsPage from './pages/ConnectorsPage';
+import OnboardingPage from './pages/OnboardingPage';
+import BillingPage from './pages/BillingPage';
+import AnalyticsPage from './pages/AnalyticsPage';
+import CompliancePage from './pages/CompliancePage';
+import GrowthPage from './pages/GrowthPage';
+import SystemMetricsPage from './pages/SystemMetricsPage';
 
 // Guest Pages
 import GuestRoomPanel from './pages/guest/GuestRoomPanel';
