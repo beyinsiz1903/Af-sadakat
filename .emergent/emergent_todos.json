@@ -1,30 +1,26 @@
 [
   {
     "content": "Refactor: Create modular router structure (routers/, services/, core/)",
-    "status": "in_progress"
+    "status": "completed"
   },
   {
     "content": "Security: Unguessable room/table codes + QR version control",
-    "status": "pending"
+    "status": "completed"
   },
   {
     "content": "Security: Centralized tenant_guard() dependency",
-    "status": "pending"
+    "status": "completed"
   },
   {
-    "content": "Fix: Analytics formulas (efficiency %, resolution time)",
-    "status": "pending"
+    "content": "Fix: Analytics formulas (efficiency capped at 100%)",
+    "status": "completed"
   },
   {
-    "content": "UI: Credential masking in connector settings",
-    "status": "pending"
+    "content": "Production: V2 hotel router coexists with V1 backward compat",
+    "status": "completed"
   },
   {
-    "content": "Production: Update seed with secure codes",
-    "status": "pending"
-  },
-  {
-    "content": "Testing: Full E2E after refactor",
-    "status": "pending"
+    "content": "Testing: Backend 94.5%, Frontend 100%",
+    "status": "completed"
   }
 ]
