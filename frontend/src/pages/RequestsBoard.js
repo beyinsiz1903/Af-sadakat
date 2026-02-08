@@ -72,6 +72,11 @@ function SortableRequestCard({ req, onClick }) {
               ))}
             </div>
           )}
+          {req.last_updated_by && (
+            <div className="text-[10px] text-[hsl(var(--muted-foreground))] pt-1 border-t border-[hsl(var(--border))]">
+              Updated by: {req.last_updated_by}
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>
