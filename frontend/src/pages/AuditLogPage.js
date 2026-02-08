@@ -23,6 +23,26 @@ const actionColors = {
   'data_export': 'bg-blue-500/10 text-blue-400',
   'data_forget': 'bg-rose-500/10 text-rose-400',
   'logout': 'bg-gray-500/10 text-gray-400',
+  // Sprint 3
+  'conversation_assigned': 'bg-blue-500/10 text-blue-400',
+  'conversation_closed': 'bg-gray-500/10 text-gray-400',
+  'conversation_reopened': 'bg-emerald-500/10 text-emerald-400',
+  'agent_message_sent': 'bg-indigo-500/10 text-indigo-400',
+  'ai_suggestion_generated': 'bg-purple-500/10 text-purple-400',
+  'connectors_pull_now': 'bg-blue-500/10 text-blue-400',
+  'review_reply_created': 'bg-emerald-500/10 text-emerald-400',
+  // Sprint 4
+  'CRM_CONTACT_CREATED': 'bg-emerald-500/10 text-emerald-400',
+  'CRM_CONTACT_UPDATED': 'bg-blue-500/10 text-blue-400',
+  'CRM_CONTACT_MERGED': 'bg-amber-500/10 text-amber-400',
+  'CRM_NOTE_ADDED': 'bg-gray-500/10 text-gray-400',
+  'CRM_CONTACT_LINKED': 'bg-blue-500/10 text-blue-400',
+  'CRM_CONTACTS_EXPORTED': 'bg-purple-500/10 text-purple-400',
+  'LOYALTY_RULES_UPDATED': 'bg-amber-500/10 text-amber-400',
+  'LOYALTY_ENROLLED': 'bg-emerald-500/10 text-emerald-400',
+  'LOYALTY_ADJUSTED': 'bg-amber-500/10 text-amber-400',
+  'LOYALTY_REDEEMED': 'bg-rose-500/10 text-rose-400',
+  'LOYALTY_EARNED': 'bg-emerald-500/10 text-emerald-400',
 };
 
 export default function AuditLogPage() {
