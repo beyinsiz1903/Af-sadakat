@@ -207,6 +207,9 @@ frontend:
       - working: true
         agent: "main"
         comment: "Full admin page with 4 tabs: Settings (enable/disable, languages, escalation), Room Rates (CRUD with dialog), Discount Rules (max%, min nights), Policies (check-in/out, cancellation, etc). Stats cards."
+      - working: true
+        agent: "testing"
+        comment: "✅ AI Sales Admin Page working perfectly. All required elements are present: 'AI Sales Engine' heading, Stats cards (23/500 AI Replies, 2 AI Offers Created, 0 AI Offers Paid, 6 Active Sessions). All four tabs visible and functional: Settings tab shows Enable AI Auto-Reply option, Room Rates tab displays 4 room types (Deluxe 2200 TRY, Economy 800 TRY, Standard 1200 TRY, Suite 4500 TRY), Discounts tab shows max 10% discount, and Policies tab shows check-in time 14:00, check-out time 12:00."
 
   - task: "Sprint 7: Guest WebChat AI Integration"
     implemented: true
@@ -219,6 +222,9 @@ frontend:
       - working: true
         agent: "main"
         comment: "Rewritten to use V2 webchat endpoints. AI badge on auto-replies. Payment link rendered as clickable button. Typing indicator. Message polling."
+      - working: true
+        agent: "testing"
+        comment: "✅ Guest WebChat AI Integration working perfectly. Successfully tested full flow: start chat → send message in Turkish 'Merhaba, deluxe oda bakmak istiyorum 20-22 Mayis icin 2 kisi' → AI responds with appropriate AI Assistant badge → Response correctly mentions price (4400 TRY for 2 nights) and Deluxe room details in Turkish. Verified proper handling of Turkish characters, typing indicator display while AI is responding, and message polling functionality."
 
   - task: "Sprint 7: API Client AI Sales endpoints"
     implemented: true
