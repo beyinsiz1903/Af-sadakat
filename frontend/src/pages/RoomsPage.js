@@ -56,10 +56,19 @@ export default function RoomsPage() {
           <h1 className="text-2xl font-bold">Rooms</h1>
           <p className="text-sm text-[hsl(var(--muted-foreground))] mt-1">{rooms.length} rooms configured</p>
         </div>
-        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-          <DialogTrigger asChild>
-            <Button data-testid="add-room-btn"><Plus className="w-4 h-4 mr-2" /> Add Room</Button>
-          </DialogTrigger>
+        <div className="flex gap-2">
+          {rooms.length > 0 && (
+            <Button variant="outline" onClick={() => {
+              const ids = rooms.map(r => r.id).join(',');
+              window.open(`${process.env.REACT_APP_BACKEND_URL}/api/admin/rooms/print.pdf?ids=${ids}`, '_blank');
+            }} data-testid="print-all-qr-btn">
+              <FileText className="w-4 h-4 mr-2" /> Print All QR
+            </Button>
+          )}
+          <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+            <DialogTrigger asChild>
+              <Button data-testid="add-room-btn"><Plus className="w-4 h-4 mr-2" /> Add Room</Button>
+            </DialogTrigger>
           <DialogContent className="bg-[hsl(var(--card))] border-[hsl(var(--border))]">
             <DialogHeader><DialogTitle>Add New Room</DialogTitle></DialogHeader>
             <div className="space-y-4">
