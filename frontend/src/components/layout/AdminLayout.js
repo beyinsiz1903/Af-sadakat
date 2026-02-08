@@ -33,6 +33,7 @@ const navItems = [
   { path: '/compliance', label: 'Compliance', icon: Shield },
   { path: '/growth', label: 'Growth', icon: Share2 },
   { path: '/system', label: 'System', icon: Server },
+  { path: '/audit', label: 'Audit Log', icon: AuditIcon },
   { path: '/settings', label: 'Settings', icon: Settings },
 ];
 
