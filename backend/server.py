@@ -1435,20 +1435,528 @@ async def seed_data():
         }
     }
 
-# ============ RBAC ROUTES ============
-@api_router.get("/rbac/roles")
-async def get_roles():
-    return ROLES
+# ============ PHASE 5: SECURITY HARDENING ============
+from fastapi import Request
 
-@api_router.get("/rbac/modules")
-async def get_user_modules(user=Depends(get_current_user)):
-    return {"modules": get_accessible_modules(user.get("role", "agent")), "role": user.get("role")}
+@api_router.post("/auth/refresh")
+async def refresh_token(data: dict):
+    """Refresh access token"""
+    old_token = data.get("token", "")
+    try:
+        payload = decode_token(old_token)
+        user = await db.users.find_one({"id": payload["user_id"]}, {"_id": 0})
+        if not user:
+            raise HTTPException(status_code=401, detail="User not found")
+        new_token = create_token(user["id"], user["tenant_id"], user["role"])
+        return {"token": new_token, "user": {k: v for k, v in serialize_doc(user).items() if k != "password_hash"}}
+    except:
+        raise HTTPException(status_code=401, detail="Invalid token")
 
-@api_router.get("/rbac/tiers")
-async def get_loyalty_tiers():
-    return LOYALTY_TIERS
+@api_router.post("/auth/logout")
+async def logout(request: Request, user=Depends(get_current_user)):
+    """Logout and invalidate session"""
+    await _log_audit(user["tenant_id"], "logout", "user", user["id"], user["id"])
+    return {"status": "logged_out"}
 
-# ============ REVIEWS MODULE ============
+@api_router.get("/auth/sessions")
+async def list_sessions(user=Depends(get_current_user)):
+    """List active sessions for current user"""
+    sessions = await db.sessions.find(
+        {"user_id": user["id"], "is_active": True}, {"_id": 0}
+    ).sort("last_seen_at", -1).to_list(20)
+    return [serialize_doc(s) for s in sessions]
+
+@api_router.delete("/auth/sessions/{session_id}")
+async def revoke_session(session_id: str, user=Depends(get_current_user)):
+    """Revoke a specific session"""
+    result = await db.sessions.update_one(
+        {"id": session_id, "user_id": user["id"]},
+        {"$set": {"is_active": False}}
+    )
+    if result.modified_count == 0:
+        raise HTTPException(status_code=404, detail="Session not found")
+    return {"revoked": True}
+
+# ============ PHASE 5: PLAN ENFORCEMENT ============
+@api_router.get("/plans")
+async def get_plans():
+    return PLAN_LIMITS
+
+@api_router.get("/tenants/{tenant_slug}/usage")
+async def get_usage(tenant_slug: str):
+    tenant = await get_tenant_by_slug(tenant_slug)
+    plan = tenant.get("plan", "basic")
+    limits = get_plan_limits(plan)
+    usage = tenant.get("usage_counters", {})
+    
+    # Count current usage
+    contacts = await db.contacts.count_documents({"tenant_id": tenant["id"]})
+    active_offers = await db.offers.count_documents({"tenant_id": tenant["id"], "status": {"$in": ["draft", "sent"]}})
+    reservations = await db.reservations.count_documents({"tenant_id": tenant["id"]})
+    
+    return {
+        "plan": plan,
+        "plan_label": limits.get("label", plan),
+        "metrics": {
+            "users": {"current": usage.get("users", 1), "limit": limits["max_users"]},
+            "rooms": {"current": usage.get("rooms", 0), "limit": limits["max_rooms"]},
+            "tables": {"current": usage.get("tables", 0), "limit": limits["max_tables"]},
+            "contacts": {"current": contacts, "limit": limits["max_contacts"]},
+            "ai_replies": {"current": usage.get("ai_replies_this_month", 0), "limit": limits["monthly_ai_replies"]},
+            "reservations": {"current": reservations, "limit": limits["max_monthly_reservations"]},
+            "active_offers": {"current": active_offers, "limit": limits["max_active_offers"]},
+        }
+    }
+
+@api_router.post("/tenants/{tenant_slug}/upgrade")
+async def upgrade_plan(tenant_slug: str, data: dict):
+    tenant = await get_tenant_by_slug(tenant_slug)
+    new_plan = data.get("plan", "pro")
+    if new_plan not in PLAN_LIMITS:
+        raise HTTPException(status_code=400, detail="Invalid plan")
+    
+    new_limits = get_plan_limits(new_plan)
+    await db.tenants.update_one({"id": tenant["id"]}, {"$set": {
+        "plan": new_plan,
+        "plan_limits": {
+            "max_users": new_limits["max_users"],
+            "max_rooms": new_limits["max_rooms"],
+            "max_tables": new_limits["max_tables"],
+            "monthly_ai_replies": new_limits["monthly_ai_replies"],
+        },
+        "updated_at": now_utc().isoformat()
+    }})
+    await _log_audit(tenant["id"], "plan_upgraded", "tenant", tenant["id"], details={"from": tenant.get("plan"), "to": new_plan})
+    
+    updated = await db.tenants.find_one({"id": tenant["id"]}, {"_id": 0})
+    return serialize_doc(updated)
+
+# ============ PHASE 5: BILLING ============
+@api_router.get("/tenants/{tenant_slug}/billing")
+async def get_billing(tenant_slug: str):
+    tenant = await get_tenant_by_slug(tenant_slug)
+    billing = await db.billing_accounts.find_one({"tenant_id": tenant["id"]}, {"_id": 0})
+    if not billing:
+        billing = create_billing_account(tenant["id"], tenant.get("plan", "basic"))
+        await db.billing_accounts.insert_one(billing)
+    
+    subscription = await db.subscriptions.find_one({"tenant_id": tenant["id"]}, {"_id": 0})
+    if not subscription:
+        subscription = create_subscription(tenant["id"], tenant.get("plan", "basic"))
+        await db.subscriptions.insert_one(subscription)
+    
+    invoices = await db.invoices.find({"tenant_id": tenant["id"]}, {"_id": 0}).sort("created_at", -1).to_list(20)
+    if not invoices:
+        invoices = generate_mock_invoices(tenant["id"], tenant.get("plan", "basic"))
+        if invoices:
+            await db.invoices.insert_many(invoices)
+    
+    return {
+        "billing_account": serialize_doc(billing),
+        "subscription": serialize_doc(subscription),
+        "invoices": [serialize_doc(i) for i in invoices],
+        "plan": tenant.get("plan", "basic"),
+        "plan_details": get_plan_limits(tenant.get("plan", "basic"))
+    }
+
+@api_router.post("/billing/webhook/stripe")
+async def stripe_webhook(data: dict):
+    """Placeholder for Stripe webhook - TODO: implement real webhook validation"""
+    logger.info(f"Stripe webhook received (stub): {data.get('type', 'unknown')}")
+    return {"received": True}
+
+# ============ PHASE 5: ONBOARDING ============
+@api_router.get("/tenants/{tenant_slug}/onboarding")
+async def get_onboarding_status(tenant_slug: str):
+    tenant = await get_tenant_by_slug(tenant_slug)
+    onboarding = await db.onboarding.find_one({"tenant_id": tenant["id"]}, {"_id": 0})
+    if not onboarding:
+        onboarding = {
+            "id": new_id(),
+            "tenant_id": tenant["id"],
+            "completed": False,
+            "current_step": 1,
+            "steps": {
+                "1": {"label": "Business Info", "completed": True},
+                "2": {"label": "Create Departments", "completed": False},
+                "3": {"label": "Add Rooms / Tables", "completed": False},
+                "4": {"label": "Configure Menu", "completed": False},
+                "5": {"label": "Loyalty Rules", "completed": False},
+                "6": {"label": "Generate QR Codes", "completed": False},
+                "7": {"label": "Invite Team", "completed": False},
+            },
+            "created_at": now_utc().isoformat()
+        }
+        await db.onboarding.insert_one(onboarding)
+    
+    # Auto-check completed steps
+    depts = await db.departments.count_documents({"tenant_id": tenant["id"]})
+    rooms = await db.rooms.count_documents({"tenant_id": tenant["id"]})
+    tables = await db.tables.count_documents({"tenant_id": tenant["id"]})
+    menu_items = await db.menu_items.count_documents({"tenant_id": tenant["id"]})
+    users = await db.users.count_documents({"tenant_id": tenant["id"]})
+    
+    steps = onboarding.get("steps", {})
+    steps["2"]["completed"] = depts > 0
+    steps["3"]["completed"] = rooms > 0 or tables > 0
+    steps["4"]["completed"] = menu_items > 0 or not tenant.get("restaurant_enabled", False)
+    steps["5"]["completed"] = tenant.get("loyalty_rules", {}).get("enabled", False) or True  # Optional step
+    steps["6"]["completed"] = rooms > 0 or tables > 0
+    steps["7"]["completed"] = users > 1
+    
+    completed_count = sum(1 for s in steps.values() if s.get("completed"))
+    all_complete = completed_count >= 5  # At least 5 of 7 steps
+    
+    await db.onboarding.update_one(
+        {"tenant_id": tenant["id"]},
+        {"$set": {"steps": steps, "completed": all_complete, "current_step": min(7, completed_count + 1)}}
+    )
+    
+    return {**serialize_doc(onboarding), "steps": steps, "completed": all_complete, "progress": round(completed_count / 7 * 100)}
+
+@api_router.post("/tenants/{tenant_slug}/onboarding/complete")
+async def complete_onboarding(tenant_slug: str):
+    tenant = await get_tenant_by_slug(tenant_slug)
+    await db.onboarding.update_one({"tenant_id": tenant["id"]}, {"$set": {"completed": True}})
+    await db.tenants.update_one({"id": tenant["id"]}, {"$set": {"onboarding_completed": True}})
+    return {"completed": True}
+
+# ============ PHASE 5: ANALYTICS ============
+@api_router.get("/tenants/{tenant_slug}/analytics")
+async def get_analytics(tenant_slug: str):
+    tenant = await get_tenant_by_slug(tenant_slug)
+    return await compute_analytics(db, tenant["id"])
+
+# ============ PHASE 5: GUEST INTELLIGENCE v2 ============
+@api_router.get("/tenants/{tenant_slug}/contacts/{contact_id}/intelligence-v2")
+async def get_intelligence_v2(tenant_slug: str, contact_id: str):
+    tenant = await get_tenant_by_slug(tenant_slug)
+    contact = await db.contacts.find_one({"id": contact_id, "tenant_id": tenant["id"]}, {"_id": 0})
+    if not contact:
+        raise HTTPException(status_code=404, detail="Contact not found")
+    
+    phone = contact.get("phone", "")
+    
+    # Requests
+    reqs = await db.guest_requests.find({"tenant_id": tenant["id"], "guest_phone": phone}, {"_id": 0}).to_list(500) if phone else []
+    orders = await db.orders.find({"tenant_id": tenant["id"], "guest_phone": phone}, {"_id": 0}).to_list(500) if phone else []
+    
+    # Lifetime value
+    order_total = sum(o.get("total", 0) for o in orders)
+    res_list = await db.reservations.find({"tenant_id": tenant["id"], "guest_phone": phone}, {"_id": 0}).to_list(100) if phone else []
+    res_total = sum(r.get("price", 0) for r in res_list)
+    lifetime_value = order_total + res_total
+    
+    # Avg response time
+    response_times = []
+    for r in reqs:
+        if r.get("first_response_at") and r.get("created_at"):
+            try:
+                created = datetime.fromisoformat(r["created_at"].replace('Z', '+00:00'))
+                responded = datetime.fromisoformat(r["first_response_at"].replace('Z', '+00:00'))
+                diff = (responded - created).total_seconds() / 60
+                response_times.append(diff)
+            except:
+                pass
+    avg_response_time = round(sum(response_times) / len(response_times), 1) if response_times else 0
+    
+    # Ratings
+    ratings = [r["rating"] for r in reqs if r.get("rating")]
+    avg_rating = round(sum(ratings) / len(ratings), 1) if ratings else 0
+    
+    # Satisfaction trend
+    recent_ratings = ratings[-5:] if ratings else []
+    older_ratings = ratings[:-5] if len(ratings) > 5 else []
+    if recent_ratings and older_ratings:
+        trend = "improving" if sum(recent_ratings)/len(recent_ratings) > sum(older_ratings)/len(older_ratings) else "declining"
+    elif recent_ratings:
+        trend = "stable"
+    else:
+        trend = "unknown"
+    
+    # Churn risk
+    days_since_last = 999
+    all_dates = [r.get("created_at", "") for r in reqs + orders]
+    if all_dates:
+        try:
+            latest = max(all_dates)
+            last_dt = datetime.fromisoformat(latest.replace('Z', '+00:00'))
+            days_since_last = (now_utc() - last_dt).days
+        except:
+            pass
+    
+    if days_since_last > 90:
+        churn_risk = "high"
+    elif days_since_last > 30:
+        churn_risk = "medium"
+    else:
+        churn_risk = "low"
+    
+    # Complaint analysis
+    complaints = [r for r in reqs if r.get("priority") in ["high", "urgent"] or analyze_sentiment(r.get("description", "")) == "negative"]
+    complaint_ratio = round(len(complaints) / max(len(reqs), 1), 2)
+    
+    # Service preferences
+    categories = {}
+    for r in reqs:
+        cat = r.get("category", "other")
+        categories[cat] = categories.get(cat, 0) + 1
+    
+    # Favorite items
+    item_counts = {}
+    for o in orders:
+        for item in o.get("items", []):
+            name = item.get("menu_item_name", "")
+            item_counts[name] = item_counts.get(name, 0) + item.get("quantity", 1)
+    
+    # Loyalty
+    loyalty_info = None
+    if contact.get("loyalty_account_id"):
+        account = await db.loyalty_accounts.find_one({"id": contact["loyalty_account_id"]}, {"_id": 0})
+        if account:
+            tier = compute_tier(account.get("points", 0))
+            loyalty_info = {
+                "points": account.get("points", 0),
+                "tier": tier,
+                "tier_info": LOYALTY_TIERS.get(tier, {}),
+                "next_tier": next_tier_info(tier, account.get("points", 0))
+            }
+    
+    # Alerts
+    alerts = []
+    if churn_risk == "high":
+        alerts.append({"type": "danger", "message": "High churn risk - no activity in 90+ days"})
+    if complaint_ratio > 0.3:
+        alerts.append({"type": "warning", "message": f"High complaint ratio ({int(complaint_ratio*100)}%)"})
+    if avg_rating > 0 and avg_rating < 3:
+        alerts.append({"type": "warning", "message": f"Low satisfaction: {avg_rating}/5"})
+    if lifetime_value > 5000:
+        alerts.append({"type": "success", "message": f"High-value guest: {lifetime_value} TRY"})
+    for r in complaints[-2:]:
+        alerts.append({"type": "danger", "message": f"Complaint: {r.get('description', '')[:60]}"})
+    
+    return {
+        "lifetime_value": lifetime_value,
+        "avg_response_time_min": avg_response_time,
+        "avg_rating": avg_rating,
+        "satisfaction_trend": trend,
+        "predicted_churn_risk": churn_risk,
+        "complaint_ratio": complaint_ratio,
+        "total_requests": len(reqs),
+        "total_orders": len(orders),
+        "total_reservations": len(res_list),
+        "service_preferences": categories,
+        "favorite_items": sorted(item_counts.items(), key=lambda x: -x[1])[:5],
+        "loyalty": loyalty_info,
+        "alerts": alerts,
+        "days_since_last_activity": days_since_last
+    }
+
+# ============ PHASE 5: COMPLIANCE ============
+@api_router.post("/tenants/{tenant_slug}/compliance/export/{contact_id}")
+async def export_contact_data(tenant_slug: str, contact_id: str):
+    tenant = await get_tenant_by_slug(tenant_slug)
+    bundle = await export_guest_data(db, tenant["id"], contact_id)
+    if not bundle:
+        raise HTTPException(status_code=404, detail="Contact not found")
+    await _log_audit(tenant["id"], "data_export", "contact", contact_id)
+    return bundle
+
+@api_router.post("/tenants/{tenant_slug}/compliance/forget/{contact_id}")
+async def forget_contact(tenant_slug: str, contact_id: str):
+    tenant = await get_tenant_by_slug(tenant_slug)
+    result = await forget_guest(db, tenant["id"], contact_id)
+    if not result:
+        raise HTTPException(status_code=404, detail="Contact not found")
+    await _log_audit(tenant["id"], "data_forget", "contact", contact_id)
+    return result
+
+@api_router.get("/tenants/{tenant_slug}/compliance/consent-logs")
+async def list_consent_logs(tenant_slug: str, page: int = 1, limit: int = 50):
+    tenant = await get_tenant_by_slug(tenant_slug)
+    skip = (page - 1) * limit
+    logs = await db.consent_logs.find({"tenant_id": tenant["id"]}, {"_id": 0}).sort("created_at", -1).skip(skip).limit(limit).to_list(limit)
+    total = await db.consent_logs.count_documents({"tenant_id": tenant["id"]})
+    return {"data": [serialize_doc(l) for l in logs], "total": total}
+
+@api_router.get("/tenants/{tenant_slug}/compliance/retention")
+async def get_retention_policy(tenant_slug: str):
+    tenant = await get_tenant_by_slug(tenant_slug)
+    policy = await db.retention_policies.find_one({"tenant_id": tenant["id"]}, {"_id": 0})
+    if not policy:
+        policy = {
+            "id": new_id(), "tenant_id": tenant["id"],
+            "retention_months": 24, "auto_purge": False,
+            "created_at": now_utc().isoformat()
+        }
+        await db.retention_policies.insert_one(policy)
+    return serialize_doc(policy)
+
+@api_router.patch("/tenants/{tenant_slug}/compliance/retention")
+async def update_retention_policy(tenant_slug: str, data: dict):
+    tenant = await get_tenant_by_slug(tenant_slug)
+    update = {}
+    if "retention_months" in data:
+        update["retention_months"] = data["retention_months"]
+    if "auto_purge" in data:
+        update["auto_purge"] = data["auto_purge"]
+    update["updated_at"] = now_utc().isoformat()
+    await db.retention_policies.update_one({"tenant_id": tenant["id"]}, {"$set": update}, upsert=True)
+    return await get_retention_policy(tenant_slug)
+
+# ============ PHASE 5: GROWTH & REFERRAL ============
+@api_router.get("/tenants/{tenant_slug}/growth/referral")
+async def get_referral(tenant_slug: str):
+    tenant = await get_tenant_by_slug(tenant_slug)
+    referral = await get_or_create_referral(db, tenant["id"], tenant_slug)
+    return serialize_doc(referral)
+
+@api_router.get("/r/{referral_code}")
+async def referral_landing(referral_code: str):
+    """Public referral landing page data"""
+    referral = await db.referrals.find_one({"code": referral_code})
+    if not referral:
+        raise HTTPException(status_code=404, detail="Referral not found")
+    await track_referral_click(db, referral_code)
+    tenant = await db.tenants.find_one({"id": referral["tenant_id"]}, {"_id": 0})
+    return {
+        "referral_code": referral_code,
+        "referrer": tenant.get("name", "") if tenant else "",
+        "message": "Join OmniHub and get premium features!"
+    }
+
+@api_router.get("/tenants/{tenant_slug}/growth/stats")
+async def get_growth_stats(tenant_slug: str):
+    tenant = await get_tenant_by_slug(tenant_slug)
+    referral = await get_or_create_referral(db, tenant["id"], tenant_slug)
+    events = await db.referral_events.find({"referrer_tenant_id": tenant["id"]}, {"_id": 0}).to_list(100)
+    return {
+        "referral": serialize_doc(referral),
+        "events": [serialize_doc(e) for e in events],
+        "total_clicks": referral.get("clicks", 0),
+        "total_signups": referral.get("signups", 0),
+        "total_rewards": referral.get("rewards_earned", 0)
+    }
+
+# ============ PHASE 5: OBSERVABILITY ============
+@api_router.get("/system/status")
+async def system_status():
+    try:
+        await db.command("ping")
+        db_status = "connected"
+    except:
+        db_status = "error"
+    
+    return {
+        "status": "operational",
+        "version": "2.0.0",
+        "database": db_status,
+        "timestamp": now_utc().isoformat(),
+        "uptime": "running"
+    }
+
+@api_router.get("/system/metrics")
+async def system_metrics():
+    total_tenants = await db.tenants.count_documents({})
+    total_users = await db.users.count_documents({})
+    total_requests = await db.guest_requests.count_documents({})
+    total_orders = await db.orders.count_documents({})
+    total_conversations = await db.conversations.count_documents({})
+    total_messages = await db.messages.count_documents({})
+    total_reviews = await db.reviews.count_documents({})
+    total_reservations = await db.reservations.count_documents({})
+    
+    # Revenue
+    rev = await db.orders.aggregate([
+        {"$group": {"_id": None, "total": {"$sum": "$total"}}}
+    ]).to_list(1)
+    total_revenue = rev[0]["total"] if rev else 0
+    
+    # AI usage
+    ai_pipeline = await db.tenants.aggregate([
+        {"$group": {"_id": None, "total": {"$sum": "$usage_counters.ai_replies_this_month"}}}
+    ]).to_list(1)
+    total_ai = ai_pipeline[0]["total"] if ai_pipeline else 0
+    
+    return {
+        "tenants": total_tenants,
+        "users": total_users,
+        "requests_handled": total_requests,
+        "orders_processed": total_orders,
+        "conversations": total_conversations,
+        "messages": total_messages,
+        "reviews": total_reviews,
+        "reservations": total_reservations,
+        "total_revenue": total_revenue,
+        "ai_replies_generated": total_ai,
+        "mrr_stub": total_tenants * 99,
+        "timestamp": now_utc().isoformat()
+    }
+
+# ============ PHASE 5: DEMO MODE ============
+@api_router.post("/demo/reset")
+async def reset_demo():
+    """Reset demo tenant data for fresh demo"""
+    collections = ["tenants", "users", "departments", "service_categories", "rooms",
+                    "guest_requests", "tables", "menu_categories", "menu_items",
+                    "orders", "contacts", "conversations", "messages",
+                    "loyalty_accounts", "loyalty_ledger", "reviews", "review_replies",
+                    "offers", "payment_links", "reservations", "connector_credentials",
+                    "audit_logs", "sessions", "billing_accounts", "subscriptions", "invoices",
+                    "onboarding", "referrals", "referral_events", "consent_logs", "retention_policies"]
+    for col in collections:
+        await db[col].delete_many({})
+    
+    # Re-seed
+    return await seed_data()
+
+# ============ PHASE 5: DB INDEXES ============
+@app.on_event("startup")
+async def create_indexes():
+    """Create MongoDB indexes for performance"""
+    try:
+        await db.tenants.create_index("slug", unique=True)
+        await db.tenants.create_index("id", unique=True)
+        await db.users.create_index([("email", 1)], unique=True)
+        await db.users.create_index([("tenant_id", 1)])
+        await db.departments.create_index([("tenant_id", 1)])
+        await db.rooms.create_index([("tenant_id", 1), ("room_code", 1)])
+        await db.tables.create_index([("tenant_id", 1), ("table_code", 1)])
+        await db.guest_requests.create_index([("tenant_id", 1), ("status", 1)])
+        await db.guest_requests.create_index([("tenant_id", 1), ("department_code", 1)])
+        await db.guest_requests.create_index([("tenant_id", 1), ("guest_phone", 1)])
+        await db.orders.create_index([("tenant_id", 1), ("status", 1)])
+        await db.orders.create_index([("tenant_id", 1), ("table_code", 1)])
+        await db.contacts.create_index([("tenant_id", 1), ("phone", 1)])
+        await db.contacts.create_index([("tenant_id", 1), ("email", 1)])
+        await db.conversations.create_index([("tenant_id", 1)])
+        await db.messages.create_index([("tenant_id", 1), ("conversation_id", 1)])
+        await db.reviews.create_index([("tenant_id", 1), ("source", 1)])
+        await db.loyalty_accounts.create_index([("tenant_id", 1), ("contact_id", 1)])
+        await db.audit_logs.create_index([("tenant_id", 1), ("created_at", -1)])
+        await db.sessions.create_index([("user_id", 1), ("is_active", 1)])
+        logger.info("Database indexes created successfully")
+    except Exception as e:
+        logger.warning(f"Index creation: {e}")
+
+# ============ WEBSOCKET ENDPOINT ============
+@app.websocket("/ws/{tenant_id}")
+async def websocket_endpoint(websocket: WebSocket, tenant_id: str):
+    channel = f"tenant:{tenant_id}"
+    await ws_manager.connect(websocket, channel)
+    try:
+        while True:
+            data = await websocket.receive_text()
+            if data == "ping":
+                await websocket.send_text("pong")
+    except WebSocketDisconnect:
+        ws_manager.disconnect(websocket, channel)
+    except Exception as e:
+        logger.error(f"WebSocket error: {e}")
+        ws_manager.disconnect(websocket, channel)
+
+# Include router
+app.include_router(api_router)
 @api_router.get("/tenants/{tenant_slug}/reviews")
 async def list_reviews(tenant_slug: str, source: Optional[str] = None, page: int = 1, limit: int = 20):
     tenant = await get_tenant_by_slug(tenant_slug)
