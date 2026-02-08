@@ -186,7 +186,32 @@ async def webchat_guest_message(conv_id: str, data: dict):
         await ws_manager.broadcast_tenant(tid, "message", "message", "created", msg)
     except:
         pass
-    return msg
+
+    # === AI Auto-Reply: trigger if AI sales enabled ===
+    ai_response = None
+    try:
+        from services.ai_sales_state import should_ai_respond
+        # Resolve property
+        property_id = conv.get("property_id", "")
+        if not property_id:
+            default_prop = await db.properties.find_one({"tenant_id": tid, "is_active": True}, {"_id": 0})
+            property_id = default_prop["id"] if default_prop else ""
+
+        if property_id:
+            can_respond, reason, session = await should_ai_respond(tid, property_id, conv_id)
+            if can_respond:
+                from routers.ai_sales import run_ai_response
+                ai_result = await run_ai_response(tid, property_id, conv_id, conv.get("contact_id", ""))
+                if ai_result and not ai_result.get("error"):
+                    ai_response = ai_result
+    except Exception as e:
+        import logging
+        logging.getLogger("omnihub.inbox").warning(f"AI auto-reply error: {e}")
+
+    result = serialize_doc(msg)
+    if ai_response:
+        result["ai_reply"] = ai_response
+    return result
 
 
 # ============ INBOX -> OFFER CREATION ============
