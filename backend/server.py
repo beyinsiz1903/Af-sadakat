@@ -2359,6 +2359,35 @@ async def start_polling():
     polling_task = ConnectorPollingTask(db)
     asyncio.create_task(polling_task.start())
 
+# Start offer expiration background task
+@app.on_event("startup")
+async def start_offer_expiration_task():
+    async def expire_offers_loop():
+        while True:
+            try:
+                now_iso = now_utc().isoformat()
+                result = await db.offers.update_many(
+                    {"status": "SENT", "expires_at": {"$lt": now_iso, "$ne": None}},
+                    {"$set": {"status": "EXPIRED", "updated_at": now_iso}}
+                )
+                if result.modified_count > 0:
+                    logger.info(f"Expired {result.modified_count} offers")
+                    # Log audit for each expired offer
+                    expired_offers = await db.offers.find(
+                        {"status": "EXPIRED", "updated_at": now_iso}, {"_id": 0, "id": 1, "tenant_id": 1}
+                    ).to_list(100)
+                    for o in expired_offers:
+                        await db.audit_logs.insert_one({
+                            "id": str(uuid.uuid4()), "tenant_id": o.get("tenant_id", ""),
+                            "action": "OFFER_EXPIRED", "entity_type": "offer",
+                            "entity_id": o.get("id", ""), "actor_user_id": "system",
+                            "details": {"reason": "Auto-expired"}, "created_at": now_iso
+                        })
+            except Exception as e:
+                logger.warning(f"Offer expiration task error: {e}")
+            await asyncio.sleep(60)  # Run every minute
+    asyncio.create_task(expire_offers_loop())
+
 # ============ WEBSOCKET ENDPOINT ============
 @app.websocket("/ws/{tenant_id}")
 async def websocket_endpoint(websocket: WebSocket, tenant_id: str):
