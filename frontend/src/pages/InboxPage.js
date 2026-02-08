@@ -20,11 +20,13 @@ const channelIcons = {
   WEBCHAT: Globe,
   WHATSAPP: Phone,
   INSTAGRAM: Instagram,
+  FACEBOOK: Globe,
 };
 const channelColors = {
   WEBCHAT: 'text-blue-400',
   WHATSAPP: 'text-emerald-400',
   INSTAGRAM: 'text-pink-400',
+  FACEBOOK: 'text-blue-500',
 };
 
 export default function InboxPage() {
