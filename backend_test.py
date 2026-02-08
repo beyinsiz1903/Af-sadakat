@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Sprint 6 Hardening Features Test Suite
-Tests the production hardening features for multi-tenant hotel SaaS
+Sprint 7 AI Sales Engine Test Suite
+Tests the AI-powered booking assistant with tool calling capabilities
 """
 import asyncio
 import aiohttp
@@ -37,7 +37,7 @@ class TestResults:
             self.failed += 1
             
     def print_summary(self):
-        print(f"\n=== SPRINT 6 TEST RESULTS ===")
+        print(f"\n=== SPRINT 7 AI SALES ENGINE TEST RESULTS ===")
         print(f"Total: {len(self.tests)}, Passed: {self.passed}, Failed: {self.failed}")
         print(f"Success Rate: {(self.passed/len(self.tests)*100):.1f}%")
         
@@ -52,11 +52,12 @@ class TestResults:
             if test["passed"]:
                 print(f"✅ {test['name']}")
 
-class Sprint6Tester:
+class Sprint7Tester:
     def __init__(self):
         self.session = None
         self.token = None
         self.results = TestResults()
+        self.property_id = None
         
     async def setup(self):
         """Setup HTTP session and get auth token"""
@@ -93,430 +94,424 @@ class Sprint6Tester:
             headers["Authorization"] = f"Bearer {self.token}"
         return headers
     
-    async def test_health_endpoint(self):
-        """Test 1: Health endpoint returns Sprint 6 data"""
-        print("\n🔍 Testing Health Endpoint...")
+    async def test_ai_sales_settings(self):
+        """Test 1: AI Sales Settings endpoint"""
+        print("\n🔍 Testing AI Sales Settings...")
         try:
-            async with self.session.get(f"{BASE_URL}/health") as response:
-                data = await response.json()
-                request_id = response.headers.get("X-Request-Id")
-                
-                # Check basic response
+            async with self.session.get(
+                f"{BASE_URL}/v2/ai-sales/tenants/{TENANT_SLUG}/settings",
+                headers=self.get_headers()
+            ) as response:
                 if response.status != 200:
-                    self.results.add_test("Health Status Code", False, f"Expected 200, got {response.status}")
+                    self.results.add_test("AI Sales Settings - Status", False, f"Expected 200, got {response.status}")
                     return
-                    
-                # Check version 6.0.0
-                if data.get("version") != "6.0.0":
-                    self.results.add_test("Health Version", False, f"Expected 6.0.0, got {data.get('version')}")
-                else:
-                    self.results.add_test("Health Version", True)
                 
-                # Check status "ok"
-                if data.get("status") != "ok":
-                    self.results.add_test("Health Status", False, f"Expected 'ok', got {data.get('status')}")
-                else:
-                    self.results.add_test("Health Status", True)
+                settings = await response.json()
                 
-                # Check uptime_seconds > 0
-                uptime = data.get("uptime_seconds", 0)
-                if uptime > 0:
-                    self.results.add_test("Health Uptime", True, f"Uptime: {uptime}s")
-                else:
-                    self.results.add_test("Health Uptime", False, f"Expected > 0, got {uptime}")
+                if not isinstance(settings, list):
+                    self.results.add_test("AI Sales Settings - Format", False, f"Expected list, got {type(settings)}")
+                    return
                 
-                # Check services
-                services = data.get("services", {})
-                if services.get("mongodb") == True:
-                    self.results.add_test("Health MongoDB", True)
+                if len(settings) >= 2:
+                    self.results.add_test("AI Sales Settings - Count", True, f"Found {len(settings)} property settings")
                 else:
-                    self.results.add_test("Health MongoDB", False, f"MongoDB service: {services.get('mongodb')}")
-                    
-                if services.get("redis") == True:
-                    self.results.add_test("Health Redis", True)
-                else:
-                    self.results.add_test("Health Redis", False, f"Redis service: {services.get('redis')}")
+                    self.results.add_test("AI Sales Settings - Count", False, f"Expected >= 2 properties, got {len(settings)}")
+                    return
                 
-                # Check X-Request-Id header
-                if request_id:
-                    self.results.add_test("Health Request ID Header", True, f"Request ID: {request_id}")
+                # Find enabled property and store property_id
+                enabled_property = None
+                for setting in settings:
+                    if setting.get("enabled", False):
+                        enabled_property = setting
+                        self.property_id = setting.get("property_id")
+                        break
+                
+                if enabled_property:
+                    self.results.add_test("AI Sales Settings - Enabled Property", True, f"Found enabled property: {enabled_property.get('property_name')}")
                 else:
-                    self.results.add_test("Health Request ID Header", False, "Missing X-Request-Id header")
+                    self.results.add_test("AI Sales Settings - Enabled Property", False, "No enabled property found")
                     
         except Exception as e:
-            self.results.add_test("Health Endpoint Error", False, str(e))
+            self.results.add_test("AI Sales Settings Error", False, str(e))
     
-    async def test_request_id_middleware(self):
-        """Test 2: Request ID middleware on various endpoints"""
-        print("\n🔍 Testing Request ID Middleware...")
+    async def test_room_rates(self):
+        """Test 2: Room Rates endpoint"""
+        print("\n🔍 Testing Room Rates...")
         
-        endpoints = [
-            f"{BASE_URL}/health",
-            f"{BASE_URL}/auth/login"
-        ]
-        
-        for endpoint in endpoints:
-            try:
-                if "login" in endpoint:
-                    async with self.session.post(endpoint, json=LOGIN_CREDENTIALS) as response:
-                        request_id = response.headers.get("X-Request-Id")
-                else:
-                    async with self.session.get(endpoint) as response:
-                        request_id = response.headers.get("X-Request-Id")
-                
-                if request_id:
-                    self.results.add_test(f"Request ID on {endpoint.split('/')[-1]}", True, f"ID: {request_id}")
-                else:
-                    self.results.add_test(f"Request ID on {endpoint.split('/')[-1]}", False, "Missing X-Request-Id")
-                    
-            except Exception as e:
-                self.results.add_test(f"Request ID test {endpoint}", False, str(e))
-    
-    async def test_confirmation_code_format(self):
-        """Test 3: New confirmation code format (PREFIX-YYYYMM-XXXXXX)"""
-        print("\n🔍 Testing Confirmation Code Format...")
-        
+        if not self.property_id:
+            self.results.add_test("Room Rates - No Property ID", False, "Property ID not available from settings test")
+            return
+            
         try:
-            # 1. Create an offer
-            offer_data = {
-                "guest_name": "CodeTest",
-                "price_total": 500,
-                "currency": "TRY", 
-                "room_type": "standard",
-                "check_in": "2026-05-01",
-                "check_out": "2026-05-03"
+            async with self.session.get(
+                f"{BASE_URL}/v2/ai-sales/tenants/{TENANT_SLUG}/properties/{self.property_id}/room-rates",
+                headers=self.get_headers()
+            ) as response:
+                if response.status != 200:
+                    self.results.add_test("Room Rates - Status", False, f"Expected 200, got {response.status}")
+                    return
+                
+                rates = await response.json()
+                
+                if not isinstance(rates, list):
+                    self.results.add_test("Room Rates - Format", False, f"Expected list, got {type(rates)}")
+                    return
+                
+                if len(rates) >= 3:
+                    self.results.add_test("Room Rates - Count", True, f"Found {len(rates)} room rates")
+                else:
+                    self.results.add_test("Room Rates - Count", False, f"Expected >= 3 rates, got {len(rates)}")
+                
+                # Check for main property rates
+                standard_found = any(r.get("room_type_code") == "standard" for r in rates)
+                deluxe_found = any(r.get("room_type_code") == "deluxe" for r in rates)
+                suite_found = any(r.get("room_type_code") == "suite" for r in rates)
+                
+                if standard_found and deluxe_found and suite_found:
+                    self.results.add_test("Room Rates - Expected Types", True, "Found standard, deluxe, suite rates")
+                else:
+                    self.results.add_test("Room Rates - Expected Types", False, f"Missing rate types (std:{standard_found}, dlx:{deluxe_found}, ste:{suite_found})")
+                    
+        except Exception as e:
+            self.results.add_test("Room Rates Error", False, str(e))
+    
+    async def test_create_room_rate(self):
+        """Test 3: Create Room Rate endpoint"""
+        print("\n🔍 Testing Create Room Rate...")
+        
+        if not self.property_id:
+            self.results.add_test("Create Room Rate - No Property ID", False, "Property ID not available")
+            return
+            
+        try:
+            rate_data = {
+                "room_type_code": "economy",
+                "room_type_name": "Economy Room",
+                "base_price_per_night": 800,
+                "max_guests": 2
             }
             
             async with self.session.post(
-                f"{BASE_URL}/v2/offers/tenants/{TENANT_SLUG}/offers",
-                json=offer_data,
+                f"{BASE_URL}/v2/ai-sales/tenants/{TENANT_SLUG}/properties/{self.property_id}/room-rates",
+                json=rate_data,
                 headers=self.get_headers()
             ) as response:
-                if response.status != 200:
-                    self.results.add_test("Confirmation Code - Create Offer", False, f"Status: {response.status}")
-                    return
-                offer = await response.json()
-                offer_id = offer["id"]
-                self.results.add_test("Confirmation Code - Create Offer", True, f"Offer ID: {offer_id}")
-            
-            # 2. Create payment link
-            async with self.session.post(
-                f"{BASE_URL}/v2/offers/tenants/{TENANT_SLUG}/offers/{offer_id}/create-payment-link",
-                headers=self.get_headers()
-            ) as response:
-                if response.status != 200:
-                    self.results.add_test("Confirmation Code - Payment Link", False, f"Status: {response.status}")
-                    return
-                payment_link = await response.json()
-                payment_link_id = payment_link["id"]
-                self.results.add_test("Confirmation Code - Payment Link", True, f"Link ID: {payment_link_id}")
-            
-            # 3. Mock payment success
-            webhook_data = {"paymentLinkId": payment_link_id}
-            async with self.session.post(
-                f"{BASE_URL}/v2/payments/webhook/mock/succeed",
-                json=webhook_data
-            ) as response:
-                if response.status != 200:
-                    self.results.add_test("Confirmation Code - Mock Payment", False, f"Status: {response.status}")
-                    return
-                result = await response.json()
-                self.results.add_test("Confirmation Code - Mock Payment", True, "Payment succeeded")
-                
-                # 4. Check confirmation code format
-                reservation = result.get("reservation", {})
-                confirmation_code = reservation.get("confirmation_code", "")
-                
-                if not confirmation_code:
-                    self.results.add_test("Confirmation Code Format", False, "No confirmation code in response")
-                    return
-                
-                # Check format: XXX-YYYYMM-XXXXXX
-                parts = confirmation_code.split("-")
-                if len(parts) != 3:
-                    self.results.add_test("Confirmation Code Format", False, f"Wrong format: {confirmation_code}")
-                    return
-                
-                prefix, date_part, random_part = parts
-                
-                # Check prefix (3 letters)
-                if len(prefix) == 3 and prefix.isalpha():
-                    prefix_ok = True
+                if response.status == 200:
+                    rate = await response.json()
+                    self.results.add_test("Create Room Rate - Success", True, f"Created rate: {rate.get('room_type_code')}")
+                    
+                    # Verify the created rate has expected fields
+                    if rate.get("base_price_per_night") == 800 and rate.get("max_guests") == 2:
+                        self.results.add_test("Create Room Rate - Data Integrity", True, "Rate data matches input")
+                    else:
+                        self.results.add_test("Create Room Rate - Data Integrity", False, f"Data mismatch: {rate}")
+                        
+                elif response.status == 409:
+                    self.results.add_test("Create Room Rate - Duplicate Handling", True, "Correctly rejected duplicate room type code")
                 else:
-                    prefix_ok = False
-                
-                # Check date part (6 digits YYYYMM)
-                if len(date_part) == 6 and date_part.isdigit():
-                    date_ok = True
-                else:
-                    date_ok = False
-                
-                # Check random part (6 alphanumeric)
-                if len(random_part) == 6 and random_part.isalnum():
-                    random_ok = True
-                else:
-                    random_ok = False
-                
-                # Check it's NOT the old RES-XXXXXX format
-                old_format = confirmation_code.startswith("RES-") and len(confirmation_code.split("-")) == 2
-                
-                if prefix_ok and date_ok and random_ok and not old_format:
-                    self.results.add_test("Confirmation Code Format", True, f"Valid format: {confirmation_code}")
-                else:
-                    self.results.add_test("Confirmation Code Format", False, 
-                                        f"Invalid format: {confirmation_code} (prefix:{prefix_ok}, date:{date_ok}, random:{random_ok}, old_format:{old_format})")
-                
+                    self.results.add_test("Create Room Rate - Status", False, f"Unexpected status: {response.status}")
+                    
         except Exception as e:
-            self.results.add_test("Confirmation Code Test Error", False, str(e))
+            self.results.add_test("Create Room Rate Error", False, str(e))
     
-    async def test_payment_idempotency(self):
-        """Test 4: Payment idempotency (atomic operations)"""
-        print("\n🔍 Testing Payment Idempotency...")
+    async def test_room_rate_uniqueness(self):
+        """Test 9: Room Rate Uniqueness (duplicate should return 409)"""
+        print("\n🔍 Testing Room Rate Uniqueness...")
         
+        if not self.property_id:
+            self.results.add_test("Room Rate Uniqueness - No Property ID", False, "Property ID not available")
+            return
+            
         try:
-            # Create offer and payment link
-            offer_data = {
-                "guest_name": "IdempotencyTest",
-                "price_total": 750,
-                "currency": "TRY",
-                "room_type": "deluxe", 
-                "check_in": "2026-06-01",
-                "check_out": "2026-06-03"
+            # Try to create duplicate economy room
+            rate_data = {
+                "room_type_code": "economy",
+                "room_type_name": "Another Economy Room",
+                "base_price_per_night": 900,
+                "max_guests": 2
             }
             
-            # Create offer
             async with self.session.post(
-                f"{BASE_URL}/v2/offers/tenants/{TENANT_SLUG}/offers",
-                json=offer_data,
+                f"{BASE_URL}/v2/ai-sales/tenants/{TENANT_SLUG}/properties/{self.property_id}/room-rates",
+                json=rate_data,
                 headers=self.get_headers()
             ) as response:
-                offer = await response.json()
-                offer_id = offer["id"]
-            
-            # Create payment link
-            async with self.session.post(
-                f"{BASE_URL}/v2/offers/tenants/{TENANT_SLUG}/offers/{offer_id}/create-payment-link",
-                headers=self.get_headers()
-            ) as response:
-                payment_link = await response.json()
-                payment_link_id = payment_link["id"]
-            
-            # First payment success
-            webhook_data = {"paymentLinkId": payment_link_id}
-            async with self.session.post(
-                f"{BASE_URL}/v2/payments/webhook/mock/succeed",
-                json=webhook_data
-            ) as response:
-                first_result = await response.json()
-                first_idempotent = first_result.get("idempotent", None)
-                first_reservation_id = first_result.get("reservation", {}).get("id")
-                
-                if first_idempotent == False:
-                    self.results.add_test("Payment First Success", True, "New payment processed")
+                if response.status == 409:
+                    self.results.add_test("Room Rate Uniqueness - 409 Response", True, "Correctly returned 409 for duplicate")
                 else:
-                    self.results.add_test("Payment First Success", False, f"Unexpected idempotent: {first_idempotent}")
-            
-            # Second payment success (should be idempotent)
-            async with self.session.post(
-                f"{BASE_URL}/v2/payments/webhook/mock/succeed", 
-                json=webhook_data
-            ) as response:
-                second_result = await response.json()
-                second_idempotent = second_result.get("idempotent", None)
-                second_reservation_id = second_result.get("reservation", {}).get("id")
-                
-                if second_idempotent == True:
-                    self.results.add_test("Payment Second Success (Idempotent)", True, "Idempotent response")
-                else:
-                    self.results.add_test("Payment Second Success (Idempotent)", False, f"Expected idempotent=true, got {second_idempotent}")
-                
-                # Same reservation returned
-                if first_reservation_id == second_reservation_id and first_reservation_id:
-                    self.results.add_test("Payment Same Reservation", True, f"Same reservation ID: {first_reservation_id}")
-                else:
-                    self.results.add_test("Payment Same Reservation", False, f"Different reservations: {first_reservation_id} vs {second_reservation_id}")
-            
-            # Verify only one reservation exists
-            async with self.session.get(
-                f"{BASE_URL}/v2/reservations/tenants/{TENANT_SLUG}/reservations",
-                headers=self.get_headers()
-            ) as response:
-                reservations_data = await response.json()
-                reservations = reservations_data.get("data", [])
-                matching_reservations = [r for r in reservations if r.get("offer_id") == offer_id]
-                
-                if len(matching_reservations) == 1:
-                    self.results.add_test("Payment Single Reservation", True, "Only one reservation created")
-                else:
-                    self.results.add_test("Payment Single Reservation", False, f"Found {len(matching_reservations)} reservations for offer")
+                    self.results.add_test("Room Rate Uniqueness - 409 Response", False, f"Expected 409, got {response.status}")
                     
         except Exception as e:
-            self.results.add_test("Payment Idempotency Error", False, str(e))
+            self.results.add_test("Room Rate Uniqueness Error", False, str(e))
     
-    async def test_payment_safety(self):
-        """Test 5: Payment safety (error handling)"""
-        print("\n🔍 Testing Payment Safety...")
+    async def test_discount_rules(self):
+        """Test 4: Discount Rules endpoint"""
+        print("\n🔍 Testing Discount Rules...")
         
-        # Test checkout on non-existent payment link
+        if not self.property_id:
+            self.results.add_test("Discount Rules - No Property ID", False, "Property ID not available")
+            return
+            
         try:
-            async with self.session.post(f"{BASE_URL}/v2/payments/pay/nonexistent-link/checkout") as response:
-                if response.status == 404:
-                    self.results.add_test("Payment Safety - 404 for non-existent link", True, "Correctly returned 404")
-                else:
-                    self.results.add_test("Payment Safety - 404 for non-existent link", False, f"Expected 404, got {response.status}")
-        except Exception as e:
-            self.results.add_test("Payment Safety - 404 test error", False, str(e))
-        
-        # Test mock/succeed without paymentLinkId  
-        try:
-            async with self.session.post(f"{BASE_URL}/v2/payments/webhook/mock/succeed", json={}) as response:
-                if response.status == 400:
-                    self.results.add_test("Payment Safety - 400 for missing paymentLinkId", True, "Correctly returned 400")
-                else:
-                    self.results.add_test("Payment Safety - 400 for missing paymentLinkId", False, f"Expected 400, got {response.status}")
-        except Exception as e:
-            self.results.add_test("Payment Safety - 400 test error", False, str(e))
-    
-    async def test_notification_engine(self):
-        """Test 6: Notification engine (check DB records)"""
-        print("\n🔍 Testing Notification Engine...")
-        
-        try:
-            # Look for notification records in audit logs
             async with self.session.get(
-                f"{BASE_URL}/tenants/{TENANT_SLUG}/audit-logs",
+                f"{BASE_URL}/v2/ai-sales/tenants/{TENANT_SLUG}/properties/{self.property_id}/discount-rules",
                 headers=self.get_headers()
             ) as response:
                 if response.status != 200:
-                    self.results.add_test("Notification Engine - Audit Logs Access", False, f"Status: {response.status}")
+                    self.results.add_test("Discount Rules - Status", False, f"Expected 200, got {response.status}")
                     return
                 
-                audit_data = await response.json()
-                audit_logs = audit_data.get("data", [])
+                rules = await response.json()
                 
-                # Look for notification-related entries
-                notification_logs = []
-                for log in audit_logs:
-                    action = log.get("action", "")
-                    if "NOTIFICATION" in action:
-                        notification_logs.append(log)
+                # Check for expected discount rules
+                max_discount = rules.get("max_discount_percent", 0)
+                min_nights = rules.get("min_nights_for_discount", 0)
                 
-                if notification_logs:
-                    self.results.add_test("Notification Engine - Records Found", True, f"Found {len(notification_logs)} notification log entries")
-                    
-                    # Check for specific notification types
-                    payment_notifications = [log for log in notification_logs if "PAYMENT_SUCCEEDED" in log.get("action", "")]
-                    reservation_notifications = [log for log in notification_logs if "RESERVATION_CONFIRMED" in log.get("action", "")]
-                    
-                    if payment_notifications:
-                        self.results.add_test("Notification Engine - Payment Notifications", True, f"Found {len(payment_notifications)} payment notifications")
-                    else:
-                        self.results.add_test("Notification Engine - Payment Notifications", False, "No payment notification records found")
-                        
-                    if reservation_notifications:
-                        self.results.add_test("Notification Engine - Reservation Notifications", True, f"Found {len(reservation_notifications)} reservation notifications")
-                    else:
-                        self.results.add_test("Notification Engine - Reservation Notifications", False, "No reservation notification records found")
+                if max_discount >= 10:
+                    self.results.add_test("Discount Rules - Max Discount", True, f"Max discount: {max_discount}%")
                 else:
-                    self.results.add_test("Notification Engine - Records Found", False, "No notification records found in audit logs")
+                    self.results.add_test("Discount Rules - Max Discount", False, f"Expected >=10%, got {max_discount}%")
+                
+                if min_nights >= 3:
+                    self.results.add_test("Discount Rules - Min Nights", True, f"Min nights: {min_nights}")
+                else:
+                    self.results.add_test("Discount Rules - Min Nights", False, f"Expected >=3 nights, got {min_nights}")
                     
         except Exception as e:
-            self.results.add_test("Notification Engine Error", False, str(e))
+            self.results.add_test("Discount Rules Error", False, str(e))
     
-    async def test_rate_limiting(self):
-        """Test 7: Rate limiting on public endpoints"""
-        print("\n🔍 Testing Rate Limiting...")
+    async def test_policies(self):
+        """Test 5: Business Policies endpoint"""
+        print("\n🔍 Testing Business Policies...")
         
-        try:
-            # Make 5 rapid requests to a public payment endpoint
-            responses = []
-            for i in range(5):
-                async with self.session.get(f"{BASE_URL}/v2/payments/pay/nonexistent") as response:
-                    responses.append(response.status)
-                await asyncio.sleep(0.1)  # Small delay
+        if not self.property_id:
+            self.results.add_test("Policies - No Property ID", False, "Property ID not available")
+            return
             
-            # All should succeed (within 30/min limit)
-            success_count = sum(1 for status in responses if status in [404, 200])  # 404 is expected for nonexistent
-            
-            if success_count >= 4:  # Allow for some variance
-                self.results.add_test("Rate Limiting - Normal Load", True, f"All {success_count}/5 requests succeeded")
-            else:
-                self.results.add_test("Rate Limiting - Normal Load", False, f"Only {success_count}/5 requests succeeded")
-                
-        except Exception as e:
-            self.results.add_test("Rate Limiting Error", False, str(e))
-    
-    async def test_properties_still_work(self):
-        """Test 8: Properties V2 endpoints still working"""
-        print("\n🔍 Testing Properties V2 Still Work...")
-        
         try:
             async with self.session.get(
-                f"{BASE_URL}/v2/properties/tenants/{TENANT_SLUG}/properties",
+                f"{BASE_URL}/v2/ai-sales/tenants/{TENANT_SLUG}/properties/{self.property_id}/policies",
                 headers=self.get_headers()
             ) as response:
                 if response.status != 200:
-                    self.results.add_test("Properties V2 - Status", False, f"Status: {response.status}")
+                    self.results.add_test("Policies - Status", False, f"Expected 200, got {response.status}")
                     return
                 
-                properties_data = await response.json()
-                properties = properties_data.get("data", [])
+                policies = await response.json()
                 
-                if len(properties) >= 2:
-                    self.results.add_test("Properties V2 - Count", True, f"Found {len(properties)} properties")
+                # Check for expected policies
+                check_in = policies.get("check_in_time", "")
+                check_out = policies.get("check_out_time", "")
+                
+                if "14:00" in check_in:
+                    self.results.add_test("Policies - Check-in Time", True, f"Check-in: {check_in}")
                 else:
-                    self.results.add_test("Properties V2 - Count", False, f"Expected >= 2 properties, found {len(properties)}")
+                    self.results.add_test("Policies - Check-in Time", False, f"Expected 14:00, got {check_in}")
+                
+                if "12:00" in check_out:
+                    self.results.add_test("Policies - Check-out Time", True, f"Check-out: {check_out}")
+                else:
+                    self.results.add_test("Policies - Check-out Time", False, f"Expected 12:00, got {check_out}")
                     
         except Exception as e:
-            self.results.add_test("Properties V2 Error", False, str(e))
+            self.results.add_test("Policies Error", False, str(e))
     
-    async def test_cli_export_verification(self):
-        """Test 9: Verify data exists for CLI export"""
-        print("\n🔍 Testing CLI Export Data Verification...")
-        
-        collections_to_check = [
-            ("contacts", f"{BASE_URL}/tenants/{TENANT_SLUG}/contacts"),
-            ("reservations", f"{BASE_URL}/v2/reservations/tenants/{TENANT_SLUG}/reservations"),
-            ("offers", f"{BASE_URL}/v2/offers/tenants/{TENANT_SLUG}/offers"),
-            ("loyalty_accounts", f"{BASE_URL}/tenants/{TENANT_SLUG}/loyalty/accounts")
-        ]
-        
-        for collection_name, endpoint in collections_to_check:
-            try:
-                async with self.session.get(endpoint, headers=self.get_headers()) as response:
-                    if response.status != 200:
-                        self.results.add_test(f"CLI Export Data - {collection_name}", False, f"Status: {response.status}")
-                        continue
-                        
-                    data = await response.json()
-                    items = data.get("data", data)  # Some endpoints return data directly, others in "data" key
-                    
-                    if isinstance(items, list) and len(items) > 0:
-                        self.results.add_test(f"CLI Export Data - {collection_name}", True, f"Found {len(items)} items")
+    async def test_ai_stats(self):
+        """Test 6: AI Stats endpoint"""
+        print("\n🔍 Testing AI Stats...")
+        try:
+            async with self.session.get(
+                f"{BASE_URL}/v2/ai-sales/tenants/{TENANT_SLUG}/stats",
+                headers=self.get_headers()
+            ) as response:
+                if response.status != 200:
+                    self.results.add_test("AI Stats - Status", False, f"Expected 200, got {response.status}")
+                    return
+                
+                stats = await response.json()
+                
+                # Check for expected stats
+                ai_replies_used = stats.get("ai_replies_used", 0)
+                ai_replies_limit = stats.get("ai_replies_limit", 0)
+                
+                if ai_replies_used > 0:
+                    self.results.add_test("AI Stats - Replies Used", True, f"AI replies used: {ai_replies_used}")
+                else:
+                    self.results.add_test("AI Stats - Replies Used", False, f"Expected >0 replies used, got {ai_replies_used}")
+                
+                if ai_replies_limit > 0:
+                    self.results.add_test("AI Stats - Replies Limit", True, f"AI replies limit: {ai_replies_limit}")
+                else:
+                    self.results.add_test("AI Stats - Replies Limit", False, f"Expected >0 limit, got {ai_replies_limit}")
+                
+                # Check other stats exist
+                required_fields = ["ai_offers_created", "ai_offers_paid", "active_sessions", "month"]
+                for field in required_fields:
+                    if field in stats:
+                        self.results.add_test(f"AI Stats - {field.title()}", True, f"{field}: {stats[field]}")
                     else:
-                        self.results.add_test(f"CLI Export Data - {collection_name}", False, f"No data found (got: {type(items)})")
+                        self.results.add_test(f"AI Stats - {field.title()}", False, f"Missing field: {field}")
                         
-            except Exception as e:
-                self.results.add_test(f"CLI Export Data - {collection_name} Error", False, str(e))
+        except Exception as e:
+            self.results.add_test("AI Stats Error", False, str(e))
+    
+    async def test_webchat_ai_flow(self):
+        """Test 7: Webchat AI Flow (start conversation + send message)"""
+        print("\n🔍 Testing Webchat AI Flow...")
+        
+        conv_id = None
+        
+        # Step 1: Start webchat conversation
+        try:
+            start_data = {
+                "tenantSlug": TENANT_SLUG,
+                "visitorName": "Test"
+            }
+            
+            async with self.session.post(
+                f"{BASE_URL}/v2/inbox/webchat/start",
+                json=start_data
+            ) as response:
+                if response.status == 200:
+                    conv_data = await response.json()
+                    conv_id = conv_data.get("conversationId")
+                    self.results.add_test("Webchat Start - Success", True, f"Conversation ID: {conv_id}")
+                else:
+                    self.results.add_test("Webchat Start - Status", False, f"Expected 200, got {response.status}")
+                    return
+                    
+        except Exception as e:
+            self.results.add_test("Webchat Start Error", False, str(e))
+            return
+        
+        if not conv_id:
+            self.results.add_test("Webchat Start - No Conversation ID", False, "No conversation ID returned")
+            return
+        
+        # Step 2: Send message and expect AI reply
+        try:
+            message_data = {
+                "text": "Merhaba, oda fiyatlariniz nedir?",
+                "senderName": "Test"
+            }
+            
+            async with self.session.post(
+                f"{BASE_URL}/v2/inbox/webchat/{conv_id}/messages",
+                json=message_data
+            ) as response:
+                if response.status == 200:
+                    msg_result = await response.json()
+                    
+                    # Check if AI reply is present
+                    if "ai_reply" in msg_result:
+                        ai_reply = msg_result["ai_reply"]
+                        self.results.add_test("Webchat AI Reply - Present", True, "AI reply received")
+                        
+                        # Check AI reply structure
+                        if "ai_text" in ai_reply and "tool_calls" in ai_reply:
+                            self.results.add_test("Webchat AI Reply - Structure", True, f"AI text length: {len(ai_reply.get('ai_text', ''))}")
+                        else:
+                            self.results.add_test("Webchat AI Reply - Structure", False, f"Missing fields in AI reply: {ai_reply.keys()}")
+                    else:
+                        self.results.add_test("Webchat AI Reply - Present", False, "No ai_reply in response")
+                        
+                else:
+                    self.results.add_test("Webchat Message - Status", False, f"Expected 200, got {response.status}")
+                    
+        except Exception as e:
+            self.results.add_test("Webchat Message Error", False, str(e))
+    
+    async def test_get_messages(self):
+        """Test 8: GET messages endpoint"""
+        print("\n🔍 Testing GET Messages...")
+        
+        # Create a conversation first
+        conv_id = None
+        try:
+            start_data = {
+                "tenantSlug": TENANT_SLUG,
+                "visitorName": "MessageTest"
+            }
+            
+            async with self.session.post(
+                f"{BASE_URL}/v2/inbox/webchat/start",
+                json=start_data
+            ) as response:
+                if response.status == 200:
+                    conv_data = await response.json()
+                    conv_id = conv_data.get("conversationId")
+                    
+        except Exception as e:
+            self.results.add_test("GET Messages - Setup Error", False, str(e))
+            return
+        
+        if not conv_id:
+            self.results.add_test("GET Messages - No Conversation", False, "Could not create test conversation")
+            return
+        
+        # Send a message first
+        try:
+            message_data = {
+                "text": "Test message for GET endpoint",
+                "senderName": "MessageTest"
+            }
+            
+            await self.session.post(
+                f"{BASE_URL}/v2/inbox/webchat/{conv_id}/messages",
+                json=message_data
+            )
+            
+            # Small delay to ensure message is processed
+            await asyncio.sleep(1)
+            
+        except Exception as e:
+            self.results.add_test("GET Messages - Send Message Error", False, str(e))
+            return
+        
+        # Now test GET messages
+        try:
+            async with self.session.get(
+                f"{BASE_URL}/v2/inbox/webchat/{conv_id}/messages"
+            ) as response:
+                if response.status == 200:
+                    messages = await response.json()
+                    
+                    if isinstance(messages, list):
+                        self.results.add_test("GET Messages - Format", True, f"Received {len(messages)} messages")
+                        
+                        # Check for AI replies in messages
+                        ai_messages = [msg for msg in messages if msg.get("meta", {}).get("ai", False)]
+                        if ai_messages:
+                            self.results.add_test("GET Messages - AI Messages", True, f"Found {len(ai_messages)} AI messages")
+                        else:
+                            self.results.add_test("GET Messages - AI Messages", False, "No AI messages found")
+                    else:
+                        self.results.add_test("GET Messages - Format", False, f"Expected list, got {type(messages)}")
+                        
+                else:
+                    self.results.add_test("GET Messages - Status", False, f"Expected 200, got {response.status}")
+                    
+        except Exception as e:
+            self.results.add_test("GET Messages Error", False, str(e))
 
     async def run_all_tests(self):
-        """Run all Sprint 6 tests"""
-        print("🚀 Starting Sprint 6 Hardening Features Test Suite...")
+        """Run all Sprint 7 tests"""
+        print("🚀 Starting Sprint 7 AI Sales Engine Test Suite...")
         
         if not await self.setup():
             return
         
         try:
-            # Run all tests
-            await self.test_health_endpoint()
-            await self.test_request_id_middleware()
-            await self.test_confirmation_code_format()
-            await self.test_payment_idempotency()
-            await self.test_payment_safety()
-            await self.test_notification_engine()
-            await self.test_rate_limiting()
-            await self.test_properties_still_work()
-            await self.test_cli_export_verification()
+            # Run all tests in order
+            await self.test_ai_sales_settings()
+            await self.test_room_rates()
+            await self.test_create_room_rate()
+            await self.test_discount_rules()
+            await self.test_policies()
+            await self.test_ai_stats()
+            await self.test_webchat_ai_flow()
+            await self.test_get_messages()
+            await self.test_room_rate_uniqueness()
             
         finally:
             await self.cleanup()
@@ -527,7 +522,7 @@ class Sprint6Tester:
 
 async def main():
     """Main test runner"""
-    tester = Sprint6Tester()
+    tester = Sprint7Tester()
     results = await tester.run_all_tests()
     
     # Exit with proper code
