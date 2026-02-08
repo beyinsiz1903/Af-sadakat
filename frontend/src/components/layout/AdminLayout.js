@@ -201,6 +201,41 @@ export default function AdminLayout() {
           >
             <Menu className="w-5 h-5" />
           </Button>
+          
+          {/* Property Switcher */}
+          {properties.length > 0 && (
+            <div className="relative">
+              <button
+                onClick={() => setPropertyDropdownOpen(!propertyDropdownOpen)}
+                className="flex items-center gap-2 px-3 py-2 rounded-lg bg-[hsl(var(--secondary))] hover:bg-[hsl(var(--accent))] transition-colors text-sm"
+                data-testid="property-switcher"
+              >
+                <Building2 className="w-4 h-4 text-[hsl(var(--primary))]" />
+                <span className="font-medium max-w-[200px] truncate">{activeProperty?.name || 'Select Property'}</span>
+                <svg className={`w-3 h-3 transition-transform ${propertyDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+              </button>
+              {propertyDropdownOpen && (
+                <>
+                  <div className="fixed inset-0 z-10" onClick={() => setPropertyDropdownOpen(false)} />
+                  <div className="absolute top-full left-0 mt-1 w-64 bg-[hsl(var(--card))] border border-[hsl(var(--border))] rounded-lg shadow-xl z-20 py-1">
+                    {properties.filter(p => p.is_active).map(prop => (
+                      <button
+                        key={prop.id}
+                        onClick={() => { setActiveProperty(prop.id); setPropertyDropdownOpen(false); }}
+                        className={`w-full text-left px-3 py-2 text-sm hover:bg-[hsl(var(--accent))] transition-colors flex items-center gap-2 ${prop.id === activePropertyId ? 'text-[hsl(var(--primary))] bg-[hsl(var(--primary)/0.05)]' : ''}`}
+                        data-testid={`property-option-${prop.slug}`}
+                      >
+                        <Building2 className="w-3 h-3" />
+                        <span className="truncate">{prop.name}</span>
+                        {prop.id === activePropertyId && <span className="ml-auto text-xs">&#10003;</span>}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+
           <div className="flex-1" />
           <div className="flex items-center gap-2 text-sm text-[hsl(var(--muted-foreground))]">
             <div className="w-2 h-2 rounded-full bg-[hsl(var(--success))] pulse-dot" />
