@@ -1924,6 +1924,246 @@ async def reset_demo():
     # Re-seed
     return await seed_data()
 
+
+# ============ GUEST TOKEN RESOLVE ENDPOINTS ============
+from fastapi.responses import Response
+
+@api_router.get("/guest/resolve-room")
+async def resolve_room(tenantSlug: str, roomCode: str):
+    """Resolve room by tenant slug + room code, issue guest token"""
+    tenant = await get_tenant_by_slug(tenantSlug)
+    room = await db.rooms.find_one({"tenant_id": tenant["id"], "room_code": roomCode}, {"_id": 0})
+    if not room:
+        raise HTTPException(status_code=404, detail="Room not found")
+    
+    room_doc = serialize_doc(room)
+    categories = await db.service_categories.find({"tenant_id": tenant["id"]}, {"_id": 0}).to_list(50)
+    
+    guest_token = create_guest_token(
+        tenant_id=tenant["id"],
+        room_id=room_doc["id"],
+        room_code=roomCode
+    )
+    
+    return {
+        "guestToken": guest_token,
+        "tenant": {"name": tenant["name"], "slug": tenant["slug"]},
+        "room": room_doc,
+        "serviceCategories": [serialize_doc(c) for c in categories],
+        "loyaltyEnabled": tenant.get("loyalty_rules", {}).get("enabled", False)
+    }
+
+@api_router.get("/guest/resolve-table")
+async def resolve_table(tenantSlug: str, tableCode: str):
+    """Resolve table by tenant slug + table code, issue guest token"""
+    tenant = await get_tenant_by_slug(tenantSlug)
+    table = await db.tables.find_one({"tenant_id": tenant["id"], "table_code": tableCode}, {"_id": 0})
+    if not table:
+        raise HTTPException(status_code=404, detail="Table not found")
+    
+    table_doc = serialize_doc(table)
+    categories = await db.menu_categories.find({"tenant_id": tenant["id"]}, {"_id": 0}).sort("sort_order", 1).to_list(50)
+    items = await db.menu_items.find({"tenant_id": tenant["id"], "available": True}, {"_id": 0}).to_list(500)
+    
+    guest_token = create_guest_token(
+        tenant_id=tenant["id"],
+        table_id=table_doc["id"],
+        table_code=tableCode
+    )
+    
+    return {
+        "guestToken": guest_token,
+        "tenant": {"name": tenant["name"], "slug": tenant["slug"]},
+        "table": table_doc,
+        "menuCategories": [serialize_doc(c) for c in categories],
+        "menuItems": [serialize_doc(i) for i in items],
+        "loyaltyEnabled": tenant.get("loyalty_rules", {}).get("enabled", False)
+    }
+
+@api_router.post("/guest/join-loyalty")
+async def guest_join_loyalty(data: dict):
+    """Guest joins loyalty via guest token"""
+    guest_token = data.get("guestToken", "")
+    try:
+        payload = decode_guest_token(guest_token)
+    except ValueError as e:
+        raise HTTPException(status_code=401, detail=str(e))
+    
+    tenant_id = payload["tenant_id"]
+    phone = data.get("phone", "")
+    email = data.get("email", "")
+    name = data.get("name", "")
+    
+    if not phone and not email:
+        raise HTTPException(status_code=400, detail="Phone or email required")
+    
+    contact = await _upsert_contact(tenant_id, name, phone, email)
+    
+    # Check existing loyalty
+    existing = await db.loyalty_accounts.find_one({"tenant_id": tenant_id, "contact_id": contact["id"]})
+    if existing:
+        # Reissue token with contact_id
+        new_token = create_guest_token(
+            tenant_id=tenant_id,
+            room_id=payload.get("room_id"),
+            table_id=payload.get("table_id"),
+            room_code=payload.get("room_code"),
+            table_code=payload.get("table_code"),
+            contact_id=contact["id"]
+        )
+        return {"guestToken": new_token, "loyalty": serialize_doc(existing), "otpStub": "123456"}
+    
+    account = {
+        "id": new_id(),
+        "tenant_id": tenant_id,
+        "contact_id": contact["id"],
+        "points": 0,
+        "tier": "bronze",
+        "created_at": now_utc().isoformat()
+    }
+    await db.loyalty_accounts.insert_one(account)
+    await db.contacts.update_one({"id": contact["id"]}, {"$set": {"loyalty_account_id": account["id"]}})
+    
+    new_token = create_guest_token(
+        tenant_id=tenant_id,
+        room_id=payload.get("room_id"),
+        table_id=payload.get("table_id"),
+        room_code=payload.get("room_code"),
+        table_code=payload.get("table_code"),
+        contact_id=contact["id"]
+    )
+    return {"guestToken": new_token, "loyalty": serialize_doc(account), "otpStub": "123456"}
+
+# ============ QR CODE ENDPOINTS ============
+@api_router.get("/admin/rooms/{room_id}/qr.png")
+async def get_room_qr_png(room_id: str):
+    """Generate QR PNG for a room"""
+    room = await db.rooms.find_one({"id": room_id}, {"_id": 0})
+    if not room:
+        raise HTTPException(status_code=404, detail="Room not found")
+    
+    tenant = await db.tenants.find_one({"id": room["tenant_id"]}, {"_id": 0})
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+    
+    public_url = os.environ.get("PUBLIC_BASE_URL", "https://omni-inbox-hub.preview.emergentagent.com")
+    qr_url = f"{public_url}/g/{tenant['slug']}/room/{room['room_code']}"
+    png_bytes = generate_qr_png(qr_url)
+    
+    return Response(content=png_bytes, media_type="image/png", 
+                    headers={"Content-Disposition": f"inline; filename=room-{room['room_number']}-qr.png"})
+
+@api_router.get("/admin/rooms/print.pdf")
+async def get_rooms_print_pdf(ids: str = ""):
+    """Generate printable PDF with QR codes for multiple rooms"""
+    room_ids = [rid.strip() for rid in ids.split(",") if rid.strip()]
+    if not room_ids:
+        raise HTTPException(status_code=400, detail="No room IDs provided")
+    
+    rooms = await db.rooms.find({"id": {"$in": room_ids}}, {"_id": 0}).to_list(100)
+    if not rooms:
+        raise HTTPException(status_code=404, detail="No rooms found")
+    
+    tenant = await db.tenants.find_one({"id": rooms[0]["tenant_id"]}, {"_id": 0})
+    public_url = os.environ.get("PUBLIC_BASE_URL", "https://omni-inbox-hub.preview.emergentagent.com")
+    
+    items = [{
+        "label": f"Room {r['room_number']}",
+        "url": f"{public_url}/g/{tenant['slug']}/room/{r['room_code']}"
+    } for r in rooms]
+    
+    pdf_bytes = generate_qr_print_pdf(items, title=f"{tenant['name']} - Room QR Codes")
+    return Response(content=pdf_bytes, media_type="application/pdf",
+                    headers={"Content-Disposition": "attachment; filename=room-qr-codes.pdf"})
+
+@api_router.get("/admin/tables/{table_id}/qr.png")
+async def get_table_qr_png(table_id: str):
+    """Generate QR PNG for a table"""
+    table = await db.tables.find_one({"id": table_id}, {"_id": 0})
+    if not table:
+        raise HTTPException(status_code=404, detail="Table not found")
+    
+    tenant = await db.tenants.find_one({"id": table["tenant_id"]}, {"_id": 0})
+    public_url = os.environ.get("PUBLIC_BASE_URL", "https://omni-inbox-hub.preview.emergentagent.com")
+    qr_url = f"{public_url}/g/{tenant['slug']}/table/{table['table_code']}"
+    png_bytes = generate_qr_png(qr_url)
+    
+    return Response(content=png_bytes, media_type="image/png",
+                    headers={"Content-Disposition": f"inline; filename=table-{table['table_number']}-qr.png"})
+
+@api_router.get("/admin/tables/print.pdf")
+async def get_tables_print_pdf(ids: str = ""):
+    """Generate printable PDF with QR codes for multiple tables"""
+    table_ids = [tid.strip() for tid in ids.split(",") if tid.strip()]
+    if not table_ids:
+        raise HTTPException(status_code=400, detail="No table IDs provided")
+    
+    tables = await db.tables.find({"id": {"$in": table_ids}}, {"_id": 0}).to_list(100)
+    if not tables:
+        raise HTTPException(status_code=404, detail="No tables found")
+    
+    tenant = await db.tenants.find_one({"id": tables[0]["tenant_id"]}, {"_id": 0})
+    public_url = os.environ.get("PUBLIC_BASE_URL", "https://omni-inbox-hub.preview.emergentagent.com")
+    
+    items = [{
+        "label": f"Table {t['table_number']}",
+        "url": f"{public_url}/g/{tenant['slug']}/table/{t['table_code']}"
+    } for t in tables]
+    
+    pdf_bytes = generate_qr_print_pdf(items, title=f"{tenant['name']} - Table QR Codes")
+    return Response(content=pdf_bytes, media_type="application/pdf",
+                    headers={"Content-Disposition": "attachment; filename=table-qr-codes.pdf"})
+
+# ============ REQUEST COMMENTS ============
+@api_router.post("/tenants/{tenant_slug}/requests/{request_id}/comments")
+async def add_request_comment(tenant_slug: str, request_id: str, data: dict):
+    tenant = await get_tenant_by_slug(tenant_slug)
+    req = await db.guest_requests.find_one({"id": request_id, "tenant_id": tenant["id"]})
+    if not req:
+        raise HTTPException(status_code=404, detail="Request not found")
+    
+    comment = {
+        "id": new_id(),
+        "tenant_id": tenant["id"],
+        "request_id": request_id,
+        "body": data.get("body", ""),
+        "created_by_user_id": data.get("user_id", ""),
+        "created_by_name": data.get("user_name", ""),
+        "created_at": now_utc().isoformat()
+    }
+    await db.request_comments.insert_one(comment)
+    return serialize_doc(comment)
+
+@api_router.get("/tenants/{tenant_slug}/requests/{request_id}/comments")
+async def list_request_comments(tenant_slug: str, request_id: str):
+    tenant = await get_tenant_by_slug(tenant_slug)
+    comments = await db.request_comments.find(
+        {"tenant_id": tenant["id"], "request_id": request_id}, {"_id": 0}
+    ).sort("created_at", 1).to_list(100)
+    return [serialize_doc(c) for c in comments]
+
+# ============ KB ARTICLES ============
+@api_router.get("/tenants/{tenant_slug}/kb-articles")
+async def list_kb_articles(tenant_slug: str):
+    tenant = await get_tenant_by_slug(tenant_slug)
+    articles = await db.kb_articles.find({"tenant_id": tenant["id"]}, {"_id": 0}).to_list(100)
+    return [serialize_doc(a) for a in articles]
+
+@api_router.post("/tenants/{tenant_slug}/kb-articles")
+async def create_kb_article(tenant_slug: str, data: dict):
+    tenant = await get_tenant_by_slug(tenant_slug)
+    article = {
+        "id": new_id(),
+        "tenant_id": tenant["id"],
+        "title": data.get("title", ""),
+        "content": data.get("content", ""),
+        "tags": data.get("tags", []),
+        "created_at": now_utc().isoformat()
+    }
+    await db.kb_articles.insert_one(article)
+    return serialize_doc(article)
+
+
 # ============ PHASE 5: DB INDEXES ============
 @app.on_event("startup")
 async def create_indexes():
