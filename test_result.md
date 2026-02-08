@@ -222,6 +222,9 @@ frontend:
       - working: true
         agent: "main"
         comment: "Property switcher dropdown in top bar. Stores active property in localStorage."
+      - working: true
+        agent: "testing"
+        comment: "✅ Verified property switcher is visible in top bar and works correctly. Successfully switched between 'Main' and 'Annex' properties."
 
   - task: "Properties Page"
     implemented: true
