@@ -1,11 +1,13 @@
 import React, { useEffect, useRef } from 'react';
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../lib/store';
+import { useQuery } from '@tanstack/react-query';
+import { propertiesAPI } from '../../lib/api';
 import { WebSocketManager } from '../../lib/websocket';
 import {
   LayoutDashboard, Inbox, MessageSquare, ClipboardList, UtensilsCrossed,
   BedDouble, TableProperties, BookOpen, Users, Settings, LogOut, Hotel, ChevronLeft, Menu,
-  Star, Gift, Plug
+  Star, Gift, Plug, Building2
 } from 'lucide-react';
 import { BarChart3, CreditCard, Shield, Share2, Server } from 'lucide-react';
 import { FileText as AuditIcon } from 'lucide-react';
@@ -21,6 +23,7 @@ const navItems = [
   { path: '/orders', label: 'Orders', icon: UtensilsCrossed },
   { path: '/reviews', label: 'Reviews', icon: Star },
   { type: 'separator', label: 'Management' },
+  { path: '/properties', label: 'Properties', icon: Building2 },
   { path: '/rooms', label: 'Rooms', icon: BedDouble },
   { path: '/tables', label: 'Tables', icon: TableProperties },
   { path: '/menu', label: 'Menu', icon: BookOpen },
