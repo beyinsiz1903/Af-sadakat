@@ -1,42 +1,26 @@
 [
   {
-    "content": "Sprint 3: Backend - Inbox V2 router",
-    "status": "completed"
+    "content": "Sprint 4: CRM V2 router (contacts CRUD, timeline, merge, export, link)",
+    "status": "in_progress"
   },
   {
-    "content": "Sprint 3: Backend - Reviews V2 router",
-    "status": "completed"
+    "content": "Sprint 4: Loyalty V2 router (rules, members, ledger, adjust, redeem, enroll)",
+    "status": "pending"
   },
   {
-    "content": "Sprint 3: Backend - Connector stubs + registry",
-    "status": "completed"
+    "content": "Sprint 4: contact_events collection + auto-award hooks",
+    "status": "pending"
   },
   {
-    "content": "Sprint 3: Backend - WebChat + widget endpoint",
-    "status": "completed"
+    "content": "Sprint 4: Frontend - Contacts page + Loyalty settings",
+    "status": "pending"
   },
   {
-    "content": "Sprint 3: Backend - AI usage enforcement",
-    "status": "completed"
+    "content": "Sprint 4: Seed data + indexes + register routers",
+    "status": "pending"
   },
   {
-    "content": "Sprint 3: Backend - Seed data",
-    "status": "completed"
-  },
-  {
-    "content": "Sprint 3: Frontend - Inbox V2",
-    "status": "completed"
-  },
-  {
-    "content": "Sprint 3: Frontend - Reviews V2",
-    "status": "completed"
-  },
-  {
-    "content": "Sprint 3: Frontend - Integrations polish",
-    "status": "completed"
-  },
-  {
-    "content": "Sprint 3: Testing - Backend 100%, Frontend verified via screenshots",
-    "status": "completed"
+    "content": "Sprint 4: Testing",
+    "status": "pending"
   }
 ]
