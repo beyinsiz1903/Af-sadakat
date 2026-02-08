@@ -146,9 +146,20 @@ async def webhook_mock_succeed(data: dict, request: Request):
             "message": "Payment already processed successfully."
         }
 
-    # Update payment link to SUCCEEDED
-    await db.payment_links.update_one({"id": payment_link_id},
-        {"$set": {"status": "SUCCEEDED", "updated_at": now_utc().isoformat()}})
+    # Atomic status check - prevent race condition
+    result = await db.payment_links.update_one(
+        {"id": payment_link_id, "status": {"$ne": "SUCCEEDED"}},
+        {"$set": {"status": "SUCCEEDED", "updated_at": now_utc().isoformat()}}
+    )
+    if result.modified_count == 0:
+        # Another request already succeeded
+        reservation = await db.reservations.find_one(
+            {"tenant_id": tid, "offer_id": pl.get("offer_id")}, {"_id": 0})
+        return {
+            "status": "ALREADY_SUCCEEDED", "idempotent": True,
+            "reservation": serialize_doc(reservation) if reservation else None,
+            "message": "Payment already processed successfully."
+        }
 
     # Update payment record if exists
     await db.payments.update_one(
@@ -164,12 +175,32 @@ async def webhook_mock_succeed(data: dict, request: Request):
         return {"status": "SUCCEEDED", "reservation": None, "message": "Payment succeeded but offer not found"}
     offer = serialize_doc(offer)
 
-    # Update offer to PAID
-    await db.offers.update_one({"id": offer["id"]},
-        {"$set": {"status": "PAID", "updated_at": now_utc().isoformat()}})
+    # Validate offer not expired/cancelled
+    if offer.get("status") in ["EXPIRED", "CANCELLED"]:
+        logger.warning("Payment succeeded for %s offer %s", offer["status"], offer["id"])
 
-    # Create reservation (CONFIRMED)
-    confirmation_code = _generate_confirmation_code()
+    # Validate payment amount matches offer
+    expected_amount = offer.get("price_total", 0)
+    actual_amount = pl.get("amount", 0)
+    if expected_amount and actual_amount and abs(float(expected_amount) - float(actual_amount)) > 0.01:
+        logger.warning("Payment amount mismatch: expected=%s actual=%s offer=%s",
+                       expected_amount, actual_amount, offer["id"])
+
+    # Update offer to PAID (atomic)
+    await db.offers.update_one(
+        {"id": offer["id"], "status": {"$ne": "PAID"}},
+        {"$set": {"status": "PAID", "updated_at": now_utc().isoformat()}}
+    )
+
+    # Get property prefix for confirmation code
+    prop_prefix = "GHI"
+    if offer.get("property_id"):
+        prop = await db.properties.find_one({"id": offer["property_id"]}, {"_id": 0})
+        if prop and prop.get("slug"):
+            prop_prefix = prop["slug"][:3].upper() or "GHI"
+
+    # Create reservation (CONFIRMED) with unique confirmation code
+    confirmation_code = await generate_unique_confirmation_code(tid, prop_prefix)
     reservation = {
         "id": new_id(),
         "tenant_id": tid,
