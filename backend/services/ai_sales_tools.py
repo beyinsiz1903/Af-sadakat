@@ -319,7 +319,7 @@ async def generate_payment_link_tool(
     payment_link_id = new_id()
     payment_url = f"{PUBLIC_BASE_URL}/pay/{payment_link_id}"
 
-    pl = await insert_scoped("payment_links", tenant_id, {
+    await insert_scoped("payment_links", tenant_id, {
         "id": payment_link_id,
         "offer_id": offer_id,
         "provider": "STRIPE_STUB",
