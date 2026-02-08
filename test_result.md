@@ -282,6 +282,9 @@ frontend:
       - working: true
         agent: "main"
         comment: "Added propertiesAPI, offersAPI, paymentsAPI, reservationsAPI, inboxOffersAPI."
+      - working: true
+        agent: "testing"
+        comment: "✅ API client endpoints working correctly. Successfully used propertiesAPI, offersAPI, and paymentsAPI during testing. All endpoints responded as expected."
 
 metadata:
   created_by: "main_agent"
