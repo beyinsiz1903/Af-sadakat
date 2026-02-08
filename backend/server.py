@@ -38,12 +38,19 @@ client = AsyncIOMotorClient(mongo_url)
 db = client[os.environ.get('DB_NAME', 'omni_inbox_hub')]
 
 # Create the main app
-app = FastAPI(title="Omni Inbox Hub API", version="0.1.0")
+app = FastAPI(title="Omni Inbox Hub API", version="6.0.0")
 api_router = APIRouter(prefix="/api")
 
 # Configure logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
 logger = logging.getLogger(__name__)
+
+# App startup time for uptime tracking
+import time as _time
+_APP_START_TIME = _time.time()
 
 # JWT Config
 JWT_SECRET = os.environ.get("JWT_SECRET", "omni-inbox-hub-secret-key-change-in-production")
