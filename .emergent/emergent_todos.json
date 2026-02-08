@@ -1,42 +1,42 @@
 [
   {
     "content": "Guest Token JWT system (short-lived signed tokens for guest QR actions)",
-    "status": "in_progress"
+    "status": "completed"
   },
   {
     "content": "QR PNG generation + PDF print sheet endpoints",
-    "status": "pending"
+    "status": "completed"
   },
   {
     "content": "Request comments collection + API + UI",
-    "status": "pending"
+    "status": "completed"
   },
   {
     "content": "Drag & Drop Kanban (dnd-kit) for Requests + Orders boards",
-    "status": "pending"
+    "status": "completed"
   },
   {
     "content": "Connector background polling loop (asyncio task)",
-    "status": "pending"
+    "status": "completed"
   },
   {
     "content": "KB Articles collection for AI context",
-    "status": "pending"
+    "status": "completed"
   },
   {
     "content": "Fernet credential vault encryption",
-    "status": "pending"
+    "status": "completed"
   },
   {
     "content": "Enhanced seed data (comprehensive demo)",
-    "status": "pending"
+    "status": "completed"
   },
   {
-    "content": "Frontend fixes: guest panels, audit logs UI",
-    "status": "pending"
+    "content": "Frontend fixes: QR actions in rooms/tables",
+    "status": "completed"
   },
   {
     "content": "End-to-end Testing with Testing Agent",
-    "status": "pending"
+    "status": "in_progress"
   }
 ]
