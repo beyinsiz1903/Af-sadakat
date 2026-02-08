@@ -377,7 +377,20 @@ async def root():
 
 @api_router.get("/health")
 async def health():
-    return {"status": "ok", "timestamp": now_utc().isoformat()}
+    health_data = {
+        "status": "ok",
+        "version": "5.0.0",
+        "timestamp": now_utc().isoformat(),
+        "services": {}
+    }
+    # Check MongoDB
+    try:
+        await db.command("ping")
+        health_data["services"]["mongodb"] = "ok"
+    except Exception:
+        health_data["services"]["mongodb"] = "error"
+        health_data["status"] = "degraded"
+    return health_data
 
 # ============ TENANT ROUTES ============
 @api_router.post("/tenants")
