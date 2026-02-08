@@ -2340,6 +2340,15 @@ async def create_indexes():
         await db.contact_events.create_index([("tenant_id", 1), ("contact_id", 1), ("created_at", -1)])
         await db.loyalty_rules.create_index([("tenant_id", 1)], unique=True)
         await db.loyalty_ledger.create_index([("tenant_id", 1), ("contact_id", 1), ("created_at", -1)])
+        # Sprint 5 indexes
+        await db.properties.create_index([("tenant_id", 1), ("slug", 1)], unique=True)
+        await db.properties.create_index([("tenant_id", 1), ("is_active", 1)])
+        await db.offers.create_index([("tenant_id", 1), ("property_id", 1), ("created_at", -1)])
+        await db.offers.create_index([("tenant_id", 1), ("status", 1)])
+        await db.payment_links.create_index([("tenant_id", 1), ("idempotency_key", 1)], unique=True, sparse=True)
+        await db.payments.create_index([("tenant_id", 1), ("offer_id", 1)])
+        await db.reservations.create_index([("tenant_id", 1), ("confirmation_code", 1)], unique=True, sparse=True)
+        await db.reservations.create_index([("tenant_id", 1), ("property_id", 1), ("created_at", -1)])
         logger.info("Database indexes created successfully")
     except Exception as e:
         logger.warning(f"Index creation: {e}")
