@@ -253,8 +253,9 @@ async def webhook_mock_succeed(data: dict, request: Request):
 
 
 @router.post("/webhook/mock/fail")
-async def webhook_mock_fail(data: dict):
+async def webhook_mock_fail(data: dict, request: Request):
     """Mock payment failure webhook"""
+    _check_rate_limit(request)
     payment_link_id = data.get("paymentLinkId", data.get("payment_link_id", ""))
     if not payment_link_id:
         raise HTTPException(status_code=400, detail="paymentLinkId required")
