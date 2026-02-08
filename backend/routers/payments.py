@@ -74,7 +74,7 @@ async def get_payment_page_data(payment_link_id: str, request: Request):
 @router.post("/pay/{payment_link_id}/checkout")
 async def checkout(payment_link_id: str, request: Request):
     """Simulate starting a payment - creates payments record as INITIATED"""
-    _check_rate_limit(request)
+    rate_limit_ip(request, 30, 60)
     pl = await db.payment_links.find_one({"id": payment_link_id}, {"_id": 0})
     if not pl:
         raise HTTPException(status_code=404, detail="Payment link not found")
