@@ -18,6 +18,8 @@ import SettingsPage from './pages/SettingsPage';
 import InboxPage from './pages/InboxPage';
 import ReviewsPage from './pages/ReviewsPage';
 import OffersPage from './pages/OffersPage';
+import PropertiesPage from './pages/PropertiesPage';
+import PaymentPage from './pages/PaymentPage';
 import ConnectorsPage from './pages/ConnectorsPage';
 import OnboardingPage from './pages/OnboardingPage';
 import BillingPage from './pages/BillingPage';
