@@ -340,7 +340,7 @@ class ComprehensiveAPITester:
                 contact_id = contact_list[0]['id']
                 
                 # Test data export
-                export_success, export_data = self.run_test("Export Guest Data", "GET", 
+                export_success, export_data = self.run_test("Export Guest Data", "POST", 
                                                           f"tenants/{self.tenant_slug}/compliance/export/{contact_id}", 200)
                 if export_success:
                     expected_keys = ['contact', 'requests', 'orders', 'consent_logs']
