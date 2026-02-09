@@ -366,15 +366,18 @@ function MetaConfigDialog({ open, onClose, slug, status }) {
 
           <div>
             <label className="text-xs text-slate-400 mb-1 block">Webhook Callback URL</label>
-            <div className="flex gap-2">
-              <Input value={webhookUrl} readOnly className="bg-slate-800 border-slate-700 flex-1 text-xs" />
-              <Button size="sm" variant="ghost" onClick={() => {
+            <div className="flex items-start gap-2">
+              <code className="flex-1 block bg-slate-800 border border-slate-700 rounded-md px-3 py-2 text-xs text-emerald-400 font-mono break-all select-all">
+                {webhookUrl}
+              </code>
+              <Button size="sm" variant="ghost" className="mt-0.5 shrink-0" onClick={() => {
                 navigator.clipboard.writeText(webhookUrl);
                 toast.success('Copied!');
               }}>
                 <Copy className="w-4 h-4" />
               </Button>
             </div>
+            <p className="text-[10px] text-slate-500 mt-1">Paste this exact URL into Meta Developer Dashboard → Webhooks → Callback URL</p>
           </div>
 
           <Button onClick={save} disabled={saving || !appId}
