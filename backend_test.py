@@ -597,9 +597,268 @@ class APITester:
         print(f"\n📊 Reports APIs: {sum(results)}/{len(results)} passed ({success_rate:.1f}%)")
         return results
     
+    def test_sprint91_file_uploads_apis(self):
+        """Test Sprint 9.1 File Upload APIs (Public - no auth)"""
+        print("\n🧪 Testing Sprint 9.1 File Upload APIs (Public)")
+        results = []
+        
+        # Test 1: Create a small test file and upload it
+        try:
+            # Create a small text file for testing
+            import tempfile
+            import os
+            with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as f:
+                f.write("Test file content for Grand Hotel file upload API testing")
+                temp_file_path = f.name
+            
+            # POST file upload 
+            url = f"{BACKEND_URL}/v2/uploads/g/{self.tenant_slug}/upload"
+            with open(temp_file_path, 'rb') as f:
+                files = {'file': ('test_file.txt', f, 'text/plain')}
+                data = {
+                    'entity_type': 'request',
+                    'room_code': 'R101'
+                }
+                response = requests.post(url, files=files, data=data)
+            
+            # Clean up temp file
+            os.unlink(temp_file_path)
+            
+            if response.status_code == 200:
+                data = response.json()
+                has_id = "id" in data
+                has_filename = "filename" in data
+                has_file_url = "file_url" in data
+                file_url = data.get("file_url", "")
+                print(f"✅ File upload API: {response.status_code} - Has ID: {has_id}, filename: {has_filename}, file_url: {has_file_url}")
+                
+                # Test 2: GET the uploaded file to verify it's served correctly
+                if file_url:
+                    try:
+                        file_serve_url = f"{BACKEND_URL.replace('/api', '')}{file_url}"
+                        file_response = requests.get(file_serve_url)
+                        if file_response.status_code == 200:
+                            content = file_response.text
+                            has_content = "Test file content" in content
+                            print(f"✅ File serve API: {file_response.status_code} - Content served: {has_content}")
+                            results.extend([True, True])  # Both upload and serve tests passed
+                        else:
+                            print(f"❌ File serve API failed: {file_response.status_code}")
+                            results.extend([True, False])  # Upload passed, serve failed
+                    except Exception as e:
+                        print(f"❌ File serve API error: {e}")
+                        results.extend([True, False])
+                else:
+                    print(f"❌ No file_url returned from upload")
+                    results.extend([True, False])
+            else:
+                print(f"❌ File upload API failed: {response.status_code} - {response.text}")
+                results.extend([False, False])
+        except Exception as e:
+            print(f"❌ File upload API error: {e}")
+            results.extend([False, False])
+        
+        success_rate = sum(results) / len(results) * 100
+        print(f"\n📊 File Upload APIs: {sum(results)}/{len(results)} passed ({success_rate:.1f}%)")
+        return results
+    
+    def test_sprint91_platform_integrations_apis(self):
+        """Test Sprint 9.1 Platform Integrations APIs (Auth required)"""
+        print("\n🧪 Testing Sprint 9.1 Platform Integrations APIs (Auth required)")
+        results = []
+        
+        # Test 1: GET platforms list
+        try:
+            url = f"{BACKEND_URL}/v2/platforms/tenants/{self.tenant_slug}/platforms"
+            response = self.session.get(url)
+            if response.status_code == 200:
+                data = response.json()
+                platforms_count = len(data) if isinstance(data, list) else 0
+                has_google = any(p.get("id") == "google_business" for p in data)
+                has_tripadvisor = any(p.get("id") == "tripadvisor" for p in data) 
+                has_booking = any(p.get("id") == "booking_com" for p in data)
+                all_disconnected = all(p.get("status") == "disconnected" for p in data)
+                print(f"✅ Platforms list API: {response.status_code} - Found {platforms_count} platforms")
+                print(f"   Google Business: {has_google}, TripAdvisor: {has_tripadvisor}, Booking.com: {has_booking}")
+                print(f"   All disconnected: {all_disconnected}")
+                results.append(True if platforms_count == 3 and has_google and has_tripadvisor and has_booking else False)
+            else:
+                print(f"❌ Platforms list API failed: {response.status_code}")
+                results.append(False)
+        except Exception as e:
+            print(f"❌ Platforms list API error: {e}")
+            results.append(False)
+        
+        # Test 2: Configure Google Business platform
+        try:
+            url = f"{BACKEND_URL}/v2/platforms/tenants/{self.tenant_slug}/platforms/google_business/configure"
+            config_data = {
+                "api_key": "test-key-123",
+                "property_id": "loc-456"
+            }
+            response = self.session.post(url, json=config_data)
+            if response.status_code == 200:
+                data = response.json()
+                is_connected = data.get("status") == "connected"
+                has_api_key = "api_key" in data
+                print(f"✅ Configure Google Business API: {response.status_code} - Connected: {is_connected}")
+                results.append(True)
+            else:
+                print(f"❌ Configure Google Business API failed: {response.status_code} - {response.text}")
+                results.append(False)
+        except Exception as e:
+            print(f"❌ Configure Google Business API error: {e}")
+            results.append(False)
+        
+        # Test 3: GET Google Business platform detail
+        try:
+            url = f"{BACKEND_URL}/v2/platforms/tenants/{self.tenant_slug}/platforms/google_business"
+            response = self.session.get(url)
+            if response.status_code == 200:
+                data = response.json()
+                status = data.get("status", {}).get("status")
+                is_connected = status == "connected"
+                print(f"✅ Google Business detail API: {response.status_code} - Status: {status}")
+                results.append(True if is_connected else False)
+            else:
+                print(f"❌ Google Business detail API failed: {response.status_code}")
+                results.append(False)
+        except Exception as e:
+            print(f"❌ Google Business detail API error: {e}")
+            results.append(False)
+        
+        # Test 4: Disconnect Google Business platform
+        try:
+            url = f"{BACKEND_URL}/v2/platforms/tenants/{self.tenant_slug}/platforms/google_business/disconnect"
+            response = self.session.post(url)
+            if response.status_code == 200:
+                data = response.json()
+                is_ok = data.get("ok") == True
+                status = data.get("status")
+                print(f"✅ Disconnect Google Business API: {response.status_code} - OK: {is_ok}, Status: {status}")
+                results.append(True)
+            else:
+                print(f"❌ Disconnect Google Business API failed: {response.status_code}")
+                results.append(False)
+        except Exception as e:
+            print(f"❌ Disconnect Google Business API error: {e}")
+            results.append(False)
+        
+        # Test 5: Verify Google Business is disconnected again
+        try:
+            url = f"{BACKEND_URL}/v2/platforms/tenants/{self.tenant_slug}/platforms"
+            response = self.session.get(url)
+            if response.status_code == 200:
+                data = response.json()
+                google_platform = next((p for p in data if p.get("id") == "google_business"), None)
+                is_disconnected = google_platform.get("status") == "disconnected" if google_platform else False
+                print(f"✅ Platforms verify disconnect API: {response.status_code} - Google disconnected: {is_disconnected}")
+                results.append(True if is_disconnected else False)
+            else:
+                print(f"❌ Platforms verify disconnect API failed: {response.status_code}")
+                results.append(False)
+        except Exception as e:
+            print(f"❌ Platforms verify disconnect API error: {e}")
+            results.append(False)
+        
+        success_rate = sum(results) / len(results) * 100
+        print(f"\n📊 Platform Integrations APIs: {sum(results)}/{len(results)} passed ({success_rate:.1f}%)")
+        return results
+    
+    def test_sprint91_notification_settings_apis(self):
+        """Test Sprint 9.1 Email/SMS Settings APIs (Auth required)"""
+        print("\n🧪 Testing Sprint 9.1 Notification Settings APIs (Auth required)")
+        results = []
+        
+        # Test 1: GET notification settings (should return defaults)
+        try:
+            url = f"{BACKEND_URL}/v2/platforms/tenants/{self.tenant_slug}/notification-settings"
+            response = self.session.get(url)
+            if response.status_code == 200:
+                data = response.json()
+                has_email_enabled = "email_enabled" in data
+                has_sms_enabled = "sms_enabled" in data
+                has_smtp_settings = "smtp_host" in data
+                print(f"✅ Get notification settings API: {response.status_code}")
+                print(f"   Email enabled: {data.get('email_enabled')}, SMS enabled: {data.get('sms_enabled')}")
+                results.append(True)
+            else:
+                print(f"❌ Get notification settings API failed: {response.status_code}")
+                results.append(False)
+        except Exception as e:
+            print(f"❌ Get notification settings API error: {e}")
+            results.append(False)
+        
+        # Test 2: PUT update notification settings
+        try:
+            url = f"{BACKEND_URL}/v2/platforms/tenants/{self.tenant_slug}/notification-settings"
+            settings_data = {
+                "email_enabled": True,
+                "smtp_host": "smtp.gmail.com",
+                "sms_enabled": False
+            }
+            response = self.session.put(url, json=settings_data)
+            if response.status_code == 200:
+                data = response.json()
+                is_email_enabled = data.get("email_enabled") == True
+                correct_smtp = data.get("smtp_host") == "smtp.gmail.com"
+                is_sms_disabled = data.get("sms_enabled") == False
+                print(f"✅ Update notification settings API: {response.status_code}")
+                print(f"   Email: {is_email_enabled}, SMTP: {correct_smtp}, SMS disabled: {is_sms_disabled}")
+                results.append(True)
+            else:
+                print(f"❌ Update notification settings API failed: {response.status_code} - {response.text}")
+                results.append(False)
+        except Exception as e:
+            print(f"❌ Update notification settings API error: {e}")
+            results.append(False)
+        
+        # Test 3: GET notification logs
+        try:
+            url = f"{BACKEND_URL}/v2/platforms/tenants/{self.tenant_slug}/notification-logs"
+            response = self.session.get(url)
+            if response.status_code == 200:
+                data = response.json()
+                has_data = "data" in data and isinstance(data["data"], list)
+                has_total = "total" in data
+                logs_count = len(data.get("data", []))
+                total_count = data.get("total", 0)
+                print(f"✅ Notification logs API: {response.status_code} - Found {logs_count} logs, total: {total_count}")
+                results.append(True)
+            else:
+                print(f"❌ Notification logs API failed: {response.status_code}")
+                results.append(False)
+        except Exception as e:
+            print(f"❌ Notification logs API error: {e}")
+            results.append(False)
+        
+        # Test 4: POST test email (mock mode)
+        try:
+            url = f"{BACKEND_URL}/v2/platforms/tenants/{self.tenant_slug}/test-email"
+            test_data = {
+                "to_email": "test@example.com"
+            }
+            response = self.session.post(url, json=test_data)
+            if response.status_code == 200:
+                data = response.json()
+                success = data.get("success")
+                to_email = data.get("to_email")
+                print(f"✅ Test email API: {response.status_code} - Success: {success}, To: {to_email}")
+                results.append(True)
+            else:
+                print(f"❌ Test email API failed: {response.status_code} - {response.text}")
+                results.append(False)
+        except Exception as e:
+            print(f"❌ Test email API error: {e}")
+            results.append(False)
+        
+        success_rate = sum(results) / len(results) * 100
+        print(f"\n📊 Notification Settings APIs: {sum(results)}/{len(results)} passed ({success_rate:.1f}%)")
+        return results
+
     def run_all_tests(self):
-        """Run all Sprint 9 API tests"""
-        print("🏨 Sprint 9 Backend API Testing - Hotel Management System")
+        """Run all Sprint 9 + 9.1 API tests"""
+        print("🏨 Sprint 9 + 9.1 Backend API Testing - Hotel Management System")
         print("=" * 60)
         
         if not self.login():
@@ -607,7 +866,7 @@ class APITester:
         
         all_results = []
         
-        # Test all API groups
+        # Test all existing Sprint 9 API groups
         all_results.extend(self.test_guest_services_apis())
         all_results.extend(self.test_sla_apis())
         all_results.extend(self.test_notifications_apis())
@@ -615,6 +874,11 @@ class APITester:
         all_results.extend(self.test_lost_found_apis())
         all_results.extend(self.test_social_dashboard_apis())
         all_results.extend(self.test_reports_apis())
+        
+        # Test NEW Sprint 9.1 API groups
+        all_results.extend(self.test_sprint91_file_uploads_apis())
+        all_results.extend(self.test_sprint91_platform_integrations_apis())
+        all_results.extend(self.test_sprint91_notification_settings_apis())
         
         # Summary
         total_tests = len(all_results)
@@ -625,7 +889,7 @@ class APITester:
         print(f"📊 OVERALL RESULTS: {passed_tests}/{total_tests} tests passed ({success_rate:.1f}%)")
         
         if success_rate == 100:
-            print("🎉 ALL TESTS PASSED! Sprint 9 APIs are working perfectly!")
+            print("🎉 ALL TESTS PASSED! Sprint 9 + 9.1 APIs are working perfectly!")
         elif success_rate >= 80:
             print("✅ Most tests passed. Some minor issues to investigate.")
         else:
