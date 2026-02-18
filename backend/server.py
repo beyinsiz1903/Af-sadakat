@@ -3344,6 +3344,23 @@ try:
 except Exception as e:
     logger.warning(f"V2 Meta webhooks router not loaded: {e}")
 
+# Sprint 9: New feature routers
+for router_name, router_module, router_attr in [
+    ("guest_services", "routers.guest_services", "router"),
+    ("notifications", "routers.notifications", "router"),
+    ("sla", "routers.sla", "router"),
+    ("housekeeping", "routers.housekeeping", "router"),
+    ("lost_found", "routers.lost_found", "router"),
+    ("social_dashboard", "routers.social_dashboard", "router"),
+    ("reports", "routers.reports", "router"),
+]:
+    try:
+        mod = __import__(router_module, fromlist=[router_attr])
+        app.include_router(getattr(mod, router_attr))
+        logger.info(f"V2 {router_name} router loaded")
+    except Exception as e:
+        logger.warning(f"V2 {router_name} router not loaded: {e}")
+
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
