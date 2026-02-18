@@ -651,6 +651,25 @@ export default function GuestRoomPanel() {
                 <SelectItem value="urgent">{t('Urgent', 'Acil')}</SelectItem>
               </SelectContent>
             </Select>
+            {/* File Upload */}
+            <div>
+              <label className="flex items-center gap-2 cursor-pointer text-sm text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--primary))] transition-colors">
+                <Camera className="w-4 h-4" />
+                <span>{t('Attach Photo/File', 'Fotograf/Dosya Ekle')}</span>
+                <input type="file" multiple accept="image/*,.pdf,.doc,.docx" className="hidden"
+                  onChange={(e) => setUploadFiles(Array.from(e.target.files || []))} />
+              </label>
+              {uploadFiles.length > 0 && (
+                <div className="flex flex-wrap gap-1 mt-1">
+                  {uploadFiles.map((f, i) => (
+                    <Badge key={i} variant="outline" className="text-[10px] gap-1">
+                      <Paperclip className="w-3 h-3" />{f.name}
+                      <button onClick={() => setUploadFiles(uploadFiles.filter((_, idx) => idx !== i))} className="ml-1 text-red-400">×</button>
+                    </Badge>
+                  ))}
+                </div>
+              )}
+            </div>
             <Button type="submit" className="w-full" disabled={!form.description.trim() || submitting}>
               {submitting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Send className="w-4 h-4 mr-2" />}
               {t('Submit', 'Gonder')}
