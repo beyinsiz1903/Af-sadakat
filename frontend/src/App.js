@@ -62,6 +62,18 @@ function ProtectedRoute({ children }) {
 }
 
 function App() {
+  useEffect(() => {
+    // Remove Emergent badge
+    const removeBadge = () => {
+      const badge = document.getElementById('emergent-badge');
+      if (badge) badge.remove();
+      document.querySelectorAll('a[href*="emergent.sh"]').forEach(el => el.remove());
+    };
+    const interval = setInterval(removeBadge, 500);
+    removeBadge();
+    return () => clearInterval(interval);
+  }, []);
+
   return (
     <QueryClientProvider client={queryClient}>
       <div className="App dark">
