@@ -642,9 +642,10 @@ class APITester:
                         file_serve_url = f"{BACKEND_URL.replace('/api', '')}{file_url}"
                         file_response = requests.get(file_serve_url)
                         if file_response.status_code == 200:
-                            content = file_response.text
-                            has_content = "Test file content" in content
-                            print(f"✅ File serve API: {file_response.status_code} - Content served: {has_content}")
+                            # For PNG file, just check that we got some content back
+                            content_length = len(file_response.content)
+                            has_content = content_length > 0
+                            print(f"✅ File serve API: {file_response.status_code} - Content served: {has_content} ({content_length} bytes)")
                             results.extend([True, True])  # Both upload and serve tests passed
                         else:
                             print(f"❌ File serve API failed: {file_response.status_code}")
