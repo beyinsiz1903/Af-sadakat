@@ -1872,6 +1872,159 @@ async def seed_data():
         upsert=True
     )
 
+    # ========== Sprint 9: Enhanced Feature Seed Data ==========
+    
+    # Hotel Info
+    await db.hotel_info.update_one(
+        {"tenant_id": tenant_id},
+        {"$set": {
+            "tenant_id": tenant_id,
+            "id": new_id(),
+            "hotel_name": "Grand Hotel Istanbul",
+            "description": "Luxury 5-star hotel in the heart of Istanbul with stunning Bosphorus views",
+            "address": "Ciragan Caddesi No:32, Besiktas, Istanbul, Turkey",
+            "phone": "+90 212 555 0100",
+            "email": "info@grandhotel.com",
+            "website": "www.grandhotelistanbul.com",
+            "wifi_name": "GrandHotel-Guest",
+            "wifi_password": "Welcome2025!",
+            "check_in_time": "14:00",
+            "check_out_time": "12:00",
+            "facilities": [
+                {"name": "Swimming Pool", "icon": "pool", "hours": "07:00 - 22:00", "floor": "Rooftop", "description": "Heated infinity pool with Bosphorus view"},
+                {"name": "Spa & Wellness", "icon": "spa", "hours": "09:00 - 21:00", "floor": "B1", "description": "Full-service spa with Turkish bath, sauna, steam room"},
+                {"name": "Fitness Center", "icon": "gym", "hours": "06:00 - 23:00", "floor": "B1", "description": "State-of-the-art gym equipment"},
+                {"name": "Restaurant - Bosphorus", "icon": "restaurant", "hours": "07:00 - 23:00", "floor": "1", "description": "Fine dining with panoramic views"},
+                {"name": "Bar & Lounge", "icon": "bar", "hours": "16:00 - 01:00", "floor": "Rooftop", "description": "Cocktails and live music"},
+                {"name": "Business Center", "icon": "business", "hours": "08:00 - 20:00", "floor": "2", "description": "Meeting rooms and workspace"},
+                {"name": "Kids Club", "icon": "kids", "hours": "09:00 - 18:00", "floor": "1", "description": "Activities for children aged 4-12"},
+                {"name": "Parking", "icon": "parking", "hours": "24/7", "floor": "B2", "description": "Valet and self-parking available"}
+            ],
+            "emergency_contacts": [
+                {"name": "Reception", "number": "0", "description": "24/7 front desk"},
+                {"name": "Security", "number": "111", "description": "Emergency security"},
+                {"name": "Medical", "number": "112", "description": "Emergency medical services"},
+                {"name": "Fire", "number": "110", "description": "Fire department"}
+            ],
+            "pool_hours": "07:00 - 22:00",
+            "spa_hours": "09:00 - 21:00",
+            "restaurant_hours": "07:00 - 23:00",
+            "gym_hours": "06:00 - 23:00",
+            "parking_info": "Valet parking available 24/7. Self-parking at B2 level.",
+            "pet_policy": "Small pets allowed with prior arrangement. Pet fee: 200 TRY/night",
+            "smoking_policy": "Non-smoking hotel. Designated smoking areas on terrace.",
+            "languages": ["tr", "en", "de", "ru", "ar"],
+            "currency": "TRY",
+            "created_at": now_utc().isoformat(),
+            "updated_at": now_utc().isoformat(),
+        }},
+        upsert=True
+    )
+    
+    # Spa Services
+    spa_services = [
+        {"id": new_id(), "tenant_id": tenant_id, "name": "Turkish Bath (Hamam)", "description": "Traditional Turkish bath experience with foam massage", "duration_minutes": 60, "price": 500, "category": "bath", "available": True, "sort_order": 1, "created_at": now_utc().isoformat()},
+        {"id": new_id(), "tenant_id": tenant_id, "name": "Swedish Massage", "description": "Full body relaxation massage", "duration_minutes": 60, "price": 700, "category": "massage", "available": True, "sort_order": 2, "created_at": now_utc().isoformat()},
+        {"id": new_id(), "tenant_id": tenant_id, "name": "Aromatherapy Massage", "description": "Essential oil massage for deep relaxation", "duration_minutes": 90, "price": 900, "category": "massage", "available": True, "sort_order": 3, "created_at": now_utc().isoformat()},
+        {"id": new_id(), "tenant_id": tenant_id, "name": "Facial Treatment", "description": "Deep cleansing and hydrating facial", "duration_minutes": 45, "price": 400, "category": "facial", "available": True, "sort_order": 4, "created_at": now_utc().isoformat()},
+        {"id": new_id(), "tenant_id": tenant_id, "name": "Couples Massage", "description": "Side-by-side massage for two", "duration_minutes": 90, "price": 1600, "category": "massage", "available": True, "sort_order": 5, "created_at": now_utc().isoformat()},
+    ]
+    await db.spa_services.delete_many({"tenant_id": tenant_id})
+    await db.spa_services.insert_many(spa_services)
+    
+    # SLA Rules
+    sla_rules = [
+        {"id": new_id(), "tenant_id": tenant_id, "category": "housekeeping", "department_code": "HK", "priority": "normal", "response_time_minutes": 15, "resolution_time_minutes": 45, "escalation_after_minutes": 30, "escalate_to_role": "manager", "auto_escalation_enabled": True, "notification_on_breach": True, "active": True, "created_at": now_utc().isoformat()},
+        {"id": new_id(), "tenant_id": tenant_id, "category": "maintenance", "department_code": "TECH", "priority": "normal", "response_time_minutes": 20, "resolution_time_minutes": 120, "escalation_after_minutes": 60, "escalate_to_role": "manager", "auto_escalation_enabled": True, "notification_on_breach": True, "active": True, "created_at": now_utc().isoformat()},
+        {"id": new_id(), "tenant_id": tenant_id, "category": "room_service", "department_code": "FB", "priority": "normal", "response_time_minutes": 10, "resolution_time_minutes": 30, "escalation_after_minutes": 20, "escalate_to_role": "manager", "auto_escalation_enabled": True, "notification_on_breach": True, "active": True, "created_at": now_utc().isoformat()},
+        {"id": new_id(), "tenant_id": tenant_id, "category": "reception", "department_code": "FRONTDESK", "priority": "normal", "response_time_minutes": 5, "resolution_time_minutes": 30, "escalation_after_minutes": 15, "escalate_to_role": "manager", "auto_escalation_enabled": True, "notification_on_breach": True, "active": True, "created_at": now_utc().isoformat()},
+        {"id": new_id(), "tenant_id": tenant_id, "category": "laundry", "department_code": "HK", "priority": "normal", "response_time_minutes": 15, "resolution_time_minutes": 240, "escalation_after_minutes": 60, "escalate_to_role": "manager", "auto_escalation_enabled": True, "notification_on_breach": True, "active": True, "created_at": now_utc().isoformat()},
+        {"id": new_id(), "tenant_id": tenant_id, "category": "spa", "department_code": "SPA", "priority": "normal", "response_time_minutes": 15, "resolution_time_minutes": 60, "escalation_after_minutes": 30, "escalate_to_role": "manager", "auto_escalation_enabled": True, "notification_on_breach": True, "active": True, "created_at": now_utc().isoformat()},
+        {"id": new_id(), "tenant_id": tenant_id, "category": "transport", "department_code": "CONCIERGE", "priority": "normal", "response_time_minutes": 10, "resolution_time_minutes": 60, "escalation_after_minutes": 30, "escalate_to_role": "manager", "auto_escalation_enabled": True, "notification_on_breach": True, "active": True, "created_at": now_utc().isoformat()},
+    ]
+    await db.sla_rules.delete_many({"tenant_id": tenant_id})
+    await db.sla_rules.insert_many(sla_rules)
+    
+    # Response Templates
+    templates = [
+        {"id": new_id(), "tenant_id": tenant_id, "name": "Towels on the way", "category": "housekeeping", "body_tr": "Havlulariniz en kisa surede odaniza getirilecektir.", "body_en": "Your towels will be delivered to your room shortly.", "shortcut": "/towels", "created_at": now_utc().isoformat()},
+        {"id": new_id(), "tenant_id": tenant_id, "name": "Room cleaning scheduled", "category": "housekeeping", "body_tr": "Oda temizliginiz planlanmistir. Tahmini sure: 30 dakika.", "body_en": "Your room cleaning has been scheduled. Estimated time: 30 minutes.", "shortcut": "/clean", "created_at": now_utc().isoformat()},
+        {"id": new_id(), "tenant_id": tenant_id, "name": "Maintenance dispatched", "category": "maintenance", "body_tr": "Teknik ekibimiz konuyla ilgilenmek uzere yola cikmistir.", "body_en": "Our maintenance team has been dispatched to handle your request.", "shortcut": "/maint", "created_at": now_utc().isoformat()},
+        {"id": new_id(), "tenant_id": tenant_id, "name": "Order received", "category": "room_service", "body_tr": "Siparisini aldik! Tahmini teslimat: 25-35 dakika.", "body_en": "We received your order! Estimated delivery: 25-35 minutes.", "shortcut": "/order", "created_at": now_utc().isoformat()},
+        {"id": new_id(), "tenant_id": tenant_id, "name": "Thank you", "category": "general", "body_tr": "Geri bildiriminiz icin tesekkur ederiz. Iyi gunler dileriz!", "body_en": "Thank you for your feedback. We wish you a pleasant stay!", "shortcut": "/thanks", "created_at": now_utc().isoformat()},
+    ]
+    await db.response_templates.delete_many({"tenant_id": tenant_id})
+    await db.response_templates.insert_many(templates)
+    
+    # Housekeeping Checklists
+    checklists = [
+        {"id": new_id(), "tenant_id": tenant_id, "name": "Standard Room Cleaning", "room_type": "standard", "items": [
+            {"text": "Make bed with fresh linens", "required": True},
+            {"text": "Vacuum carpets and mop floors", "required": True},
+            {"text": "Clean and sanitize bathroom", "required": True},
+            {"text": "Replace towels and amenities", "required": True},
+            {"text": "Empty trash bins", "required": True},
+            {"text": "Dust all surfaces", "required": True},
+            {"text": "Check minibar and restock", "required": False},
+            {"text": "Clean windows and mirrors", "required": False},
+            {"text": "Check all lights and fixtures", "required": True},
+            {"text": "Spray room freshener", "required": False},
+        ], "active": True, "created_at": now_utc().isoformat()},
+        {"id": new_id(), "tenant_id": tenant_id, "name": "Suite Deep Cleaning", "room_type": "suite", "items": [
+            {"text": "Make bed with premium linens", "required": True},
+            {"text": "Vacuum and steam clean carpets", "required": True},
+            {"text": "Deep clean all bathrooms", "required": True},
+            {"text": "Replace premium amenities set", "required": True},
+            {"text": "Clean and polish all surfaces", "required": True},
+            {"text": "Clean kitchen/bar area", "required": True},
+            {"text": "Restock minibar fully", "required": True},
+            {"text": "Clean all windows and balcony", "required": True},
+            {"text": "Place welcome amenity", "required": True},
+            {"text": "Check all electronics and AC", "required": True},
+            {"text": "Arrange fresh flowers", "required": False},
+            {"text": "Final quality inspection", "required": True},
+        ], "active": True, "created_at": now_utc().isoformat()},
+    ]
+    await db.hk_checklists.delete_many({"tenant_id": tenant_id})
+    await db.hk_checklists.insert_many(checklists)
+    
+    # Announcements
+    announcements = [
+        {"id": new_id(), "tenant_id": tenant_id, "title": "Pool Hours Extended", "body": "The rooftop pool hours have been extended to 23:00 for the summer season. Enjoy!", "type": "info", "active": True, "priority": "normal", "created_at": now_utc().isoformat()},
+        {"id": new_id(), "tenant_id": tenant_id, "title": "Live Jazz Night", "body": "Join us every Friday at the Rooftop Bar for live jazz music from 20:00 to midnight.", "type": "event", "active": True, "priority": "normal", "created_at": now_utc().isoformat()},
+        {"id": new_id(), "tenant_id": tenant_id, "title": "Spa Special Offer", "body": "20% discount on all spa treatments when booked before 14:00. Valid this month!", "type": "promo", "active": True, "priority": "normal", "created_at": now_utc().isoformat()},
+    ]
+    await db.announcements.delete_many({"tenant_id": tenant_id})
+    await db.announcements.insert_many(announcements)
+    
+    # Additional Departments for new services
+    extra_depts = [
+        {"id": new_id(), "tenant_id": tenant_id, "name": "Spa & Wellness", "code": "SPA", "description": "Spa, massage, Turkish bath services", "created_at": now_utc().isoformat()},
+        {"id": new_id(), "tenant_id": tenant_id, "name": "Concierge", "code": "CONCIERGE", "description": "Transport, tours, reservations, special requests", "created_at": now_utc().isoformat()},
+        {"id": new_id(), "tenant_id": tenant_id, "name": "Bellboy", "code": "BELL", "description": "Luggage, room escort, valet services", "created_at": now_utc().isoformat()},
+    ]
+    for dept in extra_depts:
+        existing_dept = await db.departments.find_one({"tenant_id": tenant_id, "code": dept["code"]})
+        if not existing_dept:
+            await db.departments.insert_one(dept)
+    
+    # Additional Service Categories for extended guest requests
+    extra_categories = [
+        {"id": new_id(), "tenant_id": tenant_id, "name": "Laundry & Ironing", "department_code": "HK", "icon": "laundry", "created_at": now_utc().isoformat()},
+        {"id": new_id(), "tenant_id": tenant_id, "name": "Spa & Massage", "department_code": "SPA", "icon": "spa", "created_at": now_utc().isoformat()},
+        {"id": new_id(), "tenant_id": tenant_id, "name": "Transport & Transfer", "department_code": "CONCIERGE", "icon": "transport", "created_at": now_utc().isoformat()},
+        {"id": new_id(), "tenant_id": tenant_id, "name": "Wake-up Call", "department_code": "FRONTDESK", "icon": "alarm", "created_at": now_utc().isoformat()},
+        {"id": new_id(), "tenant_id": tenant_id, "name": "Bellboy & Luggage", "department_code": "BELL", "icon": "luggage", "created_at": now_utc().isoformat()},
+        {"id": new_id(), "tenant_id": tenant_id, "name": "Key & Access", "department_code": "FRONTDESK", "icon": "key", "created_at": now_utc().isoformat()},
+        {"id": new_id(), "tenant_id": tenant_id, "name": "Minibar", "department_code": "FB", "icon": "minibar", "created_at": now_utc().isoformat()},
+        {"id": new_id(), "tenant_id": tenant_id, "name": "Express Check-out", "department_code": "FRONTDESK", "icon": "checkout", "created_at": now_utc().isoformat()},
+        {"id": new_id(), "tenant_id": tenant_id, "name": "Complaint", "department_code": "FRONTDESK", "icon": "complaint", "created_at": now_utc().isoformat()},
+    ]
+    for cat in extra_categories:
+        existing_cat = await db.service_categories.find_one({"tenant_id": tenant_id, "name": cat["name"]})
+        if not existing_cat:
+            await db.service_categories.insert_one(cat)
+
     return {
         "message": "Seed data created successfully",
         "tenant_slug": "grand-hotel",
