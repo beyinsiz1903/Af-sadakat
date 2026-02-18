@@ -199,6 +199,113 @@ export const inboxOffersAPI = {
     api.post(`/v2/inbox/tenants/${slug}/conversations/${convId}/create-offer`, data),
 };
 
+// Guest Services V2
+export const guestServicesAPI = {
+  // Guest-facing (no auth)
+  hotelInfo: (slug) => api.get(`/v2/guest-services/g/${slug}/hotel-info`),
+  roomServiceMenu: (slug) => api.get(`/v2/guest-services/g/${slug}/room-service-menu`),
+  createRoomServiceOrder: (slug, code, data) => api.post(`/v2/guest-services/g/${slug}/room/${code}/room-service-order`, data),
+  createSpaBooking: (slug, code, data) => api.post(`/v2/guest-services/g/${slug}/room/${code}/spa-booking`, data),
+  createTransportRequest: (slug, code, data) => api.post(`/v2/guest-services/g/${slug}/room/${code}/transport-request`, data),
+  createWakeupCall: (slug, code, data) => api.post(`/v2/guest-services/g/${slug}/room/${code}/wakeup-call`, data),
+  createLaundryRequest: (slug, code, data) => api.post(`/v2/guest-services/g/${slug}/room/${code}/laundry-request`, data),
+  createMinibarOrder: (slug, code, data) => api.post(`/v2/guest-services/g/${slug}/room/${code}/minibar-order`, data),
+  submitSurvey: (slug, code, data) => api.post(`/v2/guest-services/g/${slug}/room/${code}/survey`, data),
+  getMyOrders: (slug, code) => api.get(`/v2/guest-services/g/${slug}/room/${code}/my-orders`),
+  getMyBookings: (slug, code) => api.get(`/v2/guest-services/g/${slug}/room/${code}/my-bookings`),
+  getAnnouncements: (slug) => api.get(`/v2/guest-services/g/${slug}/announcements`),
+  getSpaServices: (slug) => api.get(`/v2/guest-services/g/${slug}/spa-services`),
+  getActivities: (slug) => api.get(`/v2/guest-services/g/${slug}/activities`),
+  // Admin
+  getHotelInfoAdmin: (slug) => api.get(`/v2/guest-services/tenants/${slug}/hotel-info`),
+  updateHotelInfo: (slug, data) => api.put(`/v2/guest-services/tenants/${slug}/hotel-info`, data),
+  listSpaServicesAdmin: (slug) => api.get(`/v2/guest-services/tenants/${slug}/spa-services`),
+  createSpaService: (slug, data) => api.post(`/v2/guest-services/tenants/${slug}/spa-services`, data),
+  deleteSpaService: (slug, id) => api.delete(`/v2/guest-services/tenants/${slug}/spa-services/${id}`),
+  listAnnouncementsAdmin: (slug) => api.get(`/v2/guest-services/tenants/${slug}/announcements`),
+  createAnnouncement: (slug, data) => api.post(`/v2/guest-services/tenants/${slug}/announcements`, data),
+  deleteAnnouncement: (slug, id) => api.delete(`/v2/guest-services/tenants/${slug}/announcements/${id}`),
+  listSpaBookings: (slug, params) => api.get(`/v2/guest-services/tenants/${slug}/spa-bookings`, { params }),
+  updateSpaBooking: (slug, id, data) => api.patch(`/v2/guest-services/tenants/${slug}/spa-bookings/${id}`, data),
+  listTransportRequests: (slug, params) => api.get(`/v2/guest-services/tenants/${slug}/transport-requests`, { params }),
+  updateTransportRequest: (slug, id, data) => api.patch(`/v2/guest-services/tenants/${slug}/transport-requests/${id}`, data),
+  listLaundryRequests: (slug, params) => api.get(`/v2/guest-services/tenants/${slug}/laundry-requests`, { params }),
+  updateLaundryRequest: (slug, id, data) => api.patch(`/v2/guest-services/tenants/${slug}/laundry-requests/${id}`, data),
+  listWakeupCalls: (slug) => api.get(`/v2/guest-services/tenants/${slug}/wakeup-calls`),
+  updateWakeupCall: (slug, id, data) => api.patch(`/v2/guest-services/tenants/${slug}/wakeup-calls/${id}`, data),
+  listSurveys: (slug) => api.get(`/v2/guest-services/tenants/${slug}/surveys`),
+  getSurveyStats: (slug) => api.get(`/v2/guest-services/tenants/${slug}/surveys/stats`),
+};
+
+// Notifications V2
+export const notificationsAPI = {
+  list: (slug, params) => api.get(`/v2/notifications/tenants/${slug}/notifications`, { params }),
+  markRead: (slug, id) => api.post(`/v2/notifications/tenants/${slug}/notifications/${id}/read`),
+  markAllRead: (slug) => api.post(`/v2/notifications/tenants/${slug}/notifications/mark-all-read`),
+  getUnreadCount: (slug) => api.get(`/v2/notifications/tenants/${slug}/notifications/unread-count`),
+  create: (slug, data) => api.post(`/v2/notifications/tenants/${slug}/notifications`, data),
+  getPreferences: (slug) => api.get(`/v2/notifications/tenants/${slug}/notification-preferences`),
+  updatePreferences: (slug, data) => api.put(`/v2/notifications/tenants/${slug}/notification-preferences`, data),
+};
+
+// SLA V2
+export const slaAPI = {
+  listRules: (slug) => api.get(`/v2/sla/tenants/${slug}/sla-rules`),
+  createRule: (slug, data) => api.post(`/v2/sla/tenants/${slug}/sla-rules`, data),
+  updateRule: (slug, id, data) => api.patch(`/v2/sla/tenants/${slug}/sla-rules/${id}`, data),
+  deleteRule: (slug, id) => api.delete(`/v2/sla/tenants/${slug}/sla-rules/${id}`),
+  listBreaches: (slug, params) => api.get(`/v2/sla/tenants/${slug}/sla-breaches`, { params }),
+  getStats: (slug) => api.get(`/v2/sla/tenants/${slug}/sla-stats`),
+  listAssignmentRules: (slug) => api.get(`/v2/sla/tenants/${slug}/assignment-rules`),
+  createAssignmentRule: (slug, data) => api.post(`/v2/sla/tenants/${slug}/assignment-rules`, data),
+  deleteAssignmentRule: (slug, id) => api.delete(`/v2/sla/tenants/${slug}/assignment-rules/${id}`),
+  listResponseTemplates: (slug, params) => api.get(`/v2/sla/tenants/${slug}/response-templates`, { params }),
+  createResponseTemplate: (slug, data) => api.post(`/v2/sla/tenants/${slug}/response-templates`, data),
+  deleteResponseTemplate: (slug, id) => api.delete(`/v2/sla/tenants/${slug}/response-templates/${id}`),
+};
+
+// Housekeeping V2
+export const housekeepingAPI = {
+  getRoomStatus: (slug, params) => api.get(`/v2/housekeeping/tenants/${slug}/room-status`, { params }),
+  updateRoomHKStatus: (slug, roomId, data) => api.patch(`/v2/housekeeping/tenants/${slug}/rooms/${roomId}/hk-status`, data),
+  listChecklists: (slug) => api.get(`/v2/housekeeping/tenants/${slug}/checklists`),
+  createChecklist: (slug, data) => api.post(`/v2/housekeeping/tenants/${slug}/checklists`, data),
+  updateChecklist: (slug, id, data) => api.patch(`/v2/housekeeping/tenants/${slug}/checklists/${id}`, data),
+  deleteChecklist: (slug, id) => api.delete(`/v2/housekeeping/tenants/${slug}/checklists/${id}`),
+  listCleaningTasks: (slug, params) => api.get(`/v2/housekeeping/tenants/${slug}/cleaning-tasks`, { params }),
+  createCleaningTask: (slug, data) => api.post(`/v2/housekeeping/tenants/${slug}/cleaning-tasks`, data),
+  updateCleaningTask: (slug, id, data) => api.patch(`/v2/housekeeping/tenants/${slug}/cleaning-tasks/${id}`, data),
+  getStats: (slug) => api.get(`/v2/housekeeping/tenants/${slug}/hk-stats`),
+};
+
+// Lost & Found V2
+export const lostFoundAPI = {
+  list: (slug, params) => api.get(`/v2/lost-found/tenants/${slug}/items`, { params }),
+  create: (slug, data) => api.post(`/v2/lost-found/tenants/${slug}/items`, data),
+  update: (slug, id, data) => api.patch(`/v2/lost-found/tenants/${slug}/items/${id}`, data),
+  delete: (slug, id) => api.delete(`/v2/lost-found/tenants/${slug}/items/${id}`),
+  getStats: (slug) => api.get(`/v2/lost-found/tenants/${slug}/stats`),
+};
+
+// Social Dashboard V2
+export const socialDashboardAPI = {
+  getDashboard: (slug) => api.get(`/v2/social/tenants/${slug}/dashboard`),
+  getUnifiedInbox: (slug, params) => api.get(`/v2/social/tenants/${slug}/unified-inbox`, { params }),
+  getAllReviews: (slug, params) => api.get(`/v2/social/tenants/${slug}/all-reviews`, { params }),
+  listModerationRules: (slug) => api.get(`/v2/social/tenants/${slug}/moderation-rules`),
+  createModerationRule: (slug, data) => api.post(`/v2/social/tenants/${slug}/moderation-rules`, data),
+  getAnalytics: (slug, params) => api.get(`/v2/social/tenants/${slug}/analytics`, { params }),
+};
+
+// Reports V2
+export const reportsAPI = {
+  departmentPerformance: (slug, params) => api.get(`/v2/reports/tenants/${slug}/department-performance`, { params }),
+  guestSatisfaction: (slug, params) => api.get(`/v2/reports/tenants/${slug}/guest-satisfaction`, { params }),
+  peakDemand: (slug, params) => api.get(`/v2/reports/tenants/${slug}/peak-demand`, { params }),
+  staffProductivity: (slug, params) => api.get(`/v2/reports/tenants/${slug}/staff-productivity`, { params }),
+  aiPerformance: (slug) => api.get(`/v2/reports/tenants/${slug}/ai-performance`),
+};
+
 // AI Sales V2
 export const aiSalesAPI = {
   // Settings
