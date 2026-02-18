@@ -93,6 +93,12 @@ function App() {
               <Route path="system" element={<SystemMetricsPage />} />
               <Route path="audit" element={<AuditLogPage />} />
               <Route path="ai-sales" element={<AISalesPage />} />
+              <Route path="housekeeping" element={<HousekeepingPage />} />
+              <Route path="lost-found" element={<LostFoundPage />} />
+              <Route path="sla" element={<SLAManagementPage />} />
+              <Route path="social" element={<SocialDashboardPage />} />
+              <Route path="reports" element={<ReportsPage />} />
+              <Route path="notifications" element={<NotificationCenterPage />} />
               <Route path="settings" element={<SettingsPage />} />
             </Route>
             
