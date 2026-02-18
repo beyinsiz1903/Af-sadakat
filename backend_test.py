@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """
-Sprint 9 Backend API Testing for Hotel Management System
+Sprint 9 + 9.1 Backend API Testing for Hotel Management System
 Tests Guest Services, SLA, Notifications, Housekeeping, Lost&Found, Social Dashboard, Reports APIs
++ NEW Sprint 9.1: File Uploads, Platform Integrations, Email/SMS Settings APIs
 """
 
 import requests
