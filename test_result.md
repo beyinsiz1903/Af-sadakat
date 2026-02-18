@@ -229,11 +229,14 @@ frontend:
     file: "pages/guest/GuestRoomPanel.js"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: true
         agent: "main"
         comment: "Complete guest hub with 5 tabs (Home, Services, Dining, Hotel Info, My Requests). 14 service categories. Room service ordering, spa booking, transport request, laundry, wake-up call, minibar, guest survey. Multi-language (EN/TR). WiFi info. Announcements. Status tracking."
+      - working: true
+        agent: "testing"
+        comment: "FLOW A testing complete. Verified: Hotel name 'Grand Hotel Istanbul' present, Room 101 info, WiFi info (GrandHotel-Guest), announcements displayed. Confirmed all 8 Quick Services buttons (Housekeeping, Room Service, Technical, Spa & Wellness, Transport, Laundry, Wake-up Call, Reception) and 6 More Services buttons (Bellboy, Key/Card, Minibar, Express Check-out, Complaint, Other). Language switching to Turkish works. Hotel Info tab displays facilities (Swimming Pool, Spa & Wellness, Fitness Center, Restaurant), emergency contacts and WiFi info. Services tab shows all 14 service categories. Spa dialog opens correctly. My Requests tab displays requests list or empty state appropriately."
 
   - task: "Sprint 9: Housekeeping Page"
     implemented: true
