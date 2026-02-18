@@ -102,85 +102,94 @@
 # Testing Data - Main Agent and testing sub agent both should log testing data below this section
 #====================================================================================================
 
-user_problem_statement: "Sprint 8: Meta Integration (Facebook, Instagram, WhatsApp) - OAuth, webhooks, messaging, comments"
+user_problem_statement: "Sprint 9: Full Feature Expansion - Guest Services Hub, SLA, Notifications, Housekeeping, Lost&Found, Social Dashboard, Reports"
 
 backend:
-  - task: "Sprint 8: Meta Integration Admin Router"
+  - task: "Sprint 9: Guest Services Router"
     implemented: true
     working: true
-    file: "routers/meta_integration.py"
+    file: "routers/guest_services.py"
     stuck_count: 0
     priority: "high"
-    needs_retesting: false
+    needs_retesting: true
     status_history:
       - working: true
         agent: "main"
-        comment: "Full admin router: status, configure credentials, OAuth start/callback, discover assets, enable/disable assets, pull-now, disconnect. All tenant-scoped with audit logging."
-      - working: true
-        agent: "testing"
-        comment: "✅ Meta Integration Admin Router working perfectly: GET /api/v2/integrations/meta/tenants/grand-hotel/status returns DISCONNECTED with app_id. POST /api/v2/integrations/meta/tenants/grand-hotel/configure successfully stores credentials and returns webhook_url. POST /api/v2/integrations/meta/tenants/grand-hotel/disconnect properly disconnects integration."
+        comment: "Full guest services: hotel info, room service ordering, spa booking, transport request, wake-up call, laundry, minibar, guest survey, announcements. Both guest-facing and admin endpoints."
 
-  - task: "Sprint 8: Meta Webhooks Router"
+  - task: "Sprint 9: Notifications Router"
     implemented: true
     working: true
-    file: "routers/meta_webhooks.py"
+    file: "routers/notifications.py"
     stuck_count: 0
     priority: "high"
-    needs_retesting: false
+    needs_retesting: true
     status_history:
       - working: true
         agent: "main"
-        comment: "Public webhook endpoints: GET verify (hub.verify_token), POST events with HMAC signature verification. Handles WhatsApp Cloud API, Facebook Messaging, Instagram DM, FB/IG comments. Creates conversations/messages with deterministic external_id for deduplication. Comments stored as reviews."
-      - working: true
-        agent: "testing"
-        comment: "✅ Meta Webhooks Router working perfectly: GET webhook verification correctly validates verify_token and returns challenge (returns 403 for wrong token). POST webhook processing with proper HMAC signature creates conversations and messages for WhatsApp events (1 message created). Facebook comment events properly create reviews (1 comment created). Invalid signatures correctly rejected with 403."
+        comment: "In-app notification center with list, mark read, mark all read, unread count, create, preferences."
 
-  - task: "Sprint 8: Meta Provider Service"
+  - task: "Sprint 9: SLA Router"
     implemented: true
     working: true
-    file: "services/meta_provider.py"
+    file: "routers/sla.py"
     stuck_count: 0
     priority: "high"
-    needs_retesting: false
+    needs_retesting: true
     status_history:
       - working: true
         agent: "main"
-        comment: "Graph API wrapper: OAuth token exchange, long-lived token, page listing, IG account discovery, WA number discovery, webhook subscribe/unsubscribe, send FB/IG/WA messages, reply to comments, token refresh."
-      - working: true
-        agent: "testing"
-        comment: "✅ Meta Provider Service integrated correctly: HMAC signature verification working with app_secret 'my_secret'. Service properly integrated with webhook router for signature validation. All Graph API wrapper functions accessible for OAuth, asset discovery, and messaging operations."
+        comment: "SLA rules CRUD per category/department, breach tracking, SLA stats, auto-assignment rules, response templates."
 
-  - task: "Sprint 8: Outbound Meta Messaging in Inbox"
+  - task: "Sprint 9: Housekeeping Router"
     implemented: true
     working: true
-    file: "routers/inbox.py"
+    file: "routers/housekeeping.py"
     stuck_count: 0
     priority: "high"
-    needs_retesting: false
+    needs_retesting: true
     status_history:
       - working: true
         agent: "main"
-        comment: "Agent send message now checks if conversation is Meta channel (WA/IG/FB) and sends via Graph API. WhatsApp 24h window check included (returns 409 TEMPLATE_REQUIRED)."
-      - working: true
-        agent: "testing"
-        comment: "✅ Meta outbound messaging integration present: Code inspection confirms inbox router has Meta channel detection and Graph API integration for WhatsApp, Instagram, and Facebook messaging. WhatsApp 24-hour window validation implemented with TEMPLATE_REQUIRED error handling."
+        comment: "Room status board, HK status update, cleaning checklists CRUD, cleaning tasks, HK stats."
 
-  - task: "Sprint 8: Meta Comment Reply in Reviews"
+  - task: "Sprint 9: Lost & Found Router"
     implemented: true
     working: true
-    file: "routers/reviews.py"
+    file: "routers/lost_found.py"
     stuck_count: 0
-    priority: "high"
-    needs_retesting: false
+    priority: "medium"
+    needs_retesting: true
     status_history:
       - working: true
         agent: "main"
-        comment: "Reply to review now detects FB/IG comments and also sends reply via Graph API."
-      - working: true
-        agent: "testing"
-        comment: "✅ Meta comment reply integration verified: Facebook comments from webhooks correctly stored as reviews with external_id format 'meta:tenant_id:comment:comment_id'. Review created with author 'Jane Smith', text 'Great hotel! Loved our stay here.' and sentiment 'POS'. FB/IG comment detection and Graph API reply functionality implemented."
+        comment: "Lost & found items CRUD with status tracking (stored/returned/claimed/disposed), stats."
 
-  - task: "Sprint 8: Token Refresh Background Job"
+  - task: "Sprint 9: Social Dashboard Router"
+    implemented: true
+    working: true
+    file: "routers/social_dashboard.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Unified social media dashboard, channel stats, review stats, sentiment, social analytics, moderation rules."
+
+  - task: "Sprint 9: Reports Router"
+    implemented: true
+    working: true
+    file: "routers/reports.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Department performance, guest satisfaction trends, peak demand analysis, staff productivity, AI performance reports."
+
+  - task: "Sprint 9: Seed Data for New Features"
     implemented: true
     working: true
     file: "server.py"
@@ -190,53 +199,104 @@ backend:
     status_history:
       - working: true
         agent: "main"
-        comment: "Background task runs every 6 hours, checks token expiry, refreshes long-lived tokens 7 days before expiry."
-
-  - task: "Sprint 8: DB Indexes and Seed Data"
-    implemented: true
-    working: true
-    file: "server.py"
-    stuck_count: 0
-    priority: "medium"
-    needs_retesting: false
-    status_history:
-      - working: true
-        agent: "main"
-        comment: "Added indexes for meta_assets, messages.external_id, reviews.external_id, conversations.external. Seed META connector credential (DISCONNECTED)."
-      - working: true
-        agent: "testing"
-        comment: "✅ DB indexes and seed data working: Meta connector credentials seeded (status DISCONNECTED, app_id 123456789). Database correctly handles Meta integration data storage and retrieval. External_id deduplication working for messages and reviews."
+        comment: "Hotel info, spa services, SLA rules, response templates, HK checklists, announcements, extra departments (SPA, CONCIERGE, BELL), extra service categories."
 
 frontend:
-  - task: "Sprint 8: Meta Integration Card on Connectors Page"
+  - task: "Sprint 9: Enhanced Guest Room Panel"
     implemented: true
     working: true
-    file: "pages/ConnectorsPage.js"
+    file: "pages/guest/GuestRoomPanel.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Complete guest hub with 5 tabs (Home, Services, Dining, Hotel Info, My Requests). 14 service categories. Room service ordering, spa booking, transport request, laundry, wake-up call, minibar, guest survey. Multi-language (EN/TR). WiFi info. Announcements. Status tracking."
+
+  - task: "Sprint 9: Housekeeping Page"
+    implemented: true
+    working: true
+    file: "pages/HousekeepingPage.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Room board with HK status (clean/dirty/in_progress/inspecting/maintenance), checklists management, KPI stats."
+
+  - task: "Sprint 9: SLA Management Page"
+    implemented: true
+    working: true
+    file: "pages/SLAManagementPage.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "SLA rules, response templates, auto-assignment rules. Stats: compliance rate, avg response/resolution times, breaches."
+
+  - task: "Sprint 9: Social Media Dashboard"
+    implemented: true
+    working: true
+    file: "pages/SocialDashboardPage.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Unified dashboard showing all channels (WhatsApp, Instagram, Facebook, Webchat), sentiment analysis, Meta integration status, reviews by platform."
+
+  - task: "Sprint 9: Reports Page"
+    implemented: true
+    working: true
+    file: "pages/ReportsPage.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "5 report types: Department performance, Guest satisfaction, Staff productivity, Peak demand (hourly/daily charts), AI performance."
+
+  - task: "Sprint 9: Lost & Found Page"
+    implemented: true
+    working: true
+    file: "pages/LostFoundPage.js"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: true
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Items list with status filtering, record new items, update status (stored/returned/claimed/disposed), stats."
+
+  - task: "Sprint 9: Notification Center Page"
+    implemented: true
+    working: true
+    file: "pages/NotificationCenterPage.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Notification list with read/unread filtering, mark as read, mark all read, auto-refresh every 10s."
+
+  - task: "Sprint 9: Updated Sidebar Navigation"
+    implemented: true
+    working: true
+    file: "components/layout/AdminLayout.js"
     stuck_count: 0
     priority: "high"
     needs_retesting: false
     status_history:
       - working: true
         agent: "main"
-        comment: "Meta Platform card with status, Configure dialog (App ID, Secret, Verify Token, Webhook URL), Connect Meta OAuth button, Assets dialog with enable/disable toggles, Disconnect button."
-      - working: true
-        agent: "testing"
-        comment: "✅ Meta Platform card working correctly: Verified card is visible with 'Meta Platform' heading and 'Facebook · Instagram · WhatsApp' subtitle. Status badge shows 'Not Connected'. Both 'Configure' and 'Connect Meta' buttons are properly displayed. Configure dialog opens correctly showing setup steps guide, all required fields (Meta App ID, App Secret, Webhook Verify Token, Webhook Callback URL), and copy buttons for token and URL are functional."
-
-  - task: "Sprint 8: Inbox FACEBOOK channel support"
-    implemented: true
-    working: true
-    file: "pages/InboxPage.js"
-    stuck_count: 0
-    priority: "medium"
-    needs_retesting: false
-    status_history:
-      - working: true
-        agent: "main"
-        comment: "Added FACEBOOK to channel icons and colors map."
-      - working: true
-        agent: "testing"
-        comment: "✅ WhatsApp channel integration verified: Inbox page loads correctly showing WhatsApp conversations with proper channel filtering. Found 3 WhatsApp conversations with the green phone icon indicator (John Doe, Ali Yilmaz, and Maria Garcia). WhatsApp filter dropdown works properly. FACEBOOK channel type also properly added to the channel icons and colors map in the code."
+        comment: "Added Notifications, Housekeeping, Lost & Found, Social Media, SLA & Workflow, Reports to sidebar."
 
   - task: "Sprint 7: OpenAI Tool Calling Provider"
     implemented: true
