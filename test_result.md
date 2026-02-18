@@ -289,11 +289,14 @@ frontend:
     file: "pages/ReportsPage.js"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: true
         agent: "main"
         comment: "5 report types: Department performance, Guest satisfaction, Staff productivity, Peak demand (hourly/daily charts), AI performance."
+      - working: true
+        agent: "testing"
+        comment: "FLOW E testing complete. Verified: 'Advanced Reports' heading with period selector (Last 30 days) displayed correctly. Department tab shows performance cards for various departments (Housekeeping, Technical, Food & Beverage, etc.). Guest Satisfaction tab loads data properly. AI Performance tab shows AI usage statistics as expected."
 
   - task: "Sprint 9: Lost & Found Page"
     implemented: true
