@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import { guestAPI, guestServicesAPI } from '../../lib/api';
+import { guestAPI, guestServicesAPI, uploadAPI } from '../../lib/api';
 import { Card, CardContent } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
