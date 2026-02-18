@@ -30,6 +30,12 @@ import SystemMetricsPage from './pages/SystemMetricsPage';
 import AuditLogPage from './pages/AuditLogPage';
 
 import AISalesPage from './pages/AISalesPage';
+import HousekeepingPage from './pages/HousekeepingPage';
+import LostFoundPage from './pages/LostFoundPage';
+import SLAManagementPage from './pages/SLAManagementPage';
+import SocialDashboardPage from './pages/SocialDashboardPage';
+import ReportsPage from './pages/ReportsPage';
+import NotificationCenterPage from './pages/NotificationCenterPage';
 
 // Guest Pages
 import GuestRoomPanel from './pages/guest/GuestRoomPanel';
