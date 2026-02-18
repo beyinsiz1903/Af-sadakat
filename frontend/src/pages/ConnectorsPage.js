@@ -10,10 +10,11 @@ import { Switch } from '../components/ui/switch';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/dialog';
 import {
   MessageCircle, Instagram, Star, Award, MessageSquare, ExternalLink, RefreshCw, Loader2,
-  Clock, Share2, CheckCircle2, XCircle, Copy, Eye, EyeOff, Globe, Phone, Settings, Unplug
+  Clock, Share2, CheckCircle2, XCircle, Copy, Eye, EyeOff, Globe, Phone, Settings, Unplug, Mail, Smartphone
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { timeAgo } from '../lib/utils';
+import { platformsAPI } from '../lib/api';
 
 const connectorIcons = {
   WHATSAPP: MessageCircle,
