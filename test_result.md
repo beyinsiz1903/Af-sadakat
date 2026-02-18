@@ -421,19 +421,25 @@ frontend:
 
 metadata:
   created_by: "main_agent"
-  version: "8.0"
-  test_sequence: 6
+  version: "9.0"
+  test_sequence: 7
   run_ui: false
 
 test_plan:
-  current_focus: []
+  current_focus:
+    - "Sprint 9: Guest Services Router"
+    - "Sprint 9: SLA Router"
+    - "Sprint 9: Notifications Router"
+    - "Sprint 9: Housekeeping Router"
+    - "Sprint 9: Social Dashboard Router"
+    - "Sprint 9: Reports Router"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
 
 agent_communication:
   - agent: "main"
-    message: "Sprint 8 Meta Integration implemented. Key features: 1) Admin endpoints for configure/OAuth/discover/enable/disable/disconnect. 2) Public webhooks with HMAC signature verification for WhatsApp, Facebook, Instagram messages and comments. 3) Outbound messaging via Graph API for all 3 channels (WA 24h window check included). 4) Comment ingestion as reviews with reply support. 5) Token refresh background job every 6h. 6) Frontend: Meta Platform card with Configure dialog, Connect OAuth button, Assets management. Login: admin@grandhotel.com / admin123. Test webhook: POST /api/v2/webhooks/meta/grand-hotel with proper HMAC signature. Configure endpoint already tested with app_id=123456789."
+    message: "Sprint 9 MASSIVE feature expansion implemented. ALL missing features added: 1) Guest Room Panel completely rewritten as a full hub with 5 tabs (Home, Services, Dining, Hotel Info, My Requests), 14 service categories, room service ordering, spa booking, transport, laundry, wake-up, minibar, survey, multi-language EN/TR. 2) SLA system with rules per category/department, breach tracking, response templates, auto-assignment rules. 3) Notification center with in-app notifications. 4) Housekeeping module with room board, cleaning checklists, HK status. 5) Lost & Found module. 6) Social Media Dashboard aggregating all channels. 7) Advanced Reports with 5 report types. 8) Seed data: hotel info with facilities/WiFi/contacts, 5 spa services, 7 SLA rules, 5 response templates, 2 checklists, 3 announcements, new departments (SPA, CONCIERGE, BELL). Login: admin@grandhotel.com / admin123. Guest panel: /g/grand-hotel/room/R101"
   - agent: "testing"
     message: "✅ SPRINT 8 META INTEGRATION TESTING COMPLETED: 9/9 tests passed (100% success). ALL Meta Integration components working perfectly: 1) Meta Status API (GET status returns DISCONNECTED/app_id) 2) Configure Meta API (POST credentials, returns webhook_url) 3) Webhook Verification (GET with hub.verify_token - success/fail validation) 4) WhatsApp Webhook Processing (POST with HMAC signature creates 1 conversation/message) 5) Facebook Comment Processing (POST creates 1 review with sentiment analysis) 6) Invalid Signature Rejection (403 status) 7) Meta Disconnect (POST returns ok). FULL WEBHOOK FLOW TESTED: WhatsApp message → conversation created for John Doe. Facebook comment → review created by Jane Smith with positive sentiment. System ready for production Meta Platform integration."
   - agent: "testing"
