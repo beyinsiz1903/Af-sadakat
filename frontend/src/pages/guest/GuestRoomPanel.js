@@ -76,6 +76,8 @@ export default function GuestRoomPanel() {
   const [wakeupForm, setWakeupForm] = useState({ wakeup_date: '', wakeup_time: '07:00', notes: '' });
   const [surveyForm, setSurveyForm] = useState({ overall_rating: 0, cleanliness_rating: 0, service_rating: 0, food_rating: 0, comfort_rating: 0, comments: '', would_recommend: null });
   const [ratingForm, setRatingForm] = useState({ requestId: null, rating: 0, comment: '' });
+  const [uploadFiles, setUploadFiles] = useState([]);
+  const [uploading, setUploading] = useState(false);
 
   useEffect(() => {
     loadData();
