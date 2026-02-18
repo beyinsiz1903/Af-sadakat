@@ -605,17 +605,20 @@ class APITester:
         
         # Test 1: Create a small test file and upload it
         try:
-            # Create a small text file for testing
+            # Create a small image file for testing (allowed extension)
             import tempfile
             import os
-            with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as f:
-                f.write("Test file content for Grand Hotel file upload API testing")
+            # Create a minimal PNG file (1x1 pixel transparent PNG)
+            png_data = b'\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x02\x00\x00\x00\x90wS\xde\x00\x00\x00\x0cIDATx\x9cc```\x00\x00\x00\x04\x00\x01\xdd\x8d\xb4\x1c\x00\x00\x00\x00IEND\xaeB`\x82'
+            
+            with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as f:
+                f.write(png_data)
                 temp_file_path = f.name
             
             # POST file upload 
             url = f"{BACKEND_URL}/v2/uploads/g/{self.tenant_slug}/upload"
             with open(temp_file_path, 'rb') as f:
-                files = {'file': ('test_file.txt', f, 'text/plain')}
+                files = {'file': ('test_image.png', f, 'image/png')}
                 data = {
                     'entity_type': 'request',
                     'room_code': 'R101'
