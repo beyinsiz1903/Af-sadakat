@@ -44,6 +44,12 @@ const assetColors = {
   WA_PHONE_NUMBER: 'text-emerald-400',
 };
 
+const PLATFORMS = {
+  google_business: { name: 'Google Business Profile' },
+  tripadvisor: { name: 'TripAdvisor' },
+  booking_com: { name: 'Booking.com' },
+};
+
 export default function ConnectorsPage() {
   const tenant = useAuthStore((s) => s.tenant);
   const queryClient = useQueryClient();
