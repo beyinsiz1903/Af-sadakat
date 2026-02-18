@@ -127,9 +127,24 @@ export default function GuestRoomPanel() {
     if (!form.description.trim()) return;
     setSubmitting(true);
     try {
-      await guestAPI.createRequest(tenantSlug, roomCode, { ...form, guest_name: guestName, guest_phone: guestPhone });
+      const res = await guestAPI.createRequest(tenantSlug, roomCode, { ...form, guest_name: guestName, guest_phone: guestPhone });
+      const requestId = res.data?.id || '';
+      
+      // Upload attached files
+      if (uploadFiles.length > 0 && requestId) {
+        for (const file of uploadFiles) {
+          const fd = new FormData();
+          fd.append('file', file);
+          fd.append('entity_type', 'request');
+          fd.append('entity_id', requestId);
+          fd.append('room_code', roomCode);
+          try { await uploadAPI.guestUpload(tenantSlug, fd); } catch (ue) { console.error('Upload failed:', ue); }
+        }
+      }
+      
       toast.success(lang === 'tr' ? 'Talebiniz iletildi!' : 'Request submitted successfully!');
       setForm({ ...form, description: '', priority: 'normal' });
+      setUploadFiles([]);
       setShowRequestForm(false);
       loadRequests();
     } catch (e) {
