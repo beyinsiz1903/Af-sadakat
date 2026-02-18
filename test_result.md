@@ -222,6 +222,42 @@ backend:
         agent: "main"
         comment: "Hotel info, spa services, SLA rules, response templates, HK checklists, announcements, extra departments (SPA, CONCIERGE, BELL), extra service categories."
 
+  - task: "Sprint 9.1: File Upload Router"
+    implemented: true
+    working: true
+    file: "routers/file_uploads.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "✅ File Upload APIs: 2/2 tests passed (100%). File upload system working perfectly: 1) Guest file upload API (POST /v2/uploads/g/grand-hotel/upload) successfully handles multipart form data with PNG files up to 10MB, creates unique file IDs and stores with entity_type=request, room_code=R101. 2) File serve API (GET /files/{filename}) correctly serves uploaded files with proper content delivery (69 bytes PNG file served). Support for allowed extensions: .jpg, .jpeg, .png, .gif, .webp, .pdf, .doc, .docx, .mp4, .mov. Files stored in /uploads directory with UUID-based naming."
+
+  - task: "Sprint 9.1: Platform Integrations Router"
+    implemented: true
+    working: true
+    file: "routers/platform_integrations.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "✅ Platform Integrations APIs: 5/5 tests passed (100%). Platform integration system fully operational: 1) Platforms list API returns 3 platforms (google_business, tripadvisor, booking_com) all with status 'disconnected' initially. 2) Configure Google Business API accepts OAuth2 credentials (client_id, client_secret, location_id) and sets status to 'configured'. 3) Platform detail API shows individual platform status and review counts. 4) Disconnect API successfully disconnects platforms. 5) Platform status verification confirms state changes. Full connector framework ready for Google Business Profile, TripAdvisor, and Booking.com integrations with proper auth handling (OAuth2/API key)."
+
+  - task: "Sprint 9.1: Email/SMS Settings Router"
+    implemented: true
+    working: true
+    file: "routers/platform_integrations.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "✅ Email/SMS Settings APIs: 4/4 tests passed (100%). Notification settings system working correctly: 1) Get notification settings API returns default configuration (email_enabled: false, sms_enabled: false, SMTP settings). 2) Update notification settings API successfully saves email configuration (smtp_host: smtp.gmail.com, email_enabled: true, sms_enabled: false). 3) Notification logs API returns paginated log entries (currently 0 logs). 4) Test email API successfully sends mock test emails to test@example.com. Full SMTP/SMS notification infrastructure ready for production with configurable settings per tenant."
+
 frontend:
   - task: "Sprint 9: Enhanced Guest Room Panel"
     implemented: true
