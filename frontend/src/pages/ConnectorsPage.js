@@ -49,6 +49,32 @@ export default function ConnectorsPage() {
   const queryClient = useQueryClient();
   const [metaConfigOpen, setMetaConfigOpen] = useState(false);
   const [metaAssetsOpen, setMetaAssetsOpen] = useState(false);
+  const [platformConfigOpen, setPlatformConfigOpen] = useState(null);
+  const [platformApiKey, setPlatformApiKey] = useState('');
+  const [platformPropertyId, setPlatformPropertyId] = useState('');
+  const [emailSmsOpen, setEmailSmsOpen] = useState(false);
+
+  const { data: platforms = [] } = useQuery({
+    queryKey: ['platforms', tenant?.slug],
+    queryFn: () => platformsAPI.list(tenant?.slug).then(r => r.data),
+    enabled: !!tenant?.slug,
+  });
+
+  const { data: notifSettings } = useQuery({
+    queryKey: ['notif-settings', tenant?.slug],
+    queryFn: () => platformsAPI.getNotificationSettings(tenant?.slug).then(r => r.data),
+    enabled: !!tenant?.slug,
+  });
+
+  const configurePlatform = useMutation({
+    mutationFn: ({ platformId, data }) => platformsAPI.configure(tenant?.slug, platformId, data),
+    onSuccess: () => { queryClient.invalidateQueries(['platforms']); setPlatformConfigOpen(null); toast.success('Platform configured!'); },
+  });
+
+  const disconnectPlatform = useMutation({
+    mutationFn: (platformId) => platformsAPI.disconnect(tenant?.slug, platformId),
+    onSuccess: () => { queryClient.invalidateQueries(['platforms']); toast.success('Disconnected'); },
+  });
 
   const { data: connectors = [] } = useQuery({
     queryKey: ['connectors', tenant?.slug],
