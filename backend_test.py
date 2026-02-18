@@ -698,15 +698,17 @@ class APITester:
         try:
             url = f"{BACKEND_URL}/v2/platforms/tenants/{self.tenant_slug}/platforms/google_business/configure"
             config_data = {
-                "api_key": "test-key-123",
-                "property_id": "loc-456"
+                "client_id": "test-client-123",
+                "client_secret": "test-secret-456",
+                "location_id": "loc-789"
             }
             response = self.session.post(url, json=config_data)
             if response.status_code == 200:
                 data = response.json()
-                is_connected = data.get("status") == "connected"
-                has_api_key = "api_key" in data
-                print(f"✅ Configure Google Business API: {response.status_code} - Connected: {is_connected}")
+                status = data.get("status")
+                is_configured = status == "configured"  # OAuth2 without access_token = configured
+                has_client_id = "client_id" in data
+                print(f"✅ Configure Google Business API: {response.status_code} - Status: {status}")
                 results.append(True)
             else:
                 print(f"❌ Configure Google Business API failed: {response.status_code} - {response.text}")
@@ -722,9 +724,9 @@ class APITester:
             if response.status_code == 200:
                 data = response.json()
                 status = data.get("status", {}).get("status")
-                is_connected = status == "connected"
+                is_configured = status == "configured"  # Should be configured, not connected without OAuth token
                 print(f"✅ Google Business detail API: {response.status_code} - Status: {status}")
-                results.append(True if is_connected else False)
+                results.append(True if is_configured else False)
             else:
                 print(f"❌ Google Business detail API failed: {response.status_code}")
                 results.append(False)
