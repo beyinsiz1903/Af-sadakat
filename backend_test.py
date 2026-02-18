@@ -11,7 +11,7 @@ import hashlib
 from datetime import datetime
 
 # Configuration
-BACKEND_URL = "https://booking-automation-2.preview.emergentagent.com/api"
+BACKEND_URL = "https://hospitality-ops-4.preview.emergentagent.com/api"
 TENANT = "grand-hotel"
 LOGIN_EMAIL = "admin@grandhotel.com"
 LOGIN_PASSWORD = "admin123"
