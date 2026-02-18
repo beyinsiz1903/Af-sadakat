@@ -22,21 +22,6 @@
         Learn how to configure a non-root public URL by running `npm run build`.
         -->
         <title>Grand Hotel Istanbul</title>
-        <script>
-          // Remove Emergent badge
-          (function(){
-            function removeBadge(){
-              var b=document.getElementById('emergent-badge');
-              if(b){b.remove();}
-              document.querySelectorAll('a[href*="emergent.sh"]').forEach(function(el){el.remove();});
-            }
-            if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',function(){removeBadge();setTimeout(removeBadge,1000);setTimeout(removeBadge,3000);});}
-            else{removeBadge();setTimeout(removeBadge,1000);setTimeout(removeBadge,3000);}
-            var obs=new MutationObserver(function(){removeBadge();});
-            obs.observe(document.documentElement,{childList:true,subtree:true});
-            setTimeout(function(){obs.disconnect();},10000);
-          })();
-        </script>
         <script src="https://assets.emergent.sh/scripts/emergent-main.js"></script>
         <!--
         These two scripts have been added for the Visual Edits, please do not edit or remove them
