@@ -346,3 +346,31 @@ export const aiSalesAPI = {
   getSession: (slug, convId) =>
     api.get(`/v2/ai-sales/tenants/${slug}/conversations/${convId}/session`),
 };
+
+
+// File Upload V2
+export const uploadAPI = {
+  guestUpload: (slug, formData) => api.post(`/v2/uploads/g/${slug}/upload`, formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  }),
+  adminUpload: (slug, formData) => api.post(`/v2/uploads/tenants/${slug}/upload`, formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  }),
+  guestFiles: (slug, params) => api.get(`/v2/uploads/g/${slug}/files`, { params }),
+  adminFiles: (slug, params) => api.get(`/v2/uploads/tenants/${slug}/files`, { params }),
+};
+
+// Platform Integrations V2
+export const platformsAPI = {
+  list: (slug) => api.get(`/v2/platforms/tenants/${slug}/platforms`),
+  get: (slug, platformId) => api.get(`/v2/platforms/tenants/${slug}/platforms/${platformId}`),
+  configure: (slug, platformId, data) => api.post(`/v2/platforms/tenants/${slug}/platforms/${platformId}/configure`, data),
+  disconnect: (slug, platformId) => api.post(`/v2/platforms/tenants/${slug}/platforms/${platformId}/disconnect`),
+  sync: (slug, platformId) => api.post(`/v2/platforms/tenants/${slug}/platforms/${platformId}/sync`),
+  reviews: (slug, platformId, params) => api.get(`/v2/platforms/tenants/${slug}/platforms/${platformId}/reviews`, { params }),
+  getNotificationSettings: (slug) => api.get(`/v2/platforms/tenants/${slug}/notification-settings`),
+  updateNotificationSettings: (slug, data) => api.put(`/v2/platforms/tenants/${slug}/notification-settings`, data),
+  getNotificationLogs: (slug, params) => api.get(`/v2/platforms/tenants/${slug}/notification-logs`, { params }),
+  testEmail: (slug, data) => api.post(`/v2/platforms/tenants/${slug}/test-email`, data),
+  testSms: (slug, data) => api.post(`/v2/platforms/tenants/${slug}/test-sms`, data),
+};
