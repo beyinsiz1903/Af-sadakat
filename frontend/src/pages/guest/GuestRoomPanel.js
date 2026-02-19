@@ -334,6 +334,7 @@ export default function GuestRoomPanel() {
                 if (key === 'laundry') { setShowLaundryDialog(true); return; }
                 if (key === 'wakeup') { setShowWakeupDialog(true); return; }
                 if (key === 'room_service') { setShowRoomServiceDialog(true); return; }
+                if (key === 'restaurant_reservation') { setShowRestaurantDialog(true); return; }
                 setForm({...form, category: key}); setShowRequestForm(true);
               };
               const primaryKeys = ['housekeeping','room_service','maintenance','spa','transport','laundry','wakeup','reception'];
