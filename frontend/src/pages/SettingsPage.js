@@ -252,6 +252,41 @@ export default function SettingsPage() {
             </CardContent>
           </Card>
         </TabsContent>
+
+        <TabsContent value="guest-services" className="mt-4">
+          <Card className="bg-[hsl(var(--card))] border-[hsl(var(--border))]">
+            <CardHeader>
+              <CardTitle>Guest Services Configuration</CardTitle>
+              <p className="text-sm text-[hsl(var(--muted-foreground))]">
+                Toggle which services are visible to guests on the QR room panel.
+                Only enable services that your hotel actually provides.
+              </p>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {servicesConfig.map(svc => (
+                <div key={svc.key} className="flex items-center justify-between py-2 border-b border-[hsl(var(--border))] last:border-0">
+                  <div>
+                    <p className="text-sm font-medium">{svc.label}</p>
+                    <p className="text-xs text-[hsl(var(--muted-foreground))]">{svc.label_tr} · Dept: {svc.department_code}</p>
+                  </div>
+                  <Switch
+                    checked={svc.enabled}
+                    onCheckedChange={(checked) => {
+                      const newMap = {};
+                      servicesConfig.forEach(s => { newMap[s.key] = s.key === svc.key ? checked : s.enabled; });
+                      updateServicesMutation.mutate({ services: newMap });
+                    }}
+                  />
+                </div>
+              ))}
+              {servicesConfig.length === 0 && (
+                <p className="text-sm text-[hsl(var(--muted-foreground))] text-center py-4">
+                  No service configuration found. Save to initialize with defaults.
+                </p>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
       </Tabs>
     </div>
   );
