@@ -13,7 +13,7 @@ import {
   Hotel, Sparkles, Wrench, UtensilsCrossed, BellRing, HelpCircle, Send, Star, Loader2,
   CheckCircle2, Wifi, Phone, MapPin, Clock, Coffee, Waves, Dumbbell, Car, Shirt,
   AlarmClock, KeyRound, ShoppingBag, LogOut, MessageCircle, Info, Megaphone,
-  ChevronRight, ArrowLeft, Luggage, AlertCircle, Heart, ClipboardList, Camera, Paperclip
+  ChevronRight, ArrowLeft, Luggage, AlertCircle, Heart, ClipboardList, Camera, Paperclip, CalendarDays, Users
 } from 'lucide-react';
 import { toast } from 'sonner';
 
