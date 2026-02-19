@@ -97,13 +97,14 @@ export default function GuestRoomPanel() {
 
       // Load additional data
       try {
-        const [hiRes, annRes, spaRes, menuRes, ordRes, bookRes] = await Promise.all([
+        const [hiRes, annRes, spaRes, menuRes, ordRes, bookRes, svcRes] = await Promise.all([
           guestServicesAPI.hotelInfo(tenantSlug).catch(() => ({ data: null })),
           guestServicesAPI.getAnnouncements(tenantSlug).catch(() => ({ data: [] })),
           guestServicesAPI.getSpaServices(tenantSlug).catch(() => ({ data: [] })),
           guestServicesAPI.roomServiceMenu(tenantSlug).catch(() => ({ data: { categories: [], items: [] } })),
           guestServicesAPI.getMyOrders(tenantSlug, roomCode).catch(() => ({ data: { room_service_orders: [], minibar_orders: [] } })),
           guestServicesAPI.getMyBookings(tenantSlug, roomCode).catch(() => ({ data: { spa_bookings: [], transport_requests: [], wakeup_calls: [], laundry_requests: [] } })),
+          guestServicesAPI.getActiveServices(tenantSlug).catch(() => ({ data: [] })),
         ]);
         setHotelInfo(hiRes.data);
         setAnnouncements(annRes.data || []);
@@ -111,6 +112,7 @@ export default function GuestRoomPanel() {
         setMenuData(menuRes.data || { categories: [], items: [] });
         setMyOrders(ordRes.data || { room_service_orders: [], minibar_orders: [] });
         setMyBookings(bookRes.data || { spa_bookings: [], transport_requests: [], wakeup_calls: [], laundry_requests: [] });
+        setActiveServices(svcRes.data || []);
       } catch (e) { console.error('Additional data load error:', e); }
     } catch (e) {
       console.error(e);
