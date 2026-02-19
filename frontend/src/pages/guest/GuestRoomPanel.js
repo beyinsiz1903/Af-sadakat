@@ -315,53 +315,67 @@ export default function GuestRoomPanel() {
         {/* TAB CONTENT */}
         {activeTab === 'home' && (
           <div className="space-y-3">
-            {/* Quick Actions Grid */}
-            <Card className="bg-[hsl(var(--card))] border-[hsl(var(--border))]">
-              <CardContent className="p-4">
-                <h3 className="font-semibold mb-3 text-sm">{t('Quick Services', 'Hizli Servisler')}</h3>
-                <div className="grid grid-cols-4 gap-2">
-                  {[
-                    { key: 'housekeeping', action: () => { setForm({...form, category:'housekeeping'}); setShowRequestForm(true); }},
-                    { key: 'room_service', action: () => setShowRoomServiceDialog(true) },
-                    { key: 'maintenance', action: () => { setForm({...form, category:'maintenance'}); setShowRequestForm(true); }},
-                    { key: 'spa', action: () => setShowSpaDialog(true) },
-                    { key: 'transport', action: () => setShowTransportDialog(true) },
-                    { key: 'laundry', action: () => setShowLaundryDialog(true) },
-                    { key: 'wakeup', action: () => setShowWakeupDialog(true) },
-                    { key: 'reception', action: () => { setForm({...form, category:'reception'}); setShowRequestForm(true); }},
-                  ].map(({ key, action }) => {
-                    const cfg = categoryConfig[key];
-                    const Icon = cfg.icon;
-                    return (
-                      <button key={key} onClick={action} className={`p-2.5 rounded-xl border border-[hsl(var(--border))] ${cfg.bg} hover:scale-105 transition-all text-center`}>
-                        <Icon className={`w-5 h-5 mx-auto mb-1 ${cfg.color}`} />
-                        <span className="text-[10px] font-medium leading-tight block">{lang === 'tr' ? cfg.labelTr : cfg.label}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </CardContent>
-            </Card>
+            {/* Quick Actions Grid - dynamically from active services */}
+            {(() => {
+              const activeKeys = activeServices.length > 0
+                ? activeServices.map(s => s.key)
+                : Object.keys(categoryConfig); // fallback to all if API hasn't loaded
+              const openService = (key) => {
+                if (key === 'spa') { setShowSpaDialog(true); return; }
+                if (key === 'transport') { setShowTransportDialog(true); return; }
+                if (key === 'laundry') { setShowLaundryDialog(true); return; }
+                if (key === 'wakeup') { setShowWakeupDialog(true); return; }
+                if (key === 'room_service') { setShowRoomServiceDialog(true); return; }
+                setForm({...form, category: key}); setShowRequestForm(true);
+              };
+              const primaryKeys = ['housekeeping','room_service','maintenance','spa','transport','laundry','wakeup','reception'];
+              const primary = primaryKeys.filter(k => activeKeys.includes(k));
+              const secondary = activeKeys.filter(k => !primaryKeys.includes(k));
 
-            {/* More Services */}
-            <Card className="bg-[hsl(var(--card))] border-[hsl(var(--border))]">
-              <CardContent className="p-4">
-                <h3 className="font-semibold mb-3 text-sm">{t('More Services', 'Diger Servisler')}</h3>
-                <div className="grid grid-cols-4 gap-2">
-                  {['bellboy', 'key_access', 'minibar', 'checkout', 'complaint', 'other'].map(key => {
-                    const cfg = categoryConfig[key];
-                    const Icon = cfg.icon;
-                    return (
-                      <button key={key} onClick={() => { setForm({...form, category: key}); setShowRequestForm(true); }}
-                        className={`p-2.5 rounded-xl border border-[hsl(var(--border))] ${cfg.bg} hover:scale-105 transition-all text-center`}>
-                        <Icon className={`w-5 h-5 mx-auto mb-1 ${cfg.color}`} />
-                        <span className="text-[10px] font-medium leading-tight block">{lang === 'tr' ? cfg.labelTr : cfg.label}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </CardContent>
-            </Card>
+              return (<>
+                {primary.length > 0 && (
+                  <Card className="bg-[hsl(var(--card))] border-[hsl(var(--border))]">
+                    <CardContent className="p-4">
+                      <h3 className="font-semibold mb-3 text-sm">{t('Quick Services', 'Hizli Servisler')}</h3>
+                      <div className="grid grid-cols-4 gap-2">
+                        {primary.map(key => {
+                          const cfg = categoryConfig[key];
+                          if (!cfg) return null;
+                          const Icon = cfg.icon;
+                          return (
+                            <button key={key} onClick={() => openService(key)} className={`p-2.5 rounded-xl border border-[hsl(var(--border))] ${cfg.bg} hover:scale-105 transition-all text-center`}>
+                              <Icon className={`w-5 h-5 mx-auto mb-1 ${cfg.color}`} />
+                              <span className="text-[10px] font-medium leading-tight block">{lang === 'tr' ? cfg.labelTr : cfg.label}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {secondary.length > 0 && (
+                  <Card className="bg-[hsl(var(--card))] border-[hsl(var(--border))]">
+                    <CardContent className="p-4">
+                      <h3 className="font-semibold mb-3 text-sm">{t('More Services', 'Diger Servisler')}</h3>
+                      <div className="grid grid-cols-4 gap-2">
+                        {secondary.map(key => {
+                          const cfg = categoryConfig[key];
+                          if (!cfg) return null;
+                          const Icon = cfg.icon;
+                          return (
+                            <button key={key} onClick={() => openService(key)} className={`p-2.5 rounded-xl border border-[hsl(var(--border))] ${cfg.bg} hover:scale-105 transition-all text-center`}>
+                              <Icon className={`w-5 h-5 mx-auto mb-1 ${cfg.color}`} />
+                              <span className="text-[10px] font-medium leading-tight block">{lang === 'tr' ? cfg.labelTr : cfg.label}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+              </>);
+            })()}
 
             {/* Active Requests Summary */}
             {requests.filter(r => r.status !== 'CLOSED').length > 0 && (
