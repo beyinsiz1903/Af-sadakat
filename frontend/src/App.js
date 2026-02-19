@@ -36,6 +36,7 @@ import SLAManagementPage from './pages/SLAManagementPage';
 import SocialDashboardPage from './pages/SocialDashboardPage';
 import ReportsPage from './pages/ReportsPage';
 import NotificationCenterPage from './pages/NotificationCenterPage';
+import RestaurantReservationsPage from './pages/RestaurantReservationsPage';
 
 // Guest Pages
 import GuestRoomPanel from './pages/guest/GuestRoomPanel';
