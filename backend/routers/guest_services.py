@@ -295,8 +295,9 @@ async def get_room_bookings(tenant_slug: str, room_code: str):
     transport = await find_many_scoped("transport_requests", tid, {"room_code": room_code}, sort=[("created_at", -1)])
     wakeup = await find_many_scoped("wakeup_calls", tid, {"room_code": room_code}, sort=[("created_at", -1)])
     laundry = await find_many_scoped("laundry_requests", tid, {"room_code": room_code}, sort=[("created_at", -1)])
+    restaurant_rez = await find_many_scoped("restaurant_reservations", tid, {"room_code": room_code}, sort=[("date", -1), ("time", -1)])
     
-    return {"spa_bookings": spa, "transport_requests": transport, "wakeup_calls": wakeup, "laundry_requests": laundry}
+    return {"spa_bookings": spa, "transport_requests": transport, "wakeup_calls": wakeup, "laundry_requests": laundry, "restaurant_reservations": restaurant_rez}
 
 @router.get("/g/{tenant_slug}/announcements")
 async def get_announcements(tenant_slug: str):
