@@ -11,7 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Badge } from '../components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
-import { Settings as SettingsIcon, Shield, Users, Building2, Gift, Plus } from 'lucide-react';
+import { Settings as SettingsIcon, Shield, Users, Building2, Gift, Plus, ClipboardList } from 'lucide-react';
 import { toast } from 'sonner';
 
 export default function SettingsPage() {
