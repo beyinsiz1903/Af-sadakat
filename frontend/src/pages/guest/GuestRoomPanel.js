@@ -433,6 +433,7 @@ export default function GuestRoomPanel() {
                   if (key === 'laundry') { setShowLaundryDialog(true); return; }
                   if (key === 'wakeup') { setShowWakeupDialog(true); return; }
                   if (key === 'room_service') { setShowRoomServiceDialog(true); return; }
+                  if (key === 'restaurant_reservation') { setShowRestaurantDialog(true); return; }
                   setForm({...form, category: key}); setShowRequestForm(true);
                 }}
                   className="w-full flex items-center gap-3 p-3 rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] hover:border-[hsl(var(--primary)/0.3)] transition-all">
