@@ -590,7 +590,9 @@ async def create_announcement(tenant_slug: str, data: dict, user=Depends(get_cur
     tenant = await resolve_tenant(tenant_slug)
     return await insert_scoped("announcements", tenant["id"], {
         "title": data.get("title", ""),
+        "title_tr": data.get("title_tr", ""),
         "body": data.get("body", ""),
+        "body_tr": data.get("body_tr", ""),
         "type": data.get("type", "info"),  # info, warning, event, promo
         "active": data.get("active", True),
         "priority": data.get("priority", "normal"),
