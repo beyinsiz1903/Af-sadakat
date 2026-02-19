@@ -16,6 +16,38 @@ from fastapi import Depends
 
 router = APIRouter(prefix="/api/v2/guest-services", tags=["guest-services"])
 
+# Helper: create a guest_request record so all services appear on admin Requests Board
+async def _create_linked_request(tid, room, category, dept_code, description, guest_name="", guest_phone="", linked_entity_type="", linked_entity_id=""):
+    """Creates a guest_request entry for specialized services so they show on Requests Board"""
+    from core.config import db as _db
+    req = {
+        "id": new_id(),
+        "tenant_id": tid,
+        "room_id": room["id"],
+        "room_code": room.get("room_code", ""),
+        "room_number": room.get("room_number", ""),
+        "category": category,
+        "department_code": dept_code,
+        "description": description,
+        "priority": "normal",
+        "status": "OPEN",
+        "guest_name": guest_name,
+        "guest_phone": guest_phone,
+        "guest_email": "",
+        "assigned_to": None,
+        "notes": "",
+        "first_response_at": None,
+        "resolved_at": None,
+        "rating": None,
+        "rating_comment": None,
+        "linked_entity_type": linked_entity_type,
+        "linked_entity_id": linked_entity_id,
+        "created_at": now_utc().isoformat(),
+        "updated_at": now_utc().isoformat(),
+    }
+    await _db.guest_requests.insert_one(req)
+    return req
+
 # ============ HOTEL INFO (Public - Guest facing) ============
 @router.get("/g/{tenant_slug}/hotel-info")
 async def get_hotel_info(tenant_slug: str):
