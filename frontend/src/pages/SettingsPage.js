@@ -113,6 +113,7 @@ export default function SettingsPage() {
           <TabsTrigger value="users"><Users className="w-4 h-4 mr-2" /> Users</TabsTrigger>
           <TabsTrigger value="departments"><Building2 className="w-4 h-4 mr-2" /> Departments</TabsTrigger>
           <TabsTrigger value="loyalty"><Gift className="w-4 h-4 mr-2" /> Loyalty</TabsTrigger>
+          <TabsTrigger value="guest-services"><ClipboardList className="w-4 h-4 mr-2" /> Guest Services</TabsTrigger>
         </TabsList>
 
         <TabsContent value="features" className="mt-4">
