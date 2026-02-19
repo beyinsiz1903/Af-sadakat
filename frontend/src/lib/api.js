@@ -236,6 +236,8 @@ export const guestServicesAPI = {
   updateWakeupCall: (slug, id, data) => api.patch(`/v2/guest-services/tenants/${slug}/wakeup-calls/${id}`, data),
   listSurveys: (slug) => api.get(`/v2/guest-services/tenants/${slug}/surveys`),
   getSurveyStats: (slug) => api.get(`/v2/guest-services/tenants/${slug}/surveys/stats`),
+  getServicesConfig: (slug) => api.get(`/v2/guest-services/tenants/${slug}/services-config`),
+  updateServicesConfig: (slug, data) => api.put(`/v2/guest-services/tenants/${slug}/services-config`, data),
 };
 
 // Notifications V2
