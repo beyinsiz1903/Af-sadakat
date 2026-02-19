@@ -4,7 +4,7 @@ import { useAuthStore } from '../lib/store';
 import api from '../lib/api';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
-import { ClipboardList, UtensilsCrossed, Users, MessageSquare, BedDouble, TableProperties, Star, Zap, TrendingUp, Gift, CalendarDays, ThumbsUp, ThumbsDown } from 'lucide-react';
+import { ClipboardList, UtensilsCrossed, Users, MessageSquare, BedDouble, TableProperties, Star, Zap, TrendingUp, Gift, CalendarDays, ThumbsUp, ThumbsDown, Heart, Car, Shirt, Bell, Package } from 'lucide-react';
 
 export default function DashboardPage() {
   const tenant = useAuthStore((s) => s.tenant);
