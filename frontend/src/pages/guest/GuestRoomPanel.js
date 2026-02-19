@@ -66,6 +66,11 @@ export default function GuestRoomPanel() {
   const [showWakeupDialog, setShowWakeupDialog] = useState(false);
   const [showSurveyDialog, setShowSurveyDialog] = useState(false);
   const [showRoomServiceDialog, setShowRoomServiceDialog] = useState(false);
+  const [showRestaurantDialog, setShowRestaurantDialog] = useState(false);
+  const [restaurants, setRestaurants] = useState([]);
+  const [selectedRestaurant, setSelectedRestaurant] = useState(null);
+  const [availableSlots, setAvailableSlots] = useState([]);
+  const [restaurantForm, setRestaurantForm] = useState({ restaurant_id: '', restaurant_name: '', date: '', time: '', party_size: 2, special_requests: '', occasion: '', seating_preference: 'no_preference' });
   const [cartItems, setCartItems] = useState([]);
   const [guestName, setGuestName] = useState('');
   const [guestPhone, setGuestPhone] = useState('');
