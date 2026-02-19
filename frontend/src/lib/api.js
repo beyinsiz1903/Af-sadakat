@@ -217,6 +217,10 @@ export const guestServicesAPI = {
   getSpaServices: (slug) => api.get(`/v2/guest-services/g/${slug}/spa-services`),
   getActivities: (slug) => api.get(`/v2/guest-services/g/${slug}/activities`),
   getActiveServices: (slug) => api.get(`/v2/guest-services/g/${slug}/active-services`),
+  getRestaurants: (slug) => api.get(`/v2/guest-services/g/${slug}/restaurants`),
+  checkAvailability: (slug, restaurantId, params) => api.get(`/v2/guest-services/g/${slug}/restaurants/${restaurantId}/availability`, { params }),
+  createRestaurantReservation: (slug, code, data) => api.post(`/v2/guest-services/g/${slug}/room/${code}/restaurant-reservation`, data),
+  getMyReservations: (slug, code) => api.get(`/v2/guest-services/g/${slug}/room/${code}/my-reservations`),
   // Admin
   getHotelInfoAdmin: (slug) => api.get(`/v2/guest-services/tenants/${slug}/hotel-info`),
   updateHotelInfo: (slug, data) => api.put(`/v2/guest-services/tenants/${slug}/hotel-info`, data),
