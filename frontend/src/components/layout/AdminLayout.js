@@ -32,6 +32,7 @@ const navItems = [
   { path: '/menu', label: 'Menu', icon: BookOpen },
   { path: '/contacts', label: 'Contacts', icon: Users },
   { path: '/offers', label: 'Offers', icon: Gift },
+  { path: '/restaurant-reservations', label: 'Restaurant Rez.', icon: CalendarDays },
   { path: '/lost-found', label: 'Lost & Found', icon: Package },
   { type: 'separator', label: 'AI & Social' },
   { path: '/ai-sales', label: 'AI Sales', icon: Bot },
