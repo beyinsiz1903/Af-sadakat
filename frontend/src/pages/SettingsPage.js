@@ -49,6 +49,20 @@ export default function SettingsPage() {
     enabled: !!tenant?.slug,
   });
 
+  const { data: servicesConfig = [] } = useQuery({
+    queryKey: ['services-config', tenant?.slug],
+    queryFn: () => guestServicesAPI.getServicesConfig(tenant?.slug).then(r => r.data),
+    enabled: !!tenant?.slug,
+  });
+
+  const updateServicesMutation = useMutation({
+    mutationFn: (data) => guestServicesAPI.updateServicesConfig(tenant?.slug, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries(['services-config']);
+      toast.success('Guest services updated');
+    },
+  });
+
   const updateFeaturesMutation = useMutation({
     mutationFn: (data) => tenantAPI.update(tenant?.slug, data),
     onSuccess: (res) => {
