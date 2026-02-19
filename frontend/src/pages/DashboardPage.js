@@ -199,6 +199,32 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Service Operations Stats */}
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+        {[
+          { label: 'Spa Bookings', value: stats.spa_bookings?.pending || 0, sub: `${stats.spa_bookings?.total || 0} total`, icon: Heart, color: 'text-pink-400', bg: 'bg-pink-500/10' },
+          { label: 'Restaurant Rez.', value: stats.restaurant_reservations?.pending || 0, sub: `${stats.restaurant_reservations?.confirmed || 0} confirmed`, icon: CalendarDays, color: 'text-violet-400', bg: 'bg-violet-500/10' },
+          { label: 'Transport', value: stats.transport_requests?.pending || 0, sub: `${stats.transport_requests?.total || 0} total`, icon: Car, color: 'text-orange-400', bg: 'bg-orange-500/10' },
+          { label: 'Laundry', value: stats.laundry_requests?.pending || 0, sub: `${stats.laundry_requests?.total || 0} total`, icon: Shirt, color: 'text-cyan-400', bg: 'bg-cyan-500/10' },
+          { label: 'Notifications', value: stats.notifications_unread || 0, sub: 'unread', icon: Bell, color: 'text-amber-400', bg: 'bg-amber-500/10' },
+          { label: 'Lost & Found', value: stats.lost_found?.stored || 0, sub: 'stored items', icon: Package, color: 'text-gray-400', bg: 'bg-gray-500/10' },
+        ].map((item, i) => {
+          const Icon = item.icon;
+          return (
+            <Card key={i} className="bg-[hsl(var(--card))] border-[hsl(var(--border))]">
+              <CardContent className="p-3 text-center">
+                <div className={`w-8 h-8 rounded-lg ${item.bg} flex items-center justify-center mx-auto mb-1`}>
+                  <Icon className={`w-4 h-4 ${item.color}`} />
+                </div>
+                <p className="text-lg font-bold">{item.value}</p>
+                <p className="text-[10px] text-[hsl(var(--muted-foreground))] font-medium">{item.label}</p>
+                <p className="text-[9px] text-[hsl(var(--muted-foreground))]">{item.sub}</p>
+              </CardContent>
+            </Card>
+          );
+        })}
+      </div>
     </div>
   );
 }
