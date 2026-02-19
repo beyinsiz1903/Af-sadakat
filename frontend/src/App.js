@@ -112,6 +112,7 @@ function App() {
               <Route path="social" element={<SocialDashboardPage />} />
               <Route path="reports" element={<ReportsPage />} />
               <Route path="notifications" element={<NotificationCenterPage />} />
+              <Route path="restaurant-reservations" element={<RestaurantReservationsPage />} />
               <Route path="settings" element={<SettingsPage />} />
             </Route>
             
