@@ -115,6 +115,11 @@ async def create_room_service_order(tenant_slug: str, room_code: str, data: dict
         "priority": "normal",
     })
     
+    item_names = ", ".join([i.get("menu_item_name", "") for i in items[:3]])
+    await _create_linked_request(tid, room, "room_service", "FB",
+        f"Room Service: {item_names} ({len(items)} items, {total} TRY)",
+        data.get("guest_name", ""), data.get("guest_phone", ""), "order", order["id"])
+    
     return order
 
 @router.post("/g/{tenant_slug}/room/{room_code}/spa-booking")
