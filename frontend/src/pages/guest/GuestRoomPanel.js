@@ -109,7 +109,7 @@ export default function GuestRoomPanel() {
           guestServicesAPI.getSpaServices(tenantSlug).catch(() => ({ data: [] })),
           guestServicesAPI.roomServiceMenu(tenantSlug).catch(() => ({ data: { categories: [], items: [] } })),
           guestServicesAPI.getMyOrders(tenantSlug, roomCode).catch(() => ({ data: { room_service_orders: [], minibar_orders: [] } })),
-          guestServicesAPI.getMyBookings(tenantSlug, roomCode).catch(() => ({ data: { spa_bookings: [], transport_requests: [], wakeup_calls: [], laundry_requests: [] } })),
+          guestServicesAPI.getMyBookings(tenantSlug, roomCode).catch(() => ({ data: { spa_bookings: [], transport_requests: [], wakeup_calls: [], laundry_requests: [], restaurant_reservations: [] } })),
           guestServicesAPI.getActiveServices(tenantSlug).catch(() => ({ data: [] })),
           guestServicesAPI.getRestaurants(tenantSlug).catch(() => ({ data: [] })),
         ]);
