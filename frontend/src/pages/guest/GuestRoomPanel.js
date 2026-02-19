@@ -312,8 +312,8 @@ export default function GuestRoomPanel() {
               <div key={ann.id} className="flex items-start gap-2 bg-[hsl(var(--primary)/0.1)] border border-[hsl(var(--primary)/0.2)] rounded-lg px-3 py-2 mb-2">
                 <Megaphone className="w-4 h-4 text-[hsl(var(--primary))] flex-shrink-0 mt-0.5" />
                 <div>
-                  <p className="text-xs font-semibold">{ann.title}</p>
-                  <p className="text-xs text-[hsl(var(--muted-foreground))]">{ann.body}</p>
+                  <p className="text-xs font-semibold">{lang === 'tr' && ann.title_tr ? ann.title_tr : ann.title}</p>
+                  <p className="text-xs text-[hsl(var(--muted-foreground))]">{lang === 'tr' && ann.body_tr ? ann.body_tr : ann.body}</p>
                 </div>
               </div>
             ))}
