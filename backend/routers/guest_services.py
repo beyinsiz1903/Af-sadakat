@@ -272,6 +272,10 @@ async def create_laundry_request(tenant_slug: str, room_code: str, data: dict):
         "priority": "normal",
     })
     
+    await _create_linked_request(tid, room, "laundry", "HK",
+        f"Laundry: {data.get('service_type', 'regular')} - {data.get('items_description', '')}",
+        data.get("guest_name", ""), data.get("guest_phone", ""), "laundry_request", laundry["id"])
+    
     return laundry
 
 @router.post("/g/{tenant_slug}/room/{room_code}/minibar-order")
