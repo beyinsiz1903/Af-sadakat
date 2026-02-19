@@ -413,7 +413,9 @@ export default function GuestRoomPanel() {
         {activeTab === 'services' && (
           <div className="space-y-3">
             <h3 className="font-semibold">{t('All Services', 'Tum Servisler')}</h3>
-            {Object.entries(categoryConfig).map(([key, cfg]) => {
+            {(activeServices.length > 0 ? activeServices.map(s => s.key) : Object.keys(categoryConfig)).map(key => {
+              const cfg = categoryConfig[key];
+              if (!cfg) return null;
               const Icon = cfg.icon;
               return (
                 <button key={key} onClick={() => {
