@@ -111,6 +111,7 @@ export default function GuestRoomPanel() {
           guestServicesAPI.getMyOrders(tenantSlug, roomCode).catch(() => ({ data: { room_service_orders: [], minibar_orders: [] } })),
           guestServicesAPI.getMyBookings(tenantSlug, roomCode).catch(() => ({ data: { spa_bookings: [], transport_requests: [], wakeup_calls: [], laundry_requests: [] } })),
           guestServicesAPI.getActiveServices(tenantSlug).catch(() => ({ data: [] })),
+          guestServicesAPI.getRestaurants(tenantSlug).catch(() => ({ data: [] })),
         ]);
         setHotelInfo(hiRes.data);
         setAnnouncements(annRes.data || []);
@@ -119,6 +120,7 @@ export default function GuestRoomPanel() {
         setMyOrders(ordRes.data || { room_service_orders: [], minibar_orders: [] });
         setMyBookings(bookRes.data || { spa_bookings: [], transport_requests: [], wakeup_calls: [], laundry_requests: [] });
         setActiveServices(svcRes.data || []);
+        setRestaurants(restRes.data || []);
       } catch (e) { console.error('Additional data load error:', e); }
     } catch (e) {
       console.error(e);
