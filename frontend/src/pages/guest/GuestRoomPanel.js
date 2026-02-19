@@ -625,6 +625,97 @@ export default function GuestRoomPanel() {
                 </Card>
               );
             })}
+
+            {/* Spa Bookings */}
+            {myBookings.spa_bookings?.length > 0 && (
+              <>
+                <h4 className="font-semibold text-sm mt-4 flex items-center gap-2">
+                  <Heart className="w-4 h-4 text-pink-400" /> {t('Spa Bookings', 'Spa Randevulari')}
+                </h4>
+                {myBookings.spa_bookings.map(b => (
+                  <Card key={b.id} className="bg-[hsl(var(--card))] border-[hsl(var(--border))]">
+                    <CardContent className="p-3">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-sm font-medium">{b.service_type}</p>
+                          <p className="text-xs text-[hsl(var(--muted-foreground))]">{b.preferred_date} {b.preferred_time} · {b.persons} {t('person', 'kisi')}</p>
+                        </div>
+                        <Badge className={b.status === 'CONFIRMED' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-amber-500/20 text-amber-400'}>{b.status}</Badge>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </>
+            )}
+
+            {/* Transport Requests */}
+            {myBookings.transport_requests?.length > 0 && (
+              <>
+                <h4 className="font-semibold text-sm mt-4 flex items-center gap-2">
+                  <Car className="w-4 h-4 text-orange-400" /> {t('Transport Requests', 'Transfer Talepleri')}
+                </h4>
+                {myBookings.transport_requests.map(tr => (
+                  <Card key={tr.id} className="bg-[hsl(var(--card))] border-[hsl(var(--border))]">
+                    <CardContent className="p-3">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-sm font-medium">{tr.transport_type} → {tr.destination}</p>
+                          <p className="text-xs text-[hsl(var(--muted-foreground))]">{tr.pickup_date} {tr.pickup_time} · {tr.passengers} {t('passengers', 'yolcu')}</p>
+                        </div>
+                        <Badge className={tr.status === 'CONFIRMED' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-amber-500/20 text-amber-400'}>{tr.status}</Badge>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </>
+            )}
+
+            {/* Laundry Requests */}
+            {myBookings.laundry_requests?.length > 0 && (
+              <>
+                <h4 className="font-semibold text-sm mt-4 flex items-center gap-2">
+                  <Shirt className="w-4 h-4 text-cyan-400" /> {t('Laundry Requests', 'Camasir Talepleri')}
+                </h4>
+                {myBookings.laundry_requests.map(lr => (
+                  <Card key={lr.id} className="bg-[hsl(var(--card))] border-[hsl(var(--border))]">
+                    <CardContent className="p-3">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-sm font-medium">{lr.service_type} - {lr.items_description || t('Laundry', 'Camasir')}</p>
+                          <p className="text-xs text-[hsl(var(--muted-foreground))]">{timeAgo(lr.created_at)}</p>
+                        </div>
+                        <Badge className={lr.status === 'DONE' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-amber-500/20 text-amber-400'}>{lr.status}</Badge>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </>
+            )}
+
+            {/* Restaurant Reservations */}
+            {(() => {
+              const rezList = myBookings.restaurant_reservations || [];
+              return rezList.length > 0 ? (
+                <>
+                  <h4 className="font-semibold text-sm mt-4 flex items-center gap-2">
+                    <CalendarDays className="w-4 h-4 text-violet-400" /> {t('Restaurant Reservations', 'Restoran Rezervasyonlari')}
+                  </h4>
+                  {rezList.map(rz => (
+                    <Card key={rz.id} className="bg-[hsl(var(--card))] border-[hsl(var(--border))]">
+                      <CardContent className="p-3">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-sm font-medium">{rz.restaurant_name}</p>
+                            <p className="text-xs text-[hsl(var(--muted-foreground))]">{rz.date} {rz.time} · {rz.party_size} {t('guests', 'kisi')}</p>
+                          </div>
+                          <Badge className={rz.status === 'confirmed' ? 'bg-emerald-500/20 text-emerald-400' : rz.status === 'cancelled' ? 'bg-red-500/20 text-red-400' : 'bg-amber-500/20 text-amber-400'}>{rz.status}</Badge>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </>
+              ) : null;
+            })()}
           </div>
         )}
       </div>
