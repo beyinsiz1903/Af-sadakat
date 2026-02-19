@@ -68,6 +68,7 @@ export default function GuestRoomPanel() {
   const [cartItems, setCartItems] = useState([]);
   const [guestName, setGuestName] = useState('');
   const [guestPhone, setGuestPhone] = useState('');
+  const [activeServices, setActiveServices] = useState([]);
 
   const [form, setForm] = useState({ category: 'housekeeping', description: '', priority: 'normal' });
   const [spaForm, setSpaForm] = useState({ service_type: '', preferred_date: '', preferred_time: '', persons: 1, notes: '' });
