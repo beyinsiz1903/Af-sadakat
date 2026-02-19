@@ -194,6 +194,10 @@ async def create_transport_request(tenant_slug: str, room_code: str, data: dict)
         "priority": "normal",
     })
     
+    await _create_linked_request(tid, room, "transport", "CONCIERGE",
+        f"Transfer: {data.get('transport_type', 'taxi')} → {data.get('destination', '')} - {data.get('pickup_date', '')} {data.get('pickup_time', '')}",
+        data.get("guest_name", ""), data.get("guest_phone", ""), "transport_request", transport["id"])
+    
     return transport
 
 @router.post("/g/{tenant_slug}/room/{room_code}/wakeup-call")
