@@ -995,10 +995,10 @@ export default function GuestRoomPanel() {
                 </SelectContent>
               </Select>
 
-              <Select value={restaurantForm.occasion} onValueChange={(v) => setRestaurantForm({...restaurantForm, occasion: v})}>
+              <Select value={restaurantForm.occasion || "none"} onValueChange={(v) => setRestaurantForm({...restaurantForm, occasion: v === "none" ? "" : v})}>
                 <SelectTrigger className="bg-[hsl(var(--secondary))]"><SelectValue placeholder={t('Occasion (Optional)', 'Ozel Gun (Opsiyonel)')} /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">{t('None', 'Yok')}</SelectItem>
+                  <SelectItem value="none">{t('None', 'Yok')}</SelectItem>
                   <SelectItem value="birthday">{t('Birthday', 'Dogum Gunu')}</SelectItem>
                   <SelectItem value="anniversary">{t('Anniversary', 'Yildonumu')}</SelectItem>
                   <SelectItem value="business">{t('Business Dinner', 'Is Yemegi')}</SelectItem>
