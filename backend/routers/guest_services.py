@@ -489,6 +489,11 @@ async def create_restaurant_reservation(tenant_slug: str, room_code: str, data: 
         "priority": "normal",
     })
 
+    restaurant_name = data.get("restaurant_name", "Restaurant")
+    await _create_linked_request(tid, room, "restaurant_reservation", "FB",
+        f"Restaurant: {restaurant_name} - {date} {time}, {party_size} guests",
+        data.get("guest_name", ""), data.get("guest_phone", ""), "restaurant_reservation", reservation["id"])
+
     return reservation
 
 @router.get("/g/{tenant_slug}/room/{room_code}/my-reservations")
