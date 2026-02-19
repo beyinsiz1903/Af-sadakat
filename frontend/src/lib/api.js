@@ -242,6 +242,13 @@ export const guestServicesAPI = {
   getSurveyStats: (slug) => api.get(`/v2/guest-services/tenants/${slug}/surveys/stats`),
   getServicesConfig: (slug) => api.get(`/v2/guest-services/tenants/${slug}/services-config`),
   updateServicesConfig: (slug, data) => api.put(`/v2/guest-services/tenants/${slug}/services-config`, data),
+  // Admin restaurants
+  listRestaurantsAdmin: (slug) => api.get(`/v2/guest-services/tenants/${slug}/restaurants`),
+  createRestaurant: (slug, data) => api.post(`/v2/guest-services/tenants/${slug}/restaurants`, data),
+  updateRestaurant: (slug, id, data) => api.patch(`/v2/guest-services/tenants/${slug}/restaurants/${id}`, data),
+  deleteRestaurant: (slug, id) => api.delete(`/v2/guest-services/tenants/${slug}/restaurants/${id}`),
+  listRestaurantReservations: (slug, params) => api.get(`/v2/guest-services/tenants/${slug}/restaurant-reservations`, { params }),
+  updateRestaurantReservation: (slug, id, data) => api.patch(`/v2/guest-services/tenants/${slug}/restaurant-reservations/${id}`, data),
 };
 
 // Notifications V2
