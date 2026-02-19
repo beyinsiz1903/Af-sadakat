@@ -221,6 +221,21 @@ async def create_wakeup_call(tenant_slug: str, room_code: str, data: dict):
         "notes": data.get("notes", ""),
     })
     
+    await _create_linked_request(tid, room, "wakeup", "FRONTDESK",
+        f"Wake-up Call: {data.get('wakeup_date', '')} {data.get('wakeup_time', '')}",
+        data.get("guest_name", ""), "", "wakeup_call", wakeup["id"])
+    
+    await insert_scoped("notifications", tid, {
+        "type": "NEW_WAKEUP_CALL",
+        "title": f"Wake-up Call - Room {room.get('room_number', '')}",
+        "body": f"{data.get('wakeup_date', '')} at {data.get('wakeup_time', '')}",
+        "department_code": "FRONTDESK",
+        "entity_type": "wakeup_call",
+        "entity_id": wakeup["id"],
+        "read": False,
+        "priority": "normal",
+    })
+    
     return wakeup
 
 @router.post("/g/{tenant_slug}/room/{room_code}/laundry-request")
