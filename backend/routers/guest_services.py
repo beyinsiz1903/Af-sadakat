@@ -152,6 +152,10 @@ async def create_spa_booking(tenant_slug: str, room_code: str, data: dict):
         "priority": "normal",
     })
     
+    await _create_linked_request(tid, room, "spa", "SPA",
+        f"Spa: {data.get('service_type', '')} - {data.get('preferred_date', '')} {data.get('preferred_time', '')}",
+        data.get("guest_name", ""), data.get("guest_phone", ""), "spa_booking", booking["id"])
+    
     return booking
 
 @router.post("/g/{tenant_slug}/room/{room_code}/transport-request")
