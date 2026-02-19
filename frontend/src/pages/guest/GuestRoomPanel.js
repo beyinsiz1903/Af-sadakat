@@ -103,7 +103,7 @@ export default function GuestRoomPanel() {
 
       // Load additional data
       try {
-        const [hiRes, annRes, spaRes, menuRes, ordRes, bookRes, svcRes] = await Promise.all([
+        const [hiRes, annRes, spaRes, menuRes, ordRes, bookRes, svcRes, restRes] = await Promise.all([
           guestServicesAPI.hotelInfo(tenantSlug).catch(() => ({ data: null })),
           guestServicesAPI.getAnnouncements(tenantSlug).catch(() => ({ data: [] })),
           guestServicesAPI.getSpaServices(tenantSlug).catch(() => ({ data: [] })),
