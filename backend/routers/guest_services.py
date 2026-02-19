@@ -521,3 +521,95 @@ async def get_survey_stats(tenant_slug: str, user=Depends(get_current_user)):
         "avg_comfort": avg("comfort_rating"),
         "recommend_pct": round(recommend, 1),
     }
+
+
+# ============ GUEST SERVICES CONFIG (Toggle services per hotel) ============
+
+# Default service definitions - all available services
+ALL_GUEST_SERVICES = [
+    {"key": "housekeeping", "label": "Housekeeping", "label_tr": "Kat Hizmeti", "department_code": "HK", "icon": "sparkles", "default_enabled": True},
+    {"key": "maintenance", "label": "Technical Service", "label_tr": "Teknik Servis", "department_code": "TECH", "icon": "wrench", "default_enabled": True},
+    {"key": "room_service", "label": "Room Service", "label_tr": "Oda Servisi", "department_code": "FB", "icon": "utensils", "default_enabled": True},
+    {"key": "reception", "label": "Reception", "label_tr": "Resepsiyon", "department_code": "FRONTDESK", "icon": "bell", "default_enabled": True},
+    {"key": "laundry", "label": "Laundry & Ironing", "label_tr": "Çamaşır / Ütü", "department_code": "HK", "icon": "shirt", "default_enabled": False},
+    {"key": "spa", "label": "Spa & Wellness", "label_tr": "Spa & Masaj", "department_code": "SPA", "icon": "heart", "default_enabled": False},
+    {"key": "transport", "label": "Transport / Transfer", "label_tr": "Transfer / Ulaşım", "department_code": "CONCIERGE", "icon": "car", "default_enabled": False},
+    {"key": "wakeup", "label": "Wake-up Call", "label_tr": "Uyandırma Servisi", "department_code": "FRONTDESK", "icon": "alarm", "default_enabled": True},
+    {"key": "bellboy", "label": "Bellboy / Luggage", "label_tr": "Bellboy / Bavul", "department_code": "BELL", "icon": "luggage", "default_enabled": False},
+    {"key": "key_access", "label": "Key / Card Issue", "label_tr": "Anahtar / Kart", "department_code": "FRONTDESK", "icon": "key", "default_enabled": True},
+    {"key": "minibar", "label": "Minibar", "label_tr": "Minibar", "department_code": "FB", "icon": "coffee", "default_enabled": False},
+    {"key": "checkout", "label": "Express Check-out", "label_tr": "Hızlı Çıkış", "department_code": "FRONTDESK", "icon": "logout", "default_enabled": True},
+    {"key": "complaint", "label": "Complaint", "label_tr": "Şikayet / Öneri", "department_code": "FRONTDESK", "icon": "alert", "default_enabled": True},
+    {"key": "other", "label": "Other Request", "label_tr": "Diğer Talep", "department_code": "FRONTDESK", "icon": "help", "default_enabled": True},
+]
+
+def _get_default_config():
+    """Build default config dict from ALL_GUEST_SERVICES"""
+    return {s["key"]: s["default_enabled"] for s in ALL_GUEST_SERVICES}
+
+@router.get("/g/{tenant_slug}/active-services")
+async def get_active_services(tenant_slug: str):
+    """Public: Return only the services that this hotel has enabled"""
+    tenant = await resolve_tenant(tenant_slug)
+    tid = tenant["id"]
+
+    cfg_doc = await db.guest_services_config.find_one({"tenant_id": tid}, {"_id": 0})
+    enabled_map = (serialize_doc(cfg_doc) if cfg_doc else {}).get("services", _get_default_config())
+
+    result = []
+    for svc in ALL_GUEST_SERVICES:
+        if enabled_map.get(svc["key"], svc["default_enabled"]):
+            result.append(svc)
+    return result
+
+@router.get("/tenants/{tenant_slug}/services-config")
+async def get_services_config(tenant_slug: str, user=Depends(get_current_user)):
+    """Admin: Get full service configuration (all services + enabled flags)"""
+    tenant = await resolve_tenant(tenant_slug)
+    tid = tenant["id"]
+
+    cfg_doc = await db.guest_services_config.find_one({"tenant_id": tid}, {"_id": 0})
+    enabled_map = (serialize_doc(cfg_doc) if cfg_doc else {}).get("services", _get_default_config())
+
+    services = []
+    for svc in ALL_GUEST_SERVICES:
+        services.append({**svc, "enabled": enabled_map.get(svc["key"], svc["default_enabled"])})
+    return services
+
+@router.put("/tenants/{tenant_slug}/services-config")
+async def update_services_config(tenant_slug: str, data: dict, user=Depends(get_current_user)):
+    """Admin: Update which services are enabled/disabled for guests.
+    Body: { "services": { "spa": true, "laundry": false, ... } }
+    """
+    tenant = await resolve_tenant(tenant_slug)
+    tid = tenant["id"]
+
+    new_map = data.get("services", {})
+    # Merge with defaults so unknown keys keep their default
+    merged = _get_default_config()
+    for k, v in new_map.items():
+        if k in merged:
+            merged[k] = bool(v)
+
+    existing = await db.guest_services_config.find_one({"tenant_id": tid})
+    if existing:
+        await db.guest_services_config.update_one(
+            {"tenant_id": tid},
+            {"$set": {"services": merged, "updated_at": now_utc().isoformat()}}
+        )
+    else:
+        await db.guest_services_config.insert_one({
+            "id": new_id(),
+            "tenant_id": tid,
+            "services": merged,
+            "created_at": now_utc().isoformat(),
+            "updated_at": now_utc().isoformat(),
+        })
+
+    await log_audit(tid, "services_config_updated", "guest_services_config", tid, user.get("id", ""), {"services": merged})
+
+    # Return the full list with updated flags
+    services = []
+    for svc in ALL_GUEST_SERVICES:
+        services.append({**svc, "enabled": merged.get(svc["key"], svc["default_enabled"])})
+    return services
