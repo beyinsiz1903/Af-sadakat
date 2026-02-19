@@ -3392,7 +3392,32 @@ async def get_enhanced_stats(tenant_slug: str):
         "offers": total_offers,
         "reservations": total_reservations,
         "usage": tenant.get("usage_counters", {}),
-        "limits": tenant.get("plan_limits", {})
+        "limits": tenant.get("plan_limits", {}),
+        # Sprint 9 additions
+        "spa_bookings": {
+            "total": await db.spa_bookings.count_documents({"tenant_id": tid}),
+            "pending": await db.spa_bookings.count_documents({"tenant_id": tid, "status": "PENDING"}),
+        },
+        "restaurant_reservations": {
+            "total": await db.restaurant_reservations.count_documents({"tenant_id": tid}),
+            "pending": await db.restaurant_reservations.count_documents({"tenant_id": tid, "status": "pending"}),
+            "confirmed": await db.restaurant_reservations.count_documents({"tenant_id": tid, "status": "confirmed"}),
+        },
+        "transport_requests": {
+            "total": await db.transport_requests.count_documents({"tenant_id": tid}),
+            "pending": await db.transport_requests.count_documents({"tenant_id": tid, "status": "PENDING"}),
+        },
+        "laundry_requests": {
+            "total": await db.laundry_requests.count_documents({"tenant_id": tid}),
+            "pending": await db.laundry_requests.count_documents({"tenant_id": tid, "status": "PENDING"}),
+        },
+        "notifications_unread": await db.notifications.count_documents({"tenant_id": tid, "read": False}),
+        "surveys": {
+            "total": await db.guest_surveys.count_documents({"tenant_id": tid}),
+        },
+        "lost_found": {
+            "stored": await db.lost_found.count_documents({"tenant_id": tid, "status": "stored"}),
+        },
     }
 
 # ============ WEBSOCKET ENDPOINT ============
