@@ -316,6 +316,192 @@ async def get_activities(tenant_slug: str):
     tenant = await resolve_tenant(tenant_slug)
     return await find_many_scoped("activities", tenant["id"], {"available": True}, sort=[("sort_order", 1)])
 
+# ============ RESTAURANT RESERVATION (Guest facing) ============
+
+@router.get("/g/{tenant_slug}/restaurants")
+async def get_restaurants(tenant_slug: str):
+    """Get available restaurants for reservation"""
+    tenant = await resolve_tenant(tenant_slug)
+    return await find_many_scoped("restaurants", tenant["id"], {"active": True}, sort=[("sort_order", 1)])
+
+@router.get("/g/{tenant_slug}/restaurants/{restaurant_id}/availability")
+async def check_availability(tenant_slug: str, restaurant_id: str, date: str = "", party_size: int = 2):
+    """Check available time slots for a given date & party size"""
+    tenant = await resolve_tenant(tenant_slug)
+    tid = tenant["id"]
+
+    restaurant = await find_one_scoped("restaurants", tid, {"id": restaurant_id})
+    if not restaurant:
+        raise HTTPException(status_code=404, detail="Restaurant not found")
+
+    # Get existing reservations for the date
+    existing = await find_many_scoped("restaurant_reservations", tid, {
+        "restaurant_id": restaurant_id,
+        "date": date,
+        "status": {"$in": ["pending", "confirmed"]},
+    })
+
+    # Build available slots based on restaurant config
+    open_time = restaurant.get("open_time", "12:00")
+    close_time = restaurant.get("close_time", "22:00")
+    slot_duration = restaurant.get("slot_duration_minutes", 90)
+    total_capacity = restaurant.get("total_seats", 40)
+
+    from datetime import datetime as dt, timedelta
+    slots = []
+    try:
+        current = dt.strptime(open_time, "%H:%M")
+        end = dt.strptime(close_time, "%H:%M")
+        while current < end:
+            time_str = current.strftime("%H:%M")
+            # Count reserved seats for this slot
+            reserved = sum(
+                r.get("party_size", 0) for r in existing
+                if r.get("time") == time_str
+            )
+            available_seats = total_capacity - reserved
+            slots.append({
+                "time": time_str,
+                "available_seats": max(available_seats, 0),
+                "is_available": available_seats >= party_size,
+            })
+            current += timedelta(minutes=slot_duration)
+    except Exception:
+        pass
+
+    return {"restaurant": restaurant, "date": date, "party_size": party_size, "slots": slots}
+
+@router.post("/g/{tenant_slug}/room/{room_code}/restaurant-reservation")
+async def create_restaurant_reservation(tenant_slug: str, room_code: str, data: dict):
+    """Guest creates a restaurant reservation from room QR"""
+    tenant = await resolve_tenant(tenant_slug)
+    tid = tenant["id"]
+
+    room = await find_one_scoped("rooms", tid, {"room_code": room_code})
+    if not room:
+        raise HTTPException(status_code=404, detail="Room not found")
+
+    restaurant_id = data.get("restaurant_id", "")
+    date = data.get("date", "")
+    time = data.get("time", "")
+    party_size = data.get("party_size", 2)
+
+    if not date or not time:
+        raise HTTPException(status_code=400, detail="Date and time are required")
+
+    # Check if restaurant exists
+    restaurant = None
+    if restaurant_id:
+        restaurant = await find_one_scoped("restaurants", tid, {"id": restaurant_id})
+
+    reservation = await insert_scoped("restaurant_reservations", tid, {
+        "restaurant_id": restaurant_id,
+        "restaurant_name": data.get("restaurant_name", restaurant.get("name", "Main Restaurant") if restaurant else "Main Restaurant"),
+        "room_id": room["id"],
+        "room_code": room_code,
+        "room_number": room.get("room_number", ""),
+        "date": date,
+        "time": time,
+        "party_size": party_size,
+        "guest_name": data.get("guest_name", ""),
+        "guest_phone": data.get("guest_phone", ""),
+        "guest_email": data.get("guest_email", ""),
+        "special_requests": data.get("special_requests", ""),
+        "occasion": data.get("occasion", ""),
+        "seating_preference": data.get("seating_preference", "no_preference"),
+        "status": "pending",
+    })
+
+    # Create notification
+    await insert_scoped("notifications", tid, {
+        "type": "NEW_RESTAURANT_RESERVATION",
+        "title": f"Restaurant Reservation - Room {room.get('room_number', '')}",
+        "body": f"{party_size} guests, {date} at {time}",
+        "department_code": "FB",
+        "entity_type": "restaurant_reservation",
+        "entity_id": reservation["id"],
+        "read": False,
+        "priority": "normal",
+    })
+
+    return reservation
+
+@router.get("/g/{tenant_slug}/room/{room_code}/my-reservations")
+async def get_my_restaurant_reservations(tenant_slug: str, room_code: str):
+    """Guest views their restaurant reservations"""
+    tenant = await resolve_tenant(tenant_slug)
+    return await find_many_scoped("restaurant_reservations", tenant["id"],
+        {"room_code": room_code}, sort=[("date", 1), ("time", 1)])
+
+# ============ RESTAURANT RESERVATION (Admin) ============
+
+@router.get("/tenants/{tenant_slug}/restaurants")
+async def list_restaurants_admin(tenant_slug: str, user=Depends(get_current_user)):
+    tenant = await resolve_tenant(tenant_slug)
+    return await find_many_scoped("restaurants", tenant["id"], sort=[("sort_order", 1)])
+
+@router.post("/tenants/{tenant_slug}/restaurants")
+async def create_restaurant(tenant_slug: str, data: dict, user=Depends(get_current_user)):
+    tenant = await resolve_tenant(tenant_slug)
+    return await insert_scoped("restaurants", tenant["id"], {
+        "name": data.get("name", ""),
+        "description": data.get("description", ""),
+        "cuisine_type": data.get("cuisine_type", ""),
+        "open_time": data.get("open_time", "12:00"),
+        "close_time": data.get("close_time", "22:00"),
+        "slot_duration_minutes": data.get("slot_duration_minutes", 90),
+        "total_seats": data.get("total_seats", 40),
+        "dress_code": data.get("dress_code", ""),
+        "phone": data.get("phone", ""),
+        "location": data.get("location", ""),
+        "active": data.get("active", True),
+        "sort_order": data.get("sort_order", 0),
+    })
+
+@router.patch("/tenants/{tenant_slug}/restaurants/{restaurant_id}")
+async def update_restaurant(tenant_slug: str, restaurant_id: str, data: dict, user=Depends(get_current_user)):
+    tenant = await resolve_tenant(tenant_slug)
+    update = {}
+    for k in ["name","description","cuisine_type","open_time","close_time","slot_duration_minutes","total_seats","dress_code","phone","location","active","sort_order"]:
+        if k in data:
+            update[k] = data[k]
+    return await update_scoped("restaurants", tenant["id"], restaurant_id, update)
+
+@router.delete("/tenants/{tenant_slug}/restaurants/{restaurant_id}")
+async def delete_restaurant(tenant_slug: str, restaurant_id: str, user=Depends(get_current_user)):
+    tenant = await resolve_tenant(tenant_slug)
+    await delete_scoped("restaurants", tenant["id"], restaurant_id)
+    return {"deleted": True}
+
+@router.get("/tenants/{tenant_slug}/restaurant-reservations")
+async def list_restaurant_reservations(tenant_slug: str, date: Optional[str] = None,
+                                        status: Optional[str] = None,
+                                        restaurant_id: Optional[str] = None,
+                                        user=Depends(get_current_user)):
+    tenant = await resolve_tenant(tenant_slug)
+    query = {}
+    if date:
+        query["date"] = date
+    if status:
+        query["status"] = status
+    if restaurant_id:
+        query["restaurant_id"] = restaurant_id
+    return await find_many_scoped("restaurant_reservations", tenant["id"], query,
+                                   sort=[("date", 1), ("time", 1)])
+
+@router.patch("/tenants/{tenant_slug}/restaurant-reservations/{reservation_id}")
+async def update_restaurant_reservation(tenant_slug: str, reservation_id: str, data: dict,
+                                          user=Depends(get_current_user)):
+    tenant = await resolve_tenant(tenant_slug)
+    update = {}
+    if "status" in data:
+        update["status"] = data["status"]
+    if "notes" in data:
+        update["notes"] = data["notes"]
+    if "table_number" in data:
+        update["table_number"] = data["table_number"]
+    return await update_scoped("restaurant_reservations", tenant["id"], reservation_id, update)
+
 # ============ ADMIN ENDPOINTS ============
 
 @router.put("/tenants/{tenant_slug}/hotel-info")
