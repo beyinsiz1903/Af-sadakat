@@ -54,7 +54,7 @@ export default function GuestRoomPanel() {
   const [menuData, setMenuData] = useState({ categories: [], items: [] });
   const [requests, setRequests] = useState([]);
   const [myOrders, setMyOrders] = useState({ room_service_orders: [], minibar_orders: [] });
-  const [myBookings, setMyBookings] = useState({ spa_bookings: [], transport_requests: [], wakeup_calls: [], laundry_requests: [] });
+  const [myBookings, setMyBookings] = useState({ spa_bookings: [], transport_requests: [], wakeup_calls: [], laundry_requests: [], restaurant_reservations: [] });
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [activeTab, setActiveTab] = useState('home');
