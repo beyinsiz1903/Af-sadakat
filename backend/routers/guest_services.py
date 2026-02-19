@@ -540,6 +540,7 @@ ALL_GUEST_SERVICES = [
     {"key": "minibar", "label": "Minibar", "label_tr": "Minibar", "department_code": "FB", "icon": "coffee", "default_enabled": False},
     {"key": "checkout", "label": "Express Check-out", "label_tr": "Hızlı Çıkış", "department_code": "FRONTDESK", "icon": "logout", "default_enabled": True},
     {"key": "complaint", "label": "Complaint", "label_tr": "Şikayet / Öneri", "department_code": "FRONTDESK", "icon": "alert", "default_enabled": True},
+    {"key": "restaurant_reservation", "label": "Restaurant Reservation", "label_tr": "Restoran Rezervasyonu", "department_code": "FB", "icon": "calendar", "default_enabled": False},
     {"key": "other", "label": "Other Request", "label_tr": "Diğer Talep", "department_code": "FRONTDESK", "icon": "help", "default_enabled": True},
 ]
 
