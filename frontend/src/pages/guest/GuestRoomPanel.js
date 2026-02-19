@@ -39,6 +39,7 @@ const categoryConfig = {
   minibar: { label: 'Minibar', labelTr: 'Minibar', icon: Coffee, color: 'text-teal-400', bg: 'bg-teal-500/10' },
   checkout: { label: 'Express Check-out', labelTr: 'Hizli Cikis', icon: LogOut, color: 'text-gray-400', bg: 'bg-gray-500/10' },
   complaint: { label: 'Complaint', labelTr: 'Sikayet', icon: AlertCircle, color: 'text-rose-400', bg: 'bg-rose-500/10' },
+  restaurant_reservation: { label: 'Restaurant', labelTr: 'Restoran Rez.', icon: CalendarDays, color: 'text-violet-400', bg: 'bg-violet-500/10' },
   other: { label: 'Other', labelTr: 'Diger', icon: HelpCircle, color: 'text-gray-400', bg: 'bg-gray-500/10' },
 };
 
