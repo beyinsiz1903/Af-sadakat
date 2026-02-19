@@ -1997,6 +1997,15 @@ async def seed_data():
     await db.announcements.delete_many({"tenant_id": tenant_id})
     await db.announcements.insert_many(announcements)
     
+    # Restaurants
+    restaurants_seed = [
+        {"id": new_id(), "tenant_id": tenant_id, "name": "Bosphorus Restaurant", "description": "Fine dining with panoramic Bosphorus views. Turkish and international cuisine.", "cuisine_type": "Turkish & International", "open_time": "12:00", "close_time": "23:00", "slot_duration_minutes": 90, "total_seats": 60, "dress_code": "Smart casual", "phone": "Ext. 101", "location": "1st Floor", "active": True, "sort_order": 1, "created_at": now_utc().isoformat()},
+        {"id": new_id(), "tenant_id": tenant_id, "name": "Terrace Grill", "description": "Open-air rooftop BBQ and seafood grill.", "cuisine_type": "Grill & Seafood", "open_time": "18:00", "close_time": "23:00", "slot_duration_minutes": 90, "total_seats": 30, "dress_code": "Casual", "phone": "Ext. 102", "location": "Rooftop", "active": True, "sort_order": 2, "created_at": now_utc().isoformat()},
+        {"id": new_id(), "tenant_id": tenant_id, "name": "Sakura Asian Kitchen", "description": "Japanese, Thai and Chinese cuisine with teppanyaki.", "cuisine_type": "Asian", "open_time": "12:00", "close_time": "22:00", "slot_duration_minutes": 75, "total_seats": 24, "dress_code": "Smart casual", "phone": "Ext. 103", "location": "2nd Floor", "active": True, "sort_order": 3, "created_at": now_utc().isoformat()},
+    ]
+    await db.restaurants.delete_many({"tenant_id": tenant_id})
+    await db.restaurants.insert_many(restaurants_seed)
+    
     # Additional Departments for new services
     extra_depts = [
         {"id": new_id(), "tenant_id": tenant_id, "name": "Spa & Wellness", "code": "SPA", "description": "Spa, massage, Turkish bath services", "created_at": now_utc().isoformat()},
