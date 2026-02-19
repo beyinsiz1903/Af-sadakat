@@ -1990,9 +1990,9 @@ async def seed_data():
     
     # Announcements
     announcements = [
-        {"id": new_id(), "tenant_id": tenant_id, "title": "Pool Hours Extended", "body": "The rooftop pool hours have been extended to 23:00 for the summer season. Enjoy!", "type": "info", "active": True, "priority": "normal", "created_at": now_utc().isoformat()},
-        {"id": new_id(), "tenant_id": tenant_id, "title": "Live Jazz Night", "body": "Join us every Friday at the Rooftop Bar for live jazz music from 20:00 to midnight.", "type": "event", "active": True, "priority": "normal", "created_at": now_utc().isoformat()},
-        {"id": new_id(), "tenant_id": tenant_id, "title": "Spa Special Offer", "body": "20% discount on all spa treatments when booked before 14:00. Valid this month!", "type": "promo", "active": True, "priority": "normal", "created_at": now_utc().isoformat()},
+        {"id": new_id(), "tenant_id": tenant_id, "title": "Pool Hours Extended", "title_tr": "Havuz Saatleri Uzatildi", "body": "The rooftop pool hours have been extended to 23:00 for the summer season. Enjoy!", "body_tr": "Cati havuz saatleri yaz sezonu icin 23:00'e uzatilmistir. Keyifli yuzuler!", "type": "info", "active": True, "priority": "normal", "created_at": now_utc().isoformat()},
+        {"id": new_id(), "tenant_id": tenant_id, "title": "Live Jazz Night", "title_tr": "Canli Caz Gecesi", "body": "Join us every Friday at the Rooftop Bar for live jazz music from 20:00 to midnight.", "body_tr": "Her Cuma Cati Bar'da 20:00-24:00 arasi canli caz muzigi keyfine davetlisiniz.", "type": "event", "active": True, "priority": "normal", "created_at": now_utc().isoformat()},
+        {"id": new_id(), "tenant_id": tenant_id, "title": "Spa Special Offer", "title_tr": "Spa Ozel Firsati", "body": "20% discount on all spa treatments when booked before 14:00. Valid this month!", "body_tr": "Saat 14:00 oncesi yapilan tum spa randevularinda %20 indirim! Bu ay gecerli.", "type": "promo", "active": True, "priority": "normal", "created_at": now_utc().isoformat()},
     ]
     await db.announcements.delete_many({"tenant_id": tenant_id})
     await db.announcements.insert_many(announcements)
