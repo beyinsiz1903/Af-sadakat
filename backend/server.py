@@ -2034,6 +2034,46 @@ async def seed_data():
         if not existing_cat:
             await db.service_categories.insert_one(cat)
 
+    # ---- Gamification Seed Data ----
+    badges_seed = [
+        {"id": new_id(), "tenant_id": tenant_id, "name": "Ilk Rezervasyon", "description": "Ilk otel rezervasyonunu tamamladiniz", "icon": "calendar-check", "color": "#10B981", "category": "milestone", "criteria_type": "auto", "criteria_value": 1, "criteria_event": "reservation_confirmed", "points_reward": 50, "sort_order": 1, "active": True, "created_at": now_utc().isoformat()},
+        {"id": new_id(), "tenant_id": tenant_id, "name": "Yorum Krali", "description": "5 yorum yazdiniz", "icon": "message-square", "color": "#3B82F6", "category": "engagement", "criteria_type": "count", "criteria_value": 5, "criteria_event": "review_written", "points_reward": 100, "sort_order": 2, "active": True, "created_at": now_utc().isoformat()},
+        {"id": new_id(), "tenant_id": tenant_id, "name": "Sadik Misafir", "description": "10 kez konakladiniz", "icon": "heart", "color": "#EF4444", "category": "loyalty", "criteria_type": "count", "criteria_value": 10, "criteria_event": "stay_completed", "points_reward": 500, "sort_order": 3, "active": True, "created_at": now_utc().isoformat()},
+        {"id": new_id(), "tenant_id": tenant_id, "name": "Spa Gurmesi", "description": "3 farkli spa hizmeti denediniz", "icon": "sparkles", "color": "#8B5CF6", "category": "experience", "criteria_type": "count", "criteria_value": 3, "criteria_event": "spa_booking", "points_reward": 75, "sort_order": 4, "active": True, "created_at": now_utc().isoformat()},
+        {"id": new_id(), "tenant_id": tenant_id, "name": "Erken Kusu", "description": "3 kez erken check-in yapildi", "icon": "sunrise", "color": "#F59E0B", "category": "behavior", "criteria_type": "count", "criteria_value": 3, "criteria_event": "early_checkin", "points_reward": 30, "sort_order": 5, "active": True, "created_at": now_utc().isoformat()},
+        {"id": new_id(), "tenant_id": tenant_id, "name": "VIP Misafir", "description": "Platinum seviyesine ulastiniz", "icon": "crown", "color": "#D97706", "category": "milestone", "criteria_type": "tier", "criteria_value": 1500, "criteria_event": "tier_upgrade", "points_reward": 200, "sort_order": 6, "active": True, "created_at": now_utc().isoformat()},
+    ]
+    await db.badges.delete_many({"tenant_id": tenant_id})
+    await db.badges.insert_many(badges_seed)
+
+    challenges_seed = [
+        {"id": new_id(), "tenant_id": tenant_id, "name": "Hosgeldin Challenge", "description": "Bu ay 3 farkli otel hizmetinden faydalanin", "type": "count", "target_event": "service_used", "target_value": 3, "points_reward": 100, "badge_reward_id": "", "start_date": now_utc().isoformat(), "end_date": "", "status": "active", "participants_count": 12, "completions_count": 4, "created_at": now_utc().isoformat()},
+        {"id": new_id(), "tenant_id": tenant_id, "name": "Gurme Kesfetici", "description": "Tum restoranlarda en az 1 siparis verin", "type": "count", "target_event": "restaurant_order", "target_value": 3, "points_reward": 150, "badge_reward_id": "", "start_date": now_utc().isoformat(), "end_date": "", "status": "active", "participants_count": 8, "completions_count": 2, "created_at": now_utc().isoformat()},
+        {"id": new_id(), "tenant_id": tenant_id, "name": "Spa Haftaligi", "description": "Bu hafta 2 spa randevusu alin", "type": "count", "target_event": "spa_booking", "target_value": 2, "points_reward": 75, "badge_reward_id": "", "start_date": now_utc().isoformat(), "end_date": "", "status": "active", "participants_count": 5, "completions_count": 1, "created_at": now_utc().isoformat()},
+    ]
+    await db.challenges.delete_many({"tenant_id": tenant_id})
+    await db.challenges.insert_many(challenges_seed)
+
+    rewards_seed = [
+        {"id": new_id(), "tenant_id": tenant_id, "name": "Ucretsiz Spa Masaji", "description": "30 dakikalik rahatlama masaji", "points_cost": 500, "category": "spa", "icon": "sparkles", "stock": 10, "redeemed_count": 3, "active": True, "created_at": now_utc().isoformat()},
+        {"id": new_id(), "tenant_id": tenant_id, "name": "Oda Yukseltme", "description": "Bir ust oda kategorisine ucretsiz gecis", "points_cost": 1000, "category": "room", "icon": "arrow-up-circle", "stock": 5, "redeemed_count": 1, "active": True, "created_at": now_utc().isoformat()},
+        {"id": new_id(), "tenant_id": tenant_id, "name": "Gec Check-out", "description": "14:00'e kadar uzatilmis check-out", "points_cost": 200, "category": "service", "icon": "clock", "stock": -1, "redeemed_count": 7, "active": True, "created_at": now_utc().isoformat()},
+        {"id": new_id(), "tenant_id": tenant_id, "name": "Restoran Indirimi %20", "description": "Tum restoranlarda %20 indirim", "points_cost": 300, "category": "dining", "icon": "utensils", "stock": -1, "redeemed_count": 5, "active": True, "created_at": now_utc().isoformat()},
+        {"id": new_id(), "tenant_id": tenant_id, "name": "Havalimanı Transferi", "description": "Ucretsiz VIP havalimanı transferi", "points_cost": 800, "category": "transport", "icon": "car", "stock": 3, "redeemed_count": 0, "active": True, "created_at": now_utc().isoformat()},
+    ]
+    await db.rewards_catalog.delete_many({"tenant_id": tenant_id})
+    await db.rewards_catalog.insert_many(rewards_seed)
+
+    # ---- A/B Testing Seed Data ----
+    ab_experiments_seed = [
+        {"id": new_id(), "tenant_id": tenant_id, "name": "Check-in Akisi Optimizasyonu", "description": "Yeni check-in formu vs mevcut form karsilastirmasi", "hypothesis": "Yeni form check-in suresini %30 azaltir", "feature_area": "guest_experience", "variants": [{"name": "control", "traffic_percent": 50, "description": "Mevcut check-in formu"}, {"name": "variant_a", "traffic_percent": 50, "description": "Yeni hizli check-in formu"}], "status": "running", "target_audience": "all_guests", "target_sample_size": 200, "primary_metric": "conversion_rate", "secondary_metrics": ["time_to_complete", "satisfaction_score"], "start_date": now_utc().isoformat(), "end_date": "", "total_participants": 87, "created_by": "system", "created_at": now_utc().isoformat()},
+        {"id": new_id(), "tenant_id": tenant_id, "name": "Oda Servisi Menu Duzeni", "description": "Foto galeri vs liste gorunumu karsilastirmasi", "hypothesis": "Galeri gorunumu siparis oranini %15 artirir", "feature_area": "room_service", "variants": [{"name": "control", "traffic_percent": 50, "description": "Liste gorunumu"}, {"name": "variant_a", "traffic_percent": 50, "description": "Foto galeri gorunumu"}], "status": "running", "target_audience": "room_guests", "target_sample_size": 150, "primary_metric": "conversion_rate", "secondary_metrics": ["avg_order_value"], "start_date": now_utc().isoformat(), "end_date": "", "total_participants": 43, "created_by": "system", "created_at": now_utc().isoformat()},
+        {"id": new_id(), "tenant_id": tenant_id, "name": "Sadakat Puani Gosterimi", "description": "Progress bar vs sayisal gosterim testi", "hypothesis": "Progress bar motivasyonu artirir", "feature_area": "loyalty", "variants": [{"name": "control", "traffic_percent": 33, "description": "Sadece sayi"}, {"name": "variant_a", "traffic_percent": 33, "description": "Progress bar"}, {"name": "variant_b", "traffic_percent": 34, "description": "Progress bar + animasyon"}], "status": "draft", "target_audience": "loyalty_members", "target_sample_size": 300, "primary_metric": "engagement_rate", "secondary_metrics": ["points_earned", "redemption_rate"], "start_date": "", "end_date": "", "total_participants": 0, "created_by": "system", "created_at": now_utc().isoformat()},
+        {"id": new_id(), "tenant_id": tenant_id, "name": "Karsilama Mesaji Testi", "description": "Resmi vs samimi karsilama mesaji", "hypothesis": "Samimi mesaj misafir memnuniyetini artirir", "feature_area": "communication", "variants": [{"name": "control", "traffic_percent": 50, "description": "Resmi ton"}, {"name": "variant_a", "traffic_percent": 50, "description": "Samimi ton"}], "status": "completed", "target_audience": "all_guests", "target_sample_size": 100, "primary_metric": "satisfaction_score", "secondary_metrics": ["response_rate"], "start_date": now_utc().isoformat(), "end_date": now_utc().isoformat(), "total_participants": 156, "created_by": "system", "created_at": now_utc().isoformat()},
+    ]
+    await db.ab_experiments.delete_many({"tenant_id": tenant_id})
+    await db.ab_experiments.insert_many(ab_experiments_seed)
+
     return {
         "message": "Seed data created successfully",
         "tenant_slug": "grand-hotel",
