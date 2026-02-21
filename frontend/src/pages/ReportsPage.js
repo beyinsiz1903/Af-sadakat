@@ -213,6 +213,100 @@ export default function ReportsPage() {
           ))}
         </div>
       )}
+
+      {tab === 'ab' && abReport && (
+        <div className="space-y-4">
+          {/* Summary Cards */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {[
+              { label: 'Toplam Deney', value: abReport.summary?.total_experiments || 0, color: 'text-purple-400' },
+              { label: 'Aktif', value: abReport.summary?.running || 0, color: 'text-emerald-400' },
+              { label: 'Tamamlanan', value: abReport.summary?.completed || 0, color: 'text-blue-400' },
+              { label: 'Katilimci', value: abReport.summary?.total_participants || 0, color: 'text-amber-400' },
+            ].map((s, i) => (
+              <Card key={i} className="bg-[hsl(var(--card))] border-[hsl(var(--border))]">
+                <CardContent className="p-4 text-center">
+                  <p className={`text-2xl font-bold ${s.color}`}>{s.value}</p>
+                  <p className="text-xs text-[hsl(var(--muted-foreground))]">{s.label}</p>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+
+          {/* Feature Area Distribution */}
+          {abReport.feature_area_distribution && Object.keys(abReport.feature_area_distribution).length > 0 && (
+            <Card className="bg-[hsl(var(--card))] border-[hsl(var(--border))]">
+              <CardHeader><CardTitle className="text-sm">Alan Dagilimi</CardTitle></CardHeader>
+              <CardContent>
+                <div className="flex gap-3 flex-wrap">
+                  {Object.entries(abReport.feature_area_distribution).map(([area, count]) => (
+                    <Badge key={area} variant="outline" className="text-xs px-3 py-1">
+                      {area}: {count}
+                    </Badge>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Experiment Results */}
+          <div className="space-y-3">
+            {(abReport.experiments || []).map(exp => (
+              <Card key={exp.id} className="bg-[hsl(var(--card))] border-[hsl(var(--border))]">
+                <CardContent className="p-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <FlaskConical className="w-4 h-4 text-purple-400" />
+                      <h3 className="font-semibold">{exp.name}</h3>
+                      <Badge variant="outline" className={`text-[10px] ${
+                        exp.status === 'running' ? 'bg-emerald-500/10 text-emerald-400' :
+                        exp.status === 'completed' ? 'bg-blue-500/10 text-blue-400' :
+                        exp.status === 'draft' ? 'bg-gray-500/10 text-gray-400' :
+                        'bg-amber-500/10 text-amber-400'
+                      }`}>
+                        {exp.status === 'running' ? 'Calisyor' : exp.status === 'completed' ? 'Tamamlandi' : exp.status === 'draft' ? 'Taslak' : 'Duraklatildi'}
+                      </Badge>
+                      {exp.winner && (
+                        <Badge className="bg-emerald-500/10 text-emerald-400 text-[10px]">
+                          <Trophy className="w-3 h-3 mr-1" /> Kazanan: {exp.winner}
+                        </Badge>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2 text-xs text-[hsl(var(--muted-foreground))]">
+                      <Badge variant="outline" className="text-[10px]">{exp.feature_area}</Badge>
+                      <span>{exp.total_participants} katilimci</span>
+                    </div>
+                  </div>
+                  {exp.hypothesis && <p className="text-xs text-blue-400 italic mb-2">Hipotez: {exp.hypothesis}</p>}
+                  
+                  {/* Variant Results */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mt-2">
+                    {(exp.variants || []).map((v, vi) => (
+                      <div key={v.variant} className={`p-2 rounded border text-sm ${
+                        exp.winner === v.variant ? 'border-emerald-500/50 bg-emerald-500/5' : 'border-[hsl(var(--border))]'
+                      }`}>
+                        <div className="flex items-center justify-between">
+                          <span className="font-medium flex items-center gap-1">
+                            <span className={`w-2 h-2 rounded-full ${vi === 0 ? 'bg-blue-500' : vi === 1 ? 'bg-emerald-500' : 'bg-amber-500'}`} />
+                            {v.variant}
+                            {exp.winner === v.variant && <Trophy className="w-3 h-3 text-emerald-400" />}
+                          </span>
+                          <span className="text-[hsl(var(--primary))] font-bold">{v.conversion_rate}%</span>
+                        </div>
+                        <div className="flex gap-3 mt-1 text-xs text-[hsl(var(--muted-foreground))]">
+                          <span>{v.traffic_percent}% trafik</span>
+                          <span>{v.participants} katilimci</span>
+                          <span>{v.events} olay</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
