@@ -1705,13 +1705,7 @@ metadata:
   run_ui: false
 
 test_plan:
-  current_focus:
-    - "Security Hardening - All features"
-    - "SaaS Billing - Enhanced endpoints"
-    - "Analytics v2 - Revenue and Staff"
-    - "Investor Metrics"
-    - "Retention Auto-Cleanup"
-    - "Referral Landing Page"
+  current_focus: []
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
