@@ -41,6 +41,7 @@ import GamificationPage from './pages/GamificationPage';
 import PushNotificationsPage from './pages/PushNotificationsPage';
 import ABTestingPage from './pages/ABTestingPage';
 import LoyaltyEnginePage from './pages/LoyaltyEnginePage';
+import ReferralLandingPage from './pages/ReferralLandingPage';
 
 // Guest Pages
 import GuestRoomPanel from './pages/guest/GuestRoomPanel';
