@@ -215,6 +215,16 @@ async def create_transport_request(tenant_slug: str, room_code: str, data: dict)
         f"Transfer: {data.get('transport_type', 'taxi')} → {data.get('destination', '')} - {data.get('pickup_date', '')} {data.get('pickup_time', '')}",
         data.get("guest_name", ""), data.get("guest_phone", ""), "transport_request", transport["id"])
     
+    # Auto gamification
+    try:
+        from routers.gamification import auto_check_badges, auto_check_challenges
+        contact_id = room.get("current_guest_contact_id", "")
+        if contact_id:
+            await auto_check_badges(tid, contact_id, "service_used", transport["id"])
+            await auto_check_challenges(tid, contact_id, "service_used")
+    except Exception:
+        pass
+    
     return transport
 
 @router.post("/g/{tenant_slug}/room/{room_code}/wakeup-call")
