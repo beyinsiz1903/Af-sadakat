@@ -1184,11 +1184,14 @@ backend:
     file: "routers/loyalty_analytics.py"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: true
         agent: "main"
         comment: "Cohort analysis (new vs returning by month). ROI measurement: program cost, estimated revenue, ROI percentage, redemption rate."
+      - working: true
+        agent: "testing"
+        comment: "✅ Cohort & ROI APIs working perfectly: Cohort analysis covers 6 months with proper retention metrics (sample: 2025-09 - 0 new, 0 returning, 0.0% retention). ROI measurement shows 2 members, 640 points earned, 64.0 TRY program cost, 5000 TRY estimated revenue, 7712.5% ROI, 0.0% redemption rate. Both cohort tracking and ROI calculations fully operational."
 
   - task: "Loyalty Analytics V3 - AI Segmentation API"
     implemented: true
