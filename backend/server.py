@@ -2735,41 +2735,8 @@ async def get_csrf_token(user=Depends(get_current_user)):
 
 @api_router.get("/system/metrics")
 async def system_metrics():
-    total_tenants = await db.tenants.count_documents({})
-    total_users = await db.users.count_documents({})
-    total_requests = await db.guest_requests.count_documents({})
-    total_orders = await db.orders.count_documents({})
-    total_conversations = await db.conversations.count_documents({})
-    total_messages = await db.messages.count_documents({})
-    total_reviews = await db.reviews.count_documents({})
-    total_reservations = await db.reservations.count_documents({})
-    
-    # Revenue
-    rev = await db.orders.aggregate([
-        {"$group": {"_id": None, "total": {"$sum": "$total"}}}
-    ]).to_list(1)
-    total_revenue = rev[0]["total"] if rev else 0
-    
-    # AI usage
-    ai_pipeline = await db.tenants.aggregate([
-        {"$group": {"_id": None, "total": {"$sum": "$usage_counters.ai_replies_this_month"}}}
-    ]).to_list(1)
-    total_ai = ai_pipeline[0]["total"] if ai_pipeline else 0
-    
-    return {
-        "tenants": total_tenants,
-        "users": total_users,
-        "requests_handled": total_requests,
-        "orders_processed": total_orders,
-        "conversations": total_conversations,
-        "messages": total_messages,
-        "reviews": total_reviews,
-        "reservations": total_reservations,
-        "total_revenue": total_revenue,
-        "ai_replies_generated": total_ai,
-        "mrr_stub": total_tenants * 99,
-        "timestamp": now_utc().isoformat()
-    }
+    """System metrics - also includes investor-ready metrics"""
+    return await compute_investor_metrics(db)
 
 # ============ PHASE 5: DEMO MODE ============
 @api_router.post("/demo/reset")
