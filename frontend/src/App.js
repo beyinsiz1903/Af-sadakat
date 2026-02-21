@@ -40,6 +40,7 @@ import RestaurantReservationsPage from './pages/RestaurantReservationsPage';
 import GamificationPage from './pages/GamificationPage';
 import PushNotificationsPage from './pages/PushNotificationsPage';
 import ABTestingPage from './pages/ABTestingPage';
+import LoyaltyEnginePage from './pages/LoyaltyEnginePage';
 
 // Guest Pages
 import GuestRoomPanel from './pages/guest/GuestRoomPanel';
