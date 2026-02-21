@@ -1094,11 +1094,14 @@ backend:
     file: "routers/loyalty_engine.py"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: true
         agent: "main"
         comment: "Omnichannel communication preferences: email, SMS, WhatsApp, push, in-app. Automation: birthday, anniversary, tier change notifications. Timing settings."
+      - working: true
+        agent: "testing"
+        comment: "✅ Communication Prefs API working perfectly: All omnichannel settings configured correctly - Email enabled (true), SMS (false), WhatsApp (false), Push (true), In-app (true). Automation settings: Birthday campaigns (true), Anniversary campaigns (true). All communication preference fields present and properly structured for omnichannel loyalty communications."
 
   - task: "Loyalty Engine V3 - Self-Service Portal API"
     implemented: true
