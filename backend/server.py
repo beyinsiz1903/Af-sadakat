@@ -3614,23 +3614,47 @@ async def get_enhanced_stats(tenant_slug: str):
         },
     }
 
-# ============ WEBSOCKET ENDPOINT ============
+# ============ WEBSOCKET ENDPOINT (with 15-min auth revalidation) ============
 @app.websocket("/ws/{tenant_id}")
-async def websocket_endpoint(websocket: WebSocket, tenant_id: str):
+async def websocket_endpoint_final(websocket: WebSocket, tenant_id: str):
     channel = f"tenant:{tenant_id}"
     await ws_manager.connect(websocket, channel)
+    import time as _time
+    last_auth_check = _time.time()
+    AUTH_REVALIDATION_INTERVAL = 900  # 15 min
     try:
         while True:
-            data = await websocket.receive_text()
+            try:
+                data = await asyncio.wait_for(websocket.receive_text(), timeout=30)
+            except asyncio.TimeoutError:
+                try:
+                    await websocket.send_text("ping")
+                except:
+                    break
+                continue
             if data == "ping":
                 await websocket.send_text("pong")
+            elif data.startswith("auth:"):
+                token = data[5:]
+                try:
+                    payload = decode_token(token)
+                    user = await db.users.find_one({"id": payload["user_id"]})
+                    if user and user.get("active", True):
+                        last_auth_check = _time.time()
+                        await websocket.send_json({"type": "auth_valid", "ts": now_utc().isoformat()})
+                    else:
+                        await websocket.send_json({"type": "auth_invalid", "reason": "user_inactive"})
+                        break
+                except:
+                    await websocket.send_json({"type": "auth_invalid", "reason": "token_expired"})
+                    break
+            if _time.time() - last_auth_check > AUTH_REVALIDATION_INTERVAL:
+                await websocket.send_json({"type": "auth_required", "reason": "revalidation_needed"})
     except WebSocketDisconnect:
         ws_manager.disconnect(websocket, channel)
     except Exception as e:
         logger.error(f"WebSocket error: {e}")
         ws_manager.disconnect(websocket, channel)
-
-# Include routers (v1 legacy + v2 modular)
 app.include_router(api_router)
 
 # V2 modular routers (refactored architecture)
