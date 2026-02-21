@@ -3198,6 +3198,39 @@ async def start_meta_token_refresh_task():
                 logger.error(f"Meta token refresh loop error: {e}")
     asyncio.create_task(meta_token_refresh_loop())
 
+# ============ USAGE METER MONTHLY RESET (Background Task) ============
+@app.on_event("startup")
+async def start_usage_meter_task():
+    async def usage_meter_loop():
+        while True:
+            try:
+                await asyncio.sleep(3600)  # Check every hour
+                # Check if it's the 1st of the month (UTC)
+                now = now_utc()
+                if now.day == 1 and now.hour == 0:
+                    await UsageMeter.monthly_reset(db)
+                    logger.info("UsageMeter monthly reset executed")
+                
+                # Also cleanup expired token families
+                token_family_manager.cleanup_expired(72)
+            except Exception as e:
+                logger.error(f"Usage meter loop error: {e}")
+    asyncio.create_task(usage_meter_loop())
+
+# ============ RETENTION AUTO-CLEANUP (Background Task) ============
+@app.on_event("startup")
+async def start_retention_cleanup_task():
+    async def retention_cleanup_loop():
+        while True:
+            try:
+                await asyncio.sleep(86400)  # Daily check
+                results = await retention_auto_cleanup(db)
+                if results:
+                    logger.info(f"Retention auto-cleanup: {len(results)} tenants processed")
+            except Exception as e:
+                logger.error(f"Retention cleanup loop error: {e}")
+    asyncio.create_task(retention_cleanup_loop())
+
 # (WebSocket endpoint moved below to websocket_endpoint_final with auth revalidation)
 
 @api_router.get("/tenants/{tenant_slug}/reviews")
