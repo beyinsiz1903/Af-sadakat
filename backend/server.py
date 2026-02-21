@@ -2667,11 +2667,71 @@ async def system_status():
     
     return {
         "status": "operational",
-        "version": "2.0.0",
+        "version": "11.0.0",
         "database": db_status,
         "timestamp": now_utc().isoformat(),
         "uptime": "running"
     }
+
+@api_router.get("/system/investor-metrics")
+async def investor_metrics():
+    """Investor/demo metrics: MRR, aktif tenant, islenen mesaj, AI cevap"""
+    return await compute_investor_metrics(db)
+
+@api_router.get("/tenants/{tenant_slug}/analytics/revenue")
+async def revenue_analytics(tenant_slug: str, period: int = 30):
+    """Revenue analytics v2 - gelir, upsell donusum, tekrar misafir, AI verimlilik KPI"""
+    tenant = await get_tenant_by_slug(tenant_slug)
+    return await compute_revenue_analytics(db, tenant["id"], period)
+
+@api_router.get("/tenants/{tenant_slug}/analytics/staff-performance")
+async def staff_performance(tenant_slug: str, period: int = 30):
+    """Staff performance dashboard - personel bazli verimlilik metrikleri"""
+    tenant = await get_tenant_by_slug(tenant_slug)
+    return await compute_staff_performance(db, tenant["id"], period)
+
+@api_router.get("/tenants/{tenant_slug}/usage/detailed")
+async def get_detailed_usage(tenant_slug: str):
+    """Detailed usage metrics with percentage thresholds"""
+    tenant = await get_tenant_by_slug(tenant_slug)
+    plan = tenant.get("plan", "basic")
+    return {
+        "plan": plan,
+        "plan_label": get_plan_limits(plan).get("label", plan),
+        "metrics": await usage_meter.get_usage_snapshot(db, tenant["id"], plan),
+        "features": get_plan_limits(plan).get("features", []),
+        "plan_limits": get_plan_limits(plan)
+    }
+
+@api_router.post("/tenants/{tenant_slug}/billing/payment-method")
+async def add_payment_method(tenant_slug: str, data: dict):
+    """Add payment method (stub for Stripe integration)"""
+    tenant = await get_tenant_by_slug(tenant_slug)
+    pm = create_payment_method(tenant["id"], data.get("type", "card"), data.get("last4", "4242"), data.get("brand", "visa"))
+    await db.payment_methods.insert_one(pm)
+    await db.billing_accounts.update_one(
+        {"tenant_id": tenant["id"]},
+        {"$set": {"payment_method": pm["id"], "updated_at": now_utc().isoformat()}}
+    )
+    return serialize_doc(pm)
+
+@api_router.get("/tenants/{tenant_slug}/billing/payment-methods")
+async def list_payment_methods(tenant_slug: str):
+    """List payment methods"""
+    tenant = await get_tenant_by_slug(tenant_slug)
+    methods = await db.payment_methods.find({"tenant_id": tenant["id"]}, {"_id": 0}).to_list(10)
+    return [serialize_doc(m) for m in methods]
+
+@api_router.post("/compliance/retention-cleanup")
+async def trigger_retention_cleanup():
+    """Trigger retention auto-cleanup for all tenants with auto_purge enabled"""
+    results = await retention_auto_cleanup(db)
+    return {"status": "completed", "results": results}
+
+@api_router.get("/auth/csrf-token")
+async def get_csrf_token(user=Depends(get_current_user)):
+    """Get CSRF token for the current user session"""
+    return {"csrf_token": csrf_protection.generate_token(user["id"])}
 
 @api_router.get("/system/metrics")
 async def system_metrics():
