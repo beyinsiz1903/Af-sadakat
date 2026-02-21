@@ -55,6 +55,7 @@ export default function ReportsPage() {
     { id: 'staff', label: 'Staff', icon: Users },
     { id: 'peak', label: 'Peak Demand', icon: TrendingUp },
     { id: 'ai', label: 'AI Performance', icon: Bot },
+    { id: 'ab', label: 'A/B Testing', icon: FlaskConical },
   ];
 
   return (
