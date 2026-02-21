@@ -252,3 +252,15 @@ async def auto_award_points(tenant_id: str, contact_id: str, event_type: str, re
     from routers.crm import emit_contact_event
     await emit_contact_event(tenant_id, contact_id, "LOYALTY_EARNED", f"+{points} pts: {reason}",
                               ref_type=event_type, ref_id=ref_id)
+    
+    # Auto gamification: check badges and challenges for this event
+    try:
+        from routers.gamification import auto_check_badges, auto_check_challenges
+        await auto_check_badges(tenant_id, contact_id, event_type, ref_id)
+        await auto_check_challenges(tenant_id, contact_id, event_type)
+        # Also check tier_upgrade badge
+        acct_after = await db.loyalty_accounts.find_one({"tenant_id": tenant_id, "contact_id": contact_id})
+        if acct_after and acct_after.get("tier_name") != acct.get("tier_name"):
+            await auto_check_badges(tenant_id, contact_id, "tier_upgrade", "")
+    except Exception:
+        pass
