@@ -10,7 +10,7 @@ from datetime import datetime, date, timedelta
 
 class Sprint5V2Tester:
     def __init__(self):
-        self.base_url = "https://points-platform-2.preview.emergentagent.com/api"
+        self.base_url = "https://kritik-billing.preview.emergentagent.com/api"
         self.token = None
         self.tenant_slug = "grand-hotel"
         self.tests_run = 0
