@@ -848,9 +848,7 @@ agent_communication:
 
 # Enhancement: Auto Badge + A/B Report
 test_plan:
-  current_focus:
-    - "Auto Badge Awarding System"
-    - "A/B Testing Report Endpoint"
+  current_focus: []
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
