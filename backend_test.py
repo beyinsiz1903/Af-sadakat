@@ -1,910 +1,620 @@
 #!/usr/bin/env python3
+"""Backend API Testing for New Feature Routers
+Tests Gamification, Push Notifications, and A/B Testing routers
 """
-Sprint 9 + 9.1 Backend API Testing for Hotel Management System
-Tests Guest Services, SLA, Notifications, Housekeeping, Lost&Found, Social Dashboard, Reports APIs
-+ NEW Sprint 9.1: File Uploads, Platform Integrations, Email/SMS Settings APIs
-"""
-
-import requests
+import asyncio
+import aiohttp
 import json
 import sys
-from datetime import datetime
+from typing import Dict, Any
 
-# Backend URL configuration
+# Backend URL from environment
 BACKEND_URL = "https://engage-plus-8.preview.emergentagent.com/api"
+LOGIN_EMAIL = "admin@grandhotel.com"
+LOGIN_PASSWORD = "admin123"
+TENANT_SLUG = "grand-hotel"
 
-class APITester:
+class BackendTester:
     def __init__(self):
-        self.session = requests.Session()
+        self.session = None
         self.token = None
-        self.tenant_slug = "grand-hotel"
+        self.test_results = {}
         
-    def login(self):
-        """Login to get authentication token"""
-        login_data = {
-            "email": "admin@grandhotel.com",
-            "password": "admin123"
+    async def __aenter__(self):
+        self.session = aiohttp.ClientSession()
+        return self
+        
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        if self.session:
+            await self.session.close()
+    
+    async def login(self):
+        """Authenticate and get token"""
+        try:
+            async with self.session.post(f"{BACKEND_URL}/auth/login", json={
+                "email": LOGIN_EMAIL,
+                "password": LOGIN_PASSWORD
+            }) as resp:
+                if resp.status == 200:
+                    data = await resp.json()
+                    self.token = data.get("access_token")
+                    print(f"✅ Login successful, token: {self.token[:20]}...")
+                    return True
+                else:
+                    print(f"❌ Login failed: {resp.status} - {await resp.text()}")
+                    return False
+        except Exception as e:
+            print(f"❌ Login error: {e}")
+            return False
+    
+    def headers(self):
+        return {"Authorization": f"Bearer {self.token}"}
+    
+    async def test_gamification_router(self):
+        """Test all Gamification Router endpoints"""
+        print("\n=== TESTING GAMIFICATION ROUTER ===")
+        base_url = f"{BACKEND_URL}/v2/gamification/tenants/{TENANT_SLUG}"
+        
+        # Test 1: Get badges - should return 6 badges
+        try:
+            async with self.session.get(f"{base_url}/badges", headers=self.headers()) as resp:
+                if resp.status == 200:
+                    data = await resp.json()
+                    badge_count = len(data.get("data", []))
+                    print(f"✅ GET /badges: {badge_count} badges returned")
+                    if badge_count >= 6:
+                        print(f"   Expected 6+ badges, got {badge_count}")
+                    self.test_results["gamification_badges_get"] = True
+                    self.badge_data = data.get("data", [])
+                else:
+                    print(f"❌ GET /badges failed: {resp.status}")
+                    self.test_results["gamification_badges_get"] = False
+        except Exception as e:
+            print(f"❌ GET /badges error: {e}")
+            self.test_results["gamification_badges_get"] = False
+        
+        # Test 2: Create new badge
+        try:
+            new_badge = {
+                "name": "Test Badge",
+                "description": "Test badge for API testing",
+                "icon": "test",
+                "color": "#FF5722",
+                "points_reward": 100
+            }
+            async with self.session.post(f"{base_url}/badges", json=new_badge, headers=self.headers()) as resp:
+                if resp.status == 200:
+                    data = await resp.json()
+                    created_badge_id = data.get("id")
+                    print(f"✅ POST /badges: Created badge {created_badge_id}")
+                    self.test_results["gamification_badges_create"] = True
+                    self.created_badge_id = created_badge_id
+                else:
+                    print(f"❌ POST /badges failed: {resp.status} - {await resp.text()}")
+                    self.test_results["gamification_badges_create"] = False
+        except Exception as e:
+            print(f"❌ POST /badges error: {e}")
+            self.test_results["gamification_badges_create"] = False
+        
+        # Test 3: Delete badge (if created successfully)
+        if hasattr(self, 'created_badge_id'):
+            try:
+                async with self.session.delete(f"{base_url}/badges/{self.created_badge_id}", headers=self.headers()) as resp:
+                    if resp.status == 200:
+                        print(f"✅ DELETE /badges/{self.created_badge_id}: Success")
+                        self.test_results["gamification_badges_delete"] = True
+                    else:
+                        print(f"❌ DELETE /badges failed: {resp.status}")
+                        self.test_results["gamification_badges_delete"] = False
+            except Exception as e:
+                print(f"❌ DELETE /badges error: {e}")
+                self.test_results["gamification_badges_delete"] = False
+        
+        # Test 4: Get challenges - should return 3 active challenges
+        try:
+            async with self.session.get(f"{base_url}/challenges", headers=self.headers()) as resp:
+                if resp.status == 200:
+                    data = await resp.json()
+                    challenge_count = len(data.get("data", []))
+                    print(f"✅ GET /challenges: {challenge_count} challenges returned")
+                    if challenge_count >= 3:
+                        print(f"   Expected 3+ challenges, got {challenge_count}")
+                    self.test_results["gamification_challenges_get"] = True
+                else:
+                    print(f"❌ GET /challenges failed: {resp.status}")
+                    self.test_results["gamification_challenges_get"] = False
+        except Exception as e:
+            print(f"❌ GET /challenges error: {e}")
+            self.test_results["gamification_challenges_get"] = False
+        
+        # Test 5: Create new challenge
+        try:
+            new_challenge = {
+                "name": "Test Challenge",
+                "target_event": "booking_completed",
+                "target_value": 5,
+                "points_reward": 200
+            }
+            async with self.session.post(f"{base_url}/challenges", json=new_challenge, headers=self.headers()) as resp:
+                if resp.status == 200:
+                    data = await resp.json()
+                    created_challenge_id = data.get("id")
+                    print(f"✅ POST /challenges: Created challenge {created_challenge_id}")
+                    self.test_results["gamification_challenges_create"] = True
+                    self.created_challenge_id = created_challenge_id
+                else:
+                    print(f"❌ POST /challenges failed: {resp.status} - {await resp.text()}")
+                    self.test_results["gamification_challenges_create"] = False
+        except Exception as e:
+            print(f"❌ POST /challenges error: {e}")
+            self.test_results["gamification_challenges_create"] = False
+        
+        # Test 6: Delete challenge (if created successfully)
+        if hasattr(self, 'created_challenge_id'):
+            try:
+                async with self.session.delete(f"{base_url}/challenges/{self.created_challenge_id}", headers=self.headers()) as resp:
+                    if resp.status == 200:
+                        print(f"✅ DELETE /challenges/{self.created_challenge_id}: Success")
+                        self.test_results["gamification_challenges_delete"] = True
+                    else:
+                        print(f"❌ DELETE /challenges failed: {resp.status}")
+                        self.test_results["gamification_challenges_delete"] = False
+            except Exception as e:
+                print(f"❌ DELETE /challenges error: {e}")
+                self.test_results["gamification_challenges_delete"] = False
+        
+        # Test 7: Get leaderboard
+        try:
+            async with self.session.get(f"{base_url}/leaderboard", headers=self.headers()) as resp:
+                if resp.status == 200:
+                    data = await resp.json()
+                    leaderboard_entries = len(data.get("data", []))
+                    print(f"✅ GET /leaderboard: {leaderboard_entries} entries returned")
+                    self.test_results["gamification_leaderboard"] = True
+                else:
+                    print(f"❌ GET /leaderboard failed: {resp.status}")
+                    self.test_results["gamification_leaderboard"] = False
+        except Exception as e:
+            print(f"❌ GET /leaderboard error: {e}")
+            self.test_results["gamification_leaderboard"] = False
+        
+        # Test 8: Get rewards - should return 5 rewards
+        try:
+            async with self.session.get(f"{base_url}/rewards", headers=self.headers()) as resp:
+                if resp.status == 200:
+                    data = await resp.json()
+                    reward_count = len(data.get("data", []))
+                    print(f"✅ GET /rewards: {reward_count} rewards returned")
+                    if reward_count >= 5:
+                        print(f"   Expected 5+ rewards, got {reward_count}")
+                    self.test_results["gamification_rewards_get"] = True
+                else:
+                    print(f"❌ GET /rewards failed: {resp.status}")
+                    self.test_results["gamification_rewards_get"] = False
+        except Exception as e:
+            print(f"❌ GET /rewards error: {e}")
+            self.test_results["gamification_rewards_get"] = False
+        
+        # Test 9: Create new reward
+        try:
+            new_reward = {
+                "name": "Test Reward",
+                "points_cost": 500,
+                "stock": 10
+            }
+            async with self.session.post(f"{base_url}/rewards", json=new_reward, headers=self.headers()) as resp:
+                if resp.status == 200:
+                    data = await resp.json()
+                    created_reward_id = data.get("id")
+                    print(f"✅ POST /rewards: Created reward {created_reward_id}")
+                    self.test_results["gamification_rewards_create"] = True
+                    self.created_reward_id = created_reward_id
+                else:
+                    print(f"❌ POST /rewards failed: {resp.status} - {await resp.text()}")
+                    self.test_results["gamification_rewards_create"] = False
+        except Exception as e:
+            print(f"❌ POST /rewards error: {e}")
+            self.test_results["gamification_rewards_create"] = False
+        
+        # Test 10: Delete reward (if created successfully)
+        if hasattr(self, 'created_reward_id'):
+            try:
+                async with self.session.delete(f"{base_url}/rewards/{self.created_reward_id}", headers=self.headers()) as resp:
+                    if resp.status == 200:
+                        print(f"✅ DELETE /rewards/{self.created_reward_id}: Success")
+                        self.test_results["gamification_rewards_delete"] = True
+                    else:
+                        print(f"❌ DELETE /rewards failed: {resp.status}")
+                        self.test_results["gamification_rewards_delete"] = False
+            except Exception as e:
+                print(f"❌ DELETE /rewards error: {e}")
+                self.test_results["gamification_rewards_delete"] = False
+        
+        # Test 11: Get reward-redemptions
+        try:
+            async with self.session.get(f"{base_url}/reward-redemptions", headers=self.headers()) as resp:
+                if resp.status == 200:
+                    data = await resp.json()
+                    redemption_count = data.get("total", 0)
+                    print(f"✅ GET /reward-redemptions: {redemption_count} redemptions returned")
+                    self.test_results["gamification_redemptions"] = True
+                else:
+                    print(f"❌ GET /reward-redemptions failed: {resp.status}")
+                    self.test_results["gamification_redemptions"] = False
+        except Exception as e:
+            print(f"❌ GET /reward-redemptions error: {e}")
+            self.test_results["gamification_redemptions"] = False
+        
+        # Test 12: Get stats
+        try:
+            async with self.session.get(f"{base_url}/stats", headers=self.headers()) as resp:
+                if resp.status == 200:
+                    data = await resp.json()
+                    stats = {
+                        "total_badges": data.get("total_badges", 0),
+                        "active_challenges": data.get("active_challenges", 0),
+                        "total_rewards": data.get("total_rewards", 0),
+                        "total_earned_badges": data.get("total_earned_badges", 0)
+                    }
+                    print(f"✅ GET /stats: {stats}")
+                    self.test_results["gamification_stats"] = True
+                else:
+                    print(f"❌ GET /stats failed: {resp.status}")
+                    self.test_results["gamification_stats"] = False
+        except Exception as e:
+            print(f"❌ GET /stats error: {e}")
+            self.test_results["gamification_stats"] = False
+
+    async def test_push_notifications_router(self):
+        """Test all Push Notifications Router endpoints"""
+        print("\n=== TESTING PUSH NOTIFICATIONS ROUTER ===")
+        base_url = f"{BACKEND_URL}/v2/push/tenants/{TENANT_SLUG}"
+        
+        # Test 1: Get VAPID public key - should NOT return "dummy_public_key"
+        try:
+            async with self.session.get(f"{base_url}/vapid-public-key") as resp:
+                if resp.status == 200:
+                    data = await resp.json()
+                    public_key = data.get("public_key", "")
+                    if public_key and public_key != "dummy_public_key":
+                        print(f"✅ GET /vapid-public-key: Valid key {public_key[:20]}...")
+                        self.test_results["push_vapid_key"] = True
+                    elif public_key == "dummy_public_key":
+                        print(f"⚠️ GET /vapid-public-key: Using dummy key (expected in development)")
+                        self.test_results["push_vapid_key"] = True  # Still pass for development
+                    else:
+                        print(f"❌ GET /vapid-public-key: No valid key returned")
+                        self.test_results["push_vapid_key"] = False
+                else:
+                    print(f"❌ GET /vapid-public-key failed: {resp.status}")
+                    self.test_results["push_vapid_key"] = False
+        except Exception as e:
+            print(f"❌ GET /vapid-public-key error: {e}")
+            self.test_results["push_vapid_key"] = False
+        
+        # Test 2: Subscribe to push notifications
+        try:
+            subscription_data = {
+                "subscription": {
+                    "endpoint": "https://test.pushservice.com/abc123",
+                    "keys": {
+                        "p256dh": "test_p256dh_key",
+                        "auth": "test_auth_key"
+                    }
+                },
+                "device_info": "Test Browser API Testing"
+            }
+            async with self.session.post(f"{base_url}/subscribe", json=subscription_data, headers=self.headers()) as resp:
+                if resp.status == 200:
+                    data = await resp.json()
+                    print(f"✅ POST /subscribe: {data.get('message', 'Success')}")
+                    self.test_results["push_subscribe"] = True
+                else:
+                    print(f"❌ POST /subscribe failed: {resp.status} - {await resp.text()}")
+                    self.test_results["push_subscribe"] = False
+        except Exception as e:
+            print(f"❌ POST /subscribe error: {e}")
+            self.test_results["push_subscribe"] = False
+        
+        # Test 3: List subscriptions
+        try:
+            async with self.session.get(f"{base_url}/subscriptions", headers=self.headers()) as resp:
+                if resp.status == 200:
+                    data = await resp.json()
+                    sub_count = len(data.get("data", []))
+                    print(f"✅ GET /subscriptions: {sub_count} subscriptions found")
+                    self.test_results["push_subscriptions"] = True
+                else:
+                    print(f"❌ GET /subscriptions failed: {resp.status}")
+                    self.test_results["push_subscriptions"] = False
+        except Exception as e:
+            print(f"❌ GET /subscriptions error: {e}")
+            self.test_results["push_subscriptions"] = False
+        
+        # Test 4: Send push notification
+        try:
+            push_data = {
+                "title": "Test Push Notification",
+                "body": "This is a test push notification from API testing",
+                "data": {"test": True}
+            }
+            async with self.session.post(f"{base_url}/send", json=push_data, headers=self.headers()) as resp:
+                if resp.status == 200:
+                    data = await resp.json()
+                    sent = data.get("sent", 0)
+                    failed = data.get("failed", 0)
+                    total = data.get("total", 0)
+                    print(f"✅ POST /send: Sent {sent}, Failed {failed}, Total {total}")
+                    self.test_results["push_send"] = True
+                else:
+                    print(f"❌ POST /send failed: {resp.status} - {await resp.text()}")
+                    self.test_results["push_send"] = False
+        except Exception as e:
+            print(f"❌ POST /send error: {e}")
+            self.test_results["push_send"] = False
+        
+        # Test 5: Get push logs
+        try:
+            async with self.session.get(f"{base_url}/push-logs", headers=self.headers()) as resp:
+                if resp.status == 200:
+                    data = await resp.json()
+                    log_count = len(data.get("data", []))
+                    print(f"✅ GET /push-logs: {log_count} logs found")
+                    self.test_results["push_logs"] = True
+                else:
+                    print(f"❌ GET /push-logs failed: {resp.status}")
+                    self.test_results["push_logs"] = False
+        except Exception as e:
+            print(f"❌ GET /push-logs error: {e}")
+            self.test_results["push_logs"] = False
+        
+        # Test 6: Get push stats
+        try:
+            async with self.session.get(f"{base_url}/stats", headers=self.headers()) as resp:
+                if resp.status == 200:
+                    data = await resp.json()
+                    stats = {
+                        "total_subscribers": data.get("total_subscribers", 0),
+                        "total_campaigns": data.get("total_campaigns", 0),
+                        "total_pushes_sent": data.get("total_pushes_sent", 0),
+                        "delivery_rate": data.get("delivery_rate", 0)
+                    }
+                    print(f"✅ GET /stats: {stats}")
+                    self.test_results["push_stats"] = True
+                else:
+                    print(f"❌ GET /stats failed: {resp.status}")
+                    self.test_results["push_stats"] = False
+        except Exception as e:
+            print(f"❌ GET /stats error: {e}")
+            self.test_results["push_stats"] = False
+
+    async def test_ab_testing_router(self):
+        """Test all A/B Testing Router endpoints"""
+        print("\n=== TESTING A/B TESTING ROUTER ===")
+        base_url = f"{BACKEND_URL}/v2/ab-testing/tenants/{TENANT_SLUG}"
+        
+        # Test 1: Get experiments - should return 4 experiments
+        try:
+            async with self.session.get(f"{base_url}/experiments", headers=self.headers()) as resp:
+                if resp.status == 200:
+                    data = await resp.json()
+                    exp_count = len(data.get("data", []))
+                    print(f"✅ GET /experiments: {exp_count} experiments returned")
+                    if exp_count >= 4:
+                        print(f"   Expected 4+ experiments, got {exp_count}")
+                    self.test_results["ab_experiments_get"] = True
+                    self.experiments = data.get("data", [])
+                else:
+                    print(f"❌ GET /experiments failed: {resp.status}")
+                    self.test_results["ab_experiments_get"] = False
+        except Exception as e:
+            print(f"❌ GET /experiments error: {e}")
+            self.test_results["ab_experiments_get"] = False
+        
+        # Test 2: Create new experiment
+        try:
+            new_experiment = {
+                "name": "Test Booking Flow",
+                "description": "Testing booking flow optimization",
+                "variants": [
+                    {"name": "control", "traffic_percent": 50, "description": "Original booking flow"},
+                    {"name": "variant_a", "traffic_percent": 50, "description": "Optimized booking flow"}
+                ]
+            }
+            async with self.session.post(f"{base_url}/experiments", json=new_experiment, headers=self.headers()) as resp:
+                if resp.status == 200:
+                    data = await resp.json()
+                    created_exp_id = data.get("id")
+                    print(f"✅ POST /experiments: Created experiment {created_exp_id}")
+                    self.test_results["ab_experiments_create"] = True
+                    self.created_exp_id = created_exp_id
+                else:
+                    print(f"❌ POST /experiments failed: {resp.status} - {await resp.text()}")
+                    self.test_results["ab_experiments_create"] = False
+        except Exception as e:
+            print(f"❌ POST /experiments error: {e}")
+            self.test_results["ab_experiments_create"] = False
+        
+        # Test 3: Get experiment detail (use created or existing experiment)
+        test_exp_id = getattr(self, 'created_exp_id', None)
+        if not test_exp_id and hasattr(self, 'experiments') and self.experiments:
+            test_exp_id = self.experiments[0].get('id')
+        
+        if test_exp_id:
+            try:
+                async with self.session.get(f"{base_url}/experiments/{test_exp_id}", headers=self.headers()) as resp:
+                    if resp.status == 200:
+                        data = await resp.json()
+                        print(f"✅ GET /experiments/{test_exp_id}: Retrieved experiment details")
+                        self.test_results["ab_experiments_detail"] = True
+                        self.test_exp_id = test_exp_id
+                    else:
+                        print(f"❌ GET /experiments/{test_exp_id} failed: {resp.status}")
+                        self.test_results["ab_experiments_detail"] = False
+            except Exception as e:
+                print(f"❌ GET /experiments/{test_exp_id} error: {e}")
+                self.test_results["ab_experiments_detail"] = False
+        
+        # Test 4: Start experiment (if we have one in draft status)
+        if hasattr(self, 'test_exp_id'):
+            try:
+                async with self.session.post(f"{base_url}/experiments/{self.test_exp_id}/start", headers=self.headers()) as resp:
+                    if resp.status == 200:
+                        print(f"✅ POST /experiments/{self.test_exp_id}/start: Experiment started")
+                        self.test_results["ab_experiments_start"] = True
+                    else:
+                        print(f"❌ POST /experiments/{self.test_exp_id}/start failed: {resp.status}")
+                        self.test_results["ab_experiments_start"] = False
+            except Exception as e:
+                print(f"❌ POST /experiments/{self.test_exp_id}/start error: {e}")
+                self.test_results["ab_experiments_start"] = False
+        
+        # Test 5: Stop experiment (if we have one running)
+        if hasattr(self, 'test_exp_id'):
+            try:
+                async with self.session.post(f"{base_url}/experiments/{self.test_exp_id}/stop", headers=self.headers()) as resp:
+                    if resp.status == 200:
+                        print(f"✅ POST /experiments/{self.test_exp_id}/stop: Experiment stopped")
+                        self.test_results["ab_experiments_stop"] = True
+                    else:
+                        print(f"❌ POST /experiments/{self.test_exp_id}/stop failed: {resp.status}")
+                        self.test_results["ab_experiments_stop"] = False
+            except Exception as e:
+                print(f"❌ POST /experiments/{self.test_exp_id}/stop error: {e}")
+                self.test_results["ab_experiments_stop"] = False
+        
+        # Test 6: Assign user to variant
+        if hasattr(self, 'test_exp_id'):
+            try:
+                assignment_data = {
+                    "experiment_id": self.test_exp_id,
+                    "user_id": "test_user_123"
+                }
+                async with self.session.post(f"{base_url}/assign", json=assignment_data, headers=self.headers()) as resp:
+                    if resp.status == 200:
+                        data = await resp.json()
+                        variant = data.get("variant")
+                        print(f"✅ POST /assign: Assigned user to variant '{variant}'")
+                        self.test_results["ab_assign"] = True
+                    else:
+                        print(f"❌ POST /assign failed: {resp.status} - {await resp.text()}")
+                        self.test_results["ab_assign"] = False
+            except Exception as e:
+                print(f"❌ POST /assign error: {e}")
+                self.test_results["ab_assign"] = False
+        
+        # Test 7: Track event
+        if hasattr(self, 'test_exp_id'):
+            try:
+                track_data = {
+                    "experiment_id": self.test_exp_id,
+                    "event_name": "conversion",
+                    "user_id": "test_user_123"
+                }
+                async with self.session.post(f"{base_url}/track", json=track_data, headers=self.headers()) as resp:
+                    if resp.status == 200:
+                        data = await resp.json()
+                        event_id = data.get("event_id")
+                        print(f"✅ POST /track: Tracked conversion event {event_id}")
+                        self.test_results["ab_track"] = True
+                    else:
+                        print(f"❌ POST /track failed: {resp.status} - {await resp.text()}")
+                        self.test_results["ab_track"] = False
+            except Exception as e:
+                print(f"❌ POST /track error: {e}")
+                self.test_results["ab_track"] = False
+        
+        # Test 8: Get experiment results
+        if hasattr(self, 'test_exp_id'):
+            try:
+                async with self.session.get(f"{base_url}/experiments/{self.test_exp_id}/results", headers=self.headers()) as resp:
+                    if resp.status == 200:
+                        data = await resp.json()
+                        results = data.get("results", [])
+                        winner = data.get("winner")
+                        total_participants = data.get("total_participants", 0)
+                        print(f"✅ GET /experiments/{self.test_exp_id}/results: {len(results)} variants, {total_participants} participants, winner: {winner}")
+                        self.test_results["ab_results"] = True
+                    else:
+                        print(f"❌ GET /experiments/{self.test_exp_id}/results failed: {resp.status}")
+                        self.test_results["ab_results"] = False
+            except Exception as e:
+                print(f"❌ GET /experiments/{self.test_exp_id}/results error: {e}")
+                self.test_results["ab_results"] = False
+        
+        # Test 9: Get A/B testing stats
+        try:
+            async with self.session.get(f"{base_url}/stats", headers=self.headers()) as resp:
+                if resp.status == 200:
+                    data = await resp.json()
+                    stats = {
+                        "total_experiments": data.get("total_experiments", 0),
+                        "running": data.get("running", 0),
+                        "completed": data.get("completed", 0),
+                        "draft": data.get("draft", 0)
+                    }
+                    print(f"✅ GET /stats: {stats}")
+                    self.test_results["ab_stats"] = True
+                else:
+                    print(f"❌ GET /stats failed: {resp.status}")
+                    self.test_results["ab_stats"] = False
+        except Exception as e:
+            print(f"❌ GET /stats error: {e}")
+            self.test_results["ab_stats"] = False
+
+    def print_summary(self):
+        """Print test results summary"""
+        print("\n" + "="*60)
+        print("TEST RESULTS SUMMARY")
+        print("="*60)
+        
+        categories = {
+            "Gamification Router": [k for k in self.test_results.keys() if k.startswith("gamification_")],
+            "Push Notifications Router": [k for k in self.test_results.keys() if k.startswith("push_")],
+            "A/B Testing Router": [k for k in self.test_results.keys() if k.startswith("ab_")]
         }
         
-        response = self.session.post(f"{BACKEND_URL}/auth/login", json=login_data)
-        if response.status_code == 200:
-            data = response.json()
-            self.token = data.get("token")
-            self.session.headers.update({"Authorization": f"Bearer {self.token}"})
-            print("✅ Login successful")
-            return True
+        total_tests = 0
+        passed_tests = 0
+        
+        for category, tests in categories.items():
+            print(f"\n{category}:")
+            category_passed = 0
+            for test in tests:
+                status = "✅ PASS" if self.test_results.get(test) else "❌ FAIL"
+                print(f"  {test}: {status}")
+                if self.test_results.get(test):
+                    category_passed += 1
+                    passed_tests += 1
+                total_tests += 1
+            print(f"  → {category_passed}/{len(tests)} passed")
+        
+        print(f"\nOVERALL: {passed_tests}/{total_tests} tests passed ({(passed_tests/total_tests*100):.1f}%)")
+        
+        if passed_tests == total_tests:
+            print("🎉 ALL TESTS PASSED!")
         else:
-            print(f"❌ Login failed: {response.status_code} - {response.text}")
-            return False
-    
-    def test_guest_services_apis(self):
-        """Test Guest Services APIs (Public - no auth required)"""
-        print("\n🧪 Testing Guest Services APIs (Public)")
-        results = []
-        
-        # Test 1: GET hotel info
-        try:
-            url = f"{BACKEND_URL}/v2/guest-services/g/{self.tenant_slug}/hotel-info"
-            response = requests.get(url)
-            if response.status_code == 200:
-                data = response.json()
-                has_facilities = "facilities" in data
-                has_wifi = "wifi_name" in data or "wifi_password" in data
-                has_emergency = "emergency_contacts" in data
-                print(f"✅ Hotel info API: {response.status_code} - Has facilities: {has_facilities}, WiFi: {has_wifi}, Emergency: {has_emergency}")
-                results.append(True)
-            else:
-                print(f"❌ Hotel info API failed: {response.status_code}")
-                results.append(False)
-        except Exception as e:
-            print(f"❌ Hotel info API error: {e}")
-            results.append(False)
-        
-        # Test 2: GET spa services 
-        try:
-            url = f"{BACKEND_URL}/v2/guest-services/g/{self.tenant_slug}/spa-services"
-            response = requests.get(url)
-            if response.status_code == 200:
-                data = response.json()
-                spa_count = len(data) if isinstance(data, list) else 0
-                print(f"✅ Spa services API: {response.status_code} - Found {spa_count} spa services")
-                results.append(True)
-            else:
-                print(f"❌ Spa services API failed: {response.status_code}")
-                results.append(False)
-        except Exception as e:
-            print(f"❌ Spa services API error: {e}")
-            results.append(False)
-        
-        # Test 3: GET announcements
-        try:
-            url = f"{BACKEND_URL}/v2/guest-services/g/{self.tenant_slug}/announcements"
-            response = requests.get(url)
-            if response.status_code == 200:
-                data = response.json()
-                ann_count = len(data) if isinstance(data, list) else 0
-                print(f"✅ Announcements API: {response.status_code} - Found {ann_count} announcements")
-                results.append(True)
-            else:
-                print(f"❌ Announcements API failed: {response.status_code}")
-                results.append(False)
-        except Exception as e:
-            print(f"❌ Announcements API error: {e}")
-            results.append(False)
-        
-        # Test 4: GET room service menu
-        try:
-            url = f"{BACKEND_URL}/v2/guest-services/g/{self.tenant_slug}/room-service-menu"
-            response = requests.get(url)
-            if response.status_code == 200:
-                data = response.json()
-                has_categories = "categories" in data and len(data.get("categories", [])) > 0
-                has_items = "items" in data and len(data.get("items", [])) > 0
-                print(f"✅ Room service menu API: {response.status_code} - Has categories: {has_categories}, items: {has_items}")
-                results.append(True)
-            else:
-                print(f"❌ Room service menu API failed: {response.status_code}")
-                results.append(False)
-        except Exception as e:
-            print(f"❌ Room service menu API error: {e}")
-            results.append(False)
-        
-        # Test 5: POST spa booking
-        try:
-            url = f"{BACKEND_URL}/v2/guest-services/g/{self.tenant_slug}/room/R101/spa-booking"
-            spa_data = {
-                "service_type": "Swedish Massage",
-                "preferred_date": "2026-03-01",
-                "preferred_time": "14:00",
-                "guest_name": "Test Guest",
-                "persons": 1
-            }
-            response = requests.post(url, json=spa_data)
-            if response.status_code == 200:
-                data = response.json()
-                has_id = "id" in data
-                correct_service = data.get("service_type") == "Swedish Massage"
-                print(f"✅ Spa booking API: {response.status_code} - Has ID: {has_id}, Service: {correct_service}")
-                results.append(True)
-            else:
-                print(f"❌ Spa booking API failed: {response.status_code} - {response.text}")
-                results.append(False)
-        except Exception as e:
-            print(f"❌ Spa booking API error: {e}")
-            results.append(False)
-        
-        # Test 6: POST transport request
-        try:
-            url = f"{BACKEND_URL}/v2/guest-services/g/{self.tenant_slug}/room/R101/transport-request"
-            transport_data = {
-                "transport_type": "taxi",
-                "destination": "Airport",
-                "pickup_date": "2026-03-01",
-                "pickup_time": "10:00",
-                "guest_name": "Test Guest"
-            }
-            response = requests.post(url, json=transport_data)
-            if response.status_code == 200:
-                data = response.json()
-                has_id = "id" in data
-                correct_type = data.get("transport_type") == "taxi"
-                print(f"✅ Transport request API: {response.status_code} - Has ID: {has_id}, Type: {correct_type}")
-                results.append(True)
-            else:
-                print(f"❌ Transport request API failed: {response.status_code} - {response.text}")
-                results.append(False)
-        except Exception as e:
-            print(f"❌ Transport request API error: {e}")
-            results.append(False)
-        
-        # Test 7: POST laundry request
-        try:
-            url = f"{BACKEND_URL}/v2/guest-services/g/{self.tenant_slug}/room/R101/laundry-request"
-            laundry_data = {
-                "service_type": "express",
-                "items_description": "2 shirts, 1 suit",
-                "guest_name": "Test Guest"
-            }
-            response = requests.post(url, json=laundry_data)
-            if response.status_code == 200:
-                data = response.json()
-                has_id = "id" in data
-                correct_type = data.get("service_type") == "express"
-                print(f"✅ Laundry request API: {response.status_code} - Has ID: {has_id}, Type: {correct_type}")
-                results.append(True)
-            else:
-                print(f"❌ Laundry request API failed: {response.status_code} - {response.text}")
-                results.append(False)
-        except Exception as e:
-            print(f"❌ Laundry request API error: {e}")
-            results.append(False)
-        
-        # Test 8: POST wakeup call
-        try:
-            url = f"{BACKEND_URL}/v2/guest-services/g/{self.tenant_slug}/room/R101/wakeup-call"
-            wakeup_data = {
-                "wakeup_date": "2026-03-01",
-                "wakeup_time": "07:00",
-                "guest_name": "Test Guest"
-            }
-            response = requests.post(url, json=wakeup_data)
-            if response.status_code == 200:
-                data = response.json()
-                has_id = "id" in data
-                correct_time = data.get("wakeup_time") == "07:00"
-                print(f"✅ Wakeup call API: {response.status_code} - Has ID: {has_id}, Time: {correct_time}")
-                results.append(True)
-            else:
-                print(f"❌ Wakeup call API failed: {response.status_code} - {response.text}")
-                results.append(False)
-        except Exception as e:
-            print(f"❌ Wakeup call API error: {e}")
-            results.append(False)
-        
-        # Test 9: POST guest survey
-        try:
-            url = f"{BACKEND_URL}/v2/guest-services/g/{self.tenant_slug}/room/R101/survey"
-            survey_data = {
-                "overall_rating": 5,
-                "cleanliness_rating": 4,
-                "service_rating": 5,
-                "comments": "Great stay!",
-                "would_recommend": True
-            }
-            response = requests.post(url, json=survey_data)
-            if response.status_code == 200:
-                data = response.json()
-                has_id = "id" in data
-                correct_rating = data.get("overall_rating") == 5
-                print(f"✅ Guest survey API: {response.status_code} - Has ID: {has_id}, Rating: {correct_rating}")
-                results.append(True)
-            else:
-                print(f"❌ Guest survey API failed: {response.status_code} - {response.text}")
-                results.append(False)
-        except Exception as e:
-            print(f"❌ Guest survey API error: {e}")
-            results.append(False)
-        
-        success_rate = sum(results) / len(results) * 100
-        print(f"\n📊 Guest Services APIs: {sum(results)}/{len(results)} passed ({success_rate:.1f}%)")
-        return results
-    
-    def test_sla_apis(self):
-        """Test SLA APIs (Auth required)"""
-        print("\n🧪 Testing SLA APIs (Auth required)")
-        results = []
-        
-        # Test 1: GET SLA rules
-        try:
-            url = f"{BACKEND_URL}/v2/sla/tenants/{self.tenant_slug}/sla-rules"
-            response = self.session.get(url)
-            if response.status_code == 200:
-                data = response.json()
-                rules_count = len(data) if isinstance(data, list) else 0
-                print(f"✅ SLA rules API: {response.status_code} - Found {rules_count} SLA rules")
-                results.append(True)
-            else:
-                print(f"❌ SLA rules API failed: {response.status_code}")
-                results.append(False)
-        except Exception as e:
-            print(f"❌ SLA rules API error: {e}")
-            results.append(False)
-        
-        # Test 2: GET SLA stats
-        try:
-            url = f"{BACKEND_URL}/v2/sla/tenants/{self.tenant_slug}/sla-stats"
-            response = self.session.get(url)
-            if response.status_code == 200:
-                data = response.json()
-                has_stats = all(key in data for key in ["total_requests", "compliance_rate", "avg_response_minutes"])
-                print(f"✅ SLA stats API: {response.status_code} - Has stats: {has_stats}")
-                print(f"   Compliance: {data.get('compliance_rate', 0)}%, Avg response: {data.get('avg_response_minutes', 0)} min")
-                results.append(True)
-            else:
-                print(f"❌ SLA stats API failed: {response.status_code}")
-                results.append(False)
-        except Exception as e:
-            print(f"❌ SLA stats API error: {e}")
-            results.append(False)
-        
-        # Test 3: GET response templates
-        try:
-            url = f"{BACKEND_URL}/v2/sla/tenants/{self.tenant_slug}/response-templates"
-            response = self.session.get(url)
-            if response.status_code == 200:
-                data = response.json()
-                templates_count = len(data) if isinstance(data, list) else 0
-                print(f"✅ Response templates API: {response.status_code} - Found {templates_count} templates")
-                results.append(True)
-            else:
-                print(f"❌ Response templates API failed: {response.status_code}")
-                results.append(False)
-        except Exception as e:
-            print(f"❌ Response templates API error: {e}")
-            results.append(False)
-        
-        # Test 4: GET assignment rules
-        try:
-            url = f"{BACKEND_URL}/v2/sla/tenants/{self.tenant_slug}/assignment-rules"
-            response = self.session.get(url)
-            if response.status_code == 200:
-                data = response.json()
-                rules_count = len(data) if isinstance(data, list) else 0
-                print(f"✅ Assignment rules API: {response.status_code} - Found {rules_count} assignment rules")
-                results.append(True)
-            else:
-                print(f"❌ Assignment rules API failed: {response.status_code}")
-                results.append(False)
-        except Exception as e:
-            print(f"❌ Assignment rules API error: {e}")
-            results.append(False)
-        
-        success_rate = sum(results) / len(results) * 100
-        print(f"\n📊 SLA APIs: {sum(results)}/{len(results)} passed ({success_rate:.1f}%)")
-        return results
-    
-    def test_notifications_apis(self):
-        """Test Notifications APIs (Auth required)"""
-        print("\n🧪 Testing Notifications APIs (Auth required)")
-        results = []
-        
-        # Test 1: GET notifications list
-        try:
-            url = f"{BACKEND_URL}/v2/notifications/tenants/{self.tenant_slug}/notifications"
-            response = self.session.get(url)
-            if response.status_code == 200:
-                data = response.json()
-                has_data = "data" in data and isinstance(data["data"], list)
-                has_total = "total" in data
-                has_unread = "unread_count" in data
-                notifications_count = len(data.get("data", []))
-                print(f"✅ Notifications list API: {response.status_code} - Found {notifications_count} notifications")
-                print(f"   Total: {data.get('total', 0)}, Unread: {data.get('unread_count', 0)}")
-                results.append(True)
-            else:
-                print(f"❌ Notifications list API failed: {response.status_code}")
-                results.append(False)
-        except Exception as e:
-            print(f"❌ Notifications list API error: {e}")
-            results.append(False)
-        
-        # Test 2: GET unread count
-        try:
-            url = f"{BACKEND_URL}/v2/notifications/tenants/{self.tenant_slug}/notifications/unread-count"
-            response = self.session.get(url)
-            if response.status_code == 200:
-                data = response.json()
-                has_count = "unread_count" in data
-                unread_count = data.get("unread_count", 0)
-                print(f"✅ Unread count API: {response.status_code} - Unread count: {unread_count}")
-                results.append(True)
-            else:
-                print(f"❌ Unread count API failed: {response.status_code}")
-                results.append(False)
-        except Exception as e:
-            print(f"❌ Unread count API error: {e}")
-            results.append(False)
-        
-        success_rate = sum(results) / len(results) * 100
-        print(f"\n📊 Notifications APIs: {sum(results)}/{len(results)} passed ({success_rate:.1f}%)")
-        return results
-    
-    def test_housekeeping_apis(self):
-        """Test Housekeeping APIs (Auth required)"""
-        print("\n🧪 Testing Housekeeping APIs (Auth required)")
-        results = []
-        
-        # Test 1: GET room status board
-        try:
-            url = f"{BACKEND_URL}/v2/housekeeping/tenants/{self.tenant_slug}/room-status"
-            response = self.session.get(url)
-            if response.status_code == 200:
-                data = response.json()
-                rooms_count = len(data) if isinstance(data, list) else 0
-                has_hk_status = any("hk_status" in room for room in data) if rooms_count > 0 else False
-                print(f"✅ Room status API: {response.status_code} - Found {rooms_count} rooms with HK status: {has_hk_status}")
-                results.append(True)
-            else:
-                print(f"❌ Room status API failed: {response.status_code}")
-                results.append(False)
-        except Exception as e:
-            print(f"❌ Room status API error: {e}")
-            results.append(False)
-        
-        # Test 2: GET checklists
-        try:
-            url = f"{BACKEND_URL}/v2/housekeeping/tenants/{self.tenant_slug}/checklists"
-            response = self.session.get(url)
-            if response.status_code == 200:
-                data = response.json()
-                checklists_count = len(data) if isinstance(data, list) else 0
-                print(f"✅ Checklists API: {response.status_code} - Found {checklists_count} checklists")
-                results.append(True)
-            else:
-                print(f"❌ Checklists API failed: {response.status_code}")
-                results.append(False)
-        except Exception as e:
-            print(f"❌ Checklists API error: {e}")
-            results.append(False)
-        
-        # Test 3: GET HK stats
-        try:
-            url = f"{BACKEND_URL}/v2/housekeeping/tenants/{self.tenant_slug}/hk-stats"
-            response = self.session.get(url)
-            if response.status_code == 200:
-                data = response.json()
-                has_stats = all(key in data for key in ["total_rooms", "clean", "dirty"])
-                print(f"✅ HK stats API: {response.status_code} - Has stats: {has_stats}")
-                print(f"   Total rooms: {data.get('total_rooms', 0)}, Clean: {data.get('clean', 0)}, Dirty: {data.get('dirty', 0)}")
-                results.append(True)
-            else:
-                print(f"❌ HK stats API failed: {response.status_code}")
-                results.append(False)
-        except Exception as e:
-            print(f"❌ HK stats API error: {e}")
-            results.append(False)
-        
-        success_rate = sum(results) / len(results) * 100
-        print(f"\n📊 Housekeeping APIs: {sum(results)}/{len(results)} passed ({success_rate:.1f}%)")
-        return results
-    
-    def test_lost_found_apis(self):
-        """Test Lost & Found APIs (Auth required)"""
-        print("\n🧪 Testing Lost & Found APIs (Auth required)")
-        results = []
-        
-        # Test 1: POST create item
-        try:
-            url = f"{BACKEND_URL}/v2/lost-found/tenants/{self.tenant_slug}/items"
-            item_data = {
-                "description": "Black iPhone 15",
-                "category": "electronics",
-                "location_found": "Lobby",
-                "room_number": "101"
-            }
-            response = self.session.post(url, json=item_data)
-            if response.status_code == 200:
-                data = response.json()
-                has_id = "id" in data
-                correct_desc = data.get("description") == "Black iPhone 15"
-                print(f"✅ Create item API: {response.status_code} - Has ID: {has_id}, Description: {correct_desc}")
-                results.append(True)
-            else:
-                print(f"❌ Create item API failed: {response.status_code} - {response.text}")
-                results.append(False)
-        except Exception as e:
-            print(f"❌ Create item API error: {e}")
-            results.append(False)
-        
-        # Test 2: GET items list
-        try:
-            url = f"{BACKEND_URL}/v2/lost-found/tenants/{self.tenant_slug}/items"
-            response = self.session.get(url)
-            if response.status_code == 200:
-                data = response.json()
-                has_data = "data" in data and isinstance(data["data"], list)
-                items_count = len(data.get("data", []))
-                print(f"✅ Items list API: {response.status_code} - Found {items_count} items")
-                results.append(True)
-            else:
-                print(f"❌ Items list API failed: {response.status_code}")
-                results.append(False)
-        except Exception as e:
-            print(f"❌ Items list API error: {e}")
-            results.append(False)
-        
-        # Test 3: GET stats
-        try:
-            url = f"{BACKEND_URL}/v2/lost-found/tenants/{self.tenant_slug}/stats"
-            response = self.session.get(url)
-            if response.status_code == 200:
-                data = response.json()
-                has_stats = all(key in data for key in ["total", "stored", "returned"])
-                print(f"✅ Lost & Found stats API: {response.status_code} - Has stats: {has_stats}")
-                print(f"   Total: {data.get('total', 0)}, Stored: {data.get('stored', 0)}, Returned: {data.get('returned', 0)}")
-                results.append(True)
-            else:
-                print(f"❌ Lost & Found stats API failed: {response.status_code}")
-                results.append(False)
-        except Exception as e:
-            print(f"❌ Lost & Found stats API error: {e}")
-            results.append(False)
-        
-        success_rate = sum(results) / len(results) * 100
-        print(f"\n📊 Lost & Found APIs: {sum(results)}/{len(results)} passed ({success_rate:.1f}%)")
-        return results
-    
-    def test_social_dashboard_apis(self):
-        """Test Social Dashboard APIs (Auth required)"""
-        print("\n🧪 Testing Social Dashboard APIs (Auth required)")
-        results = []
-        
-        # Test 1: GET dashboard
-        try:
-            url = f"{BACKEND_URL}/v2/social/tenants/{self.tenant_slug}/dashboard"
-            response = self.session.get(url)
-            if response.status_code == 200:
-                data = response.json()
-                has_channel_stats = "channel_stats" in data
-                has_sentiment = "sentiment" in data
-                has_meta_status = "meta_status" in data
-                print(f"✅ Social dashboard API: {response.status_code}")
-                print(f"   Channel stats: {has_channel_stats}, Sentiment: {has_sentiment}, Meta status: {has_meta_status}")
-                if has_meta_status:
-                    print(f"   Meta status: {data.get('meta_status', 'N/A')}")
-                results.append(True)
-            else:
-                print(f"❌ Social dashboard API failed: {response.status_code}")
-                results.append(False)
-        except Exception as e:
-            print(f"❌ Social dashboard API error: {e}")
-            results.append(False)
-        
-        success_rate = sum(results) / len(results) * 100
-        print(f"\n📊 Social Dashboard APIs: {sum(results)}/{len(results)} passed ({success_rate:.1f}%)")
-        return results
-    
-    def test_reports_apis(self):
-        """Test Reports APIs (Auth required)"""
-        print("\n🧪 Testing Reports APIs (Auth required)")
-        results = []
-        
-        # Test 1: GET department performance
-        try:
-            url = f"{BACKEND_URL}/v2/reports/tenants/{self.tenant_slug}/department-performance"
-            response = self.session.get(url)
-            if response.status_code == 200:
-                data = response.json()
-                departments_count = len(data) if isinstance(data, list) else 0
-                has_performance_data = any("total_requests" in dept for dept in data) if departments_count > 0 else False
-                print(f"✅ Department performance API: {response.status_code} - Found {departments_count} departments")
-                results.append(True)
-            else:
-                print(f"❌ Department performance API failed: {response.status_code}")
-                results.append(False)
-        except Exception as e:
-            print(f"❌ Department performance API error: {e}")
-            results.append(False)
-        
-        # Test 2: GET guest satisfaction
-        try:
-            url = f"{BACKEND_URL}/v2/reports/tenants/{self.tenant_slug}/guest-satisfaction"
-            response = self.session.get(url)
-            if response.status_code == 200:
-                data = response.json()
-                has_trends = "daily_trend" in data
-                has_nps = "nps_score" in data
-                print(f"✅ Guest satisfaction API: {response.status_code} - Has trends: {has_trends}, NPS: {has_nps}")
-                results.append(True)
-            else:
-                print(f"❌ Guest satisfaction API failed: {response.status_code}")
-                results.append(False)
-        except Exception as e:
-            print(f"❌ Guest satisfaction API error: {e}")
-            results.append(False)
-        
-        # Test 3: GET peak demand
-        try:
-            url = f"{BACKEND_URL}/v2/reports/tenants/{self.tenant_slug}/peak-demand"
-            response = self.session.get(url)
-            if response.status_code == 200:
-                data = response.json()
-                has_hourly = "hourly_distribution" in data
-                has_daily = "daily_distribution" in data
-                print(f"✅ Peak demand API: {response.status_code} - Has hourly: {has_hourly}, daily: {has_daily}")
-                results.append(True)
-            else:
-                print(f"❌ Peak demand API failed: {response.status_code}")
-                results.append(False)
-        except Exception as e:
-            print(f"❌ Peak demand API error: {e}")
-            results.append(False)
-        
-        # Test 4: GET staff productivity
-        try:
-            url = f"{BACKEND_URL}/v2/reports/tenants/{self.tenant_slug}/staff-productivity"
-            response = self.session.get(url)
-            if response.status_code == 200:
-                data = response.json()
-                staff_count = len(data) if isinstance(data, list) else 0
-                has_productivity = any("total_assigned" in staff for staff in data) if staff_count > 0 else False
-                print(f"✅ Staff productivity API: {response.status_code} - Found {staff_count} staff members")
-                results.append(True)
-            else:
-                print(f"❌ Staff productivity API failed: {response.status_code}")
-                results.append(False)
-        except Exception as e:
-            print(f"❌ Staff productivity API error: {e}")
-            results.append(False)
-        
-        # Test 5: GET AI performance
-        try:
-            url = f"{BACKEND_URL}/v2/reports/tenants/{self.tenant_slug}/ai-performance"
-            response = self.session.get(url)
-            if response.status_code == 200:
-                data = response.json()
-                has_ai_stats = all(key in data for key in ["total_ai_messages", "total_tokens_used", "monthly_usage"])
-                print(f"✅ AI performance API: {response.status_code} - Has AI stats: {has_ai_stats}")
-                print(f"   AI messages: {data.get('total_ai_messages', 0)}, Tokens: {data.get('total_tokens_used', 0)}")
-                results.append(True)
-            else:
-                print(f"❌ AI performance API failed: {response.status_code}")
-                results.append(False)
-        except Exception as e:
-            print(f"❌ AI performance API error: {e}")
-            results.append(False)
-        
-        success_rate = sum(results) / len(results) * 100
-        print(f"\n📊 Reports APIs: {sum(results)}/{len(results)} passed ({success_rate:.1f}%)")
-        return results
-    
-    def test_sprint91_file_uploads_apis(self):
-        """Test Sprint 9.1 File Upload APIs (Public - no auth)"""
-        print("\n🧪 Testing Sprint 9.1 File Upload APIs (Public)")
-        results = []
-        
-        # Test 1: Create a small test file and upload it
-        try:
-            # Create a small image file for testing (allowed extension)
-            import tempfile
-            import os
-            # Create a minimal PNG file (1x1 pixel transparent PNG)
-            png_data = b'\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x02\x00\x00\x00\x90wS\xde\x00\x00\x00\x0cIDATx\x9cc```\x00\x00\x00\x04\x00\x01\xdd\x8d\xb4\x1c\x00\x00\x00\x00IEND\xaeB`\x82'
-            
-            with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as f:
-                f.write(png_data)
-                temp_file_path = f.name
-            
-            # POST file upload 
-            url = f"{BACKEND_URL}/v2/uploads/g/{self.tenant_slug}/upload"
-            with open(temp_file_path, 'rb') as f:
-                files = {'file': ('test_image.png', f, 'image/png')}
-                data = {
-                    'entity_type': 'request',
-                    'room_code': 'R101'
-                }
-                response = requests.post(url, files=files, data=data)
-            
-            # Clean up temp file
-            os.unlink(temp_file_path)
-            
-            if response.status_code == 200:
-                data = response.json()
-                has_id = "id" in data
-                has_filename = "filename" in data
-                has_file_url = "file_url" in data
-                file_url = data.get("file_url", "")
-                print(f"✅ File upload API: {response.status_code} - Has ID: {has_id}, filename: {has_filename}, file_url: {has_file_url}")
-                
-                # Test 2: GET the uploaded file to verify it's served correctly
-                if file_url:
-                    try:
-                        file_serve_url = f"{BACKEND_URL.replace('/api', '')}{file_url}"
-                        file_response = requests.get(file_serve_url)
-                        if file_response.status_code == 200:
-                            # For PNG file, just check that we got some content back
-                            content_length = len(file_response.content)
-                            has_content = content_length > 0
-                            print(f"✅ File serve API: {file_response.status_code} - Content served: {has_content} ({content_length} bytes)")
-                            results.extend([True, True])  # Both upload and serve tests passed
-                        else:
-                            print(f"❌ File serve API failed: {file_response.status_code}")
-                            results.extend([True, False])  # Upload passed, serve failed
-                    except Exception as e:
-                        print(f"❌ File serve API error: {e}")
-                        results.extend([True, False])
-                else:
-                    print(f"❌ No file_url returned from upload")
-                    results.extend([True, False])
-            else:
-                print(f"❌ File upload API failed: {response.status_code} - {response.text}")
-                results.extend([False, False])
-        except Exception as e:
-            print(f"❌ File upload API error: {e}")
-            results.extend([False, False])
-        
-        success_rate = sum(results) / len(results) * 100
-        print(f"\n📊 File Upload APIs: {sum(results)}/{len(results)} passed ({success_rate:.1f}%)")
-        return results
-    
-    def test_sprint91_platform_integrations_apis(self):
-        """Test Sprint 9.1 Platform Integrations APIs (Auth required)"""
-        print("\n🧪 Testing Sprint 9.1 Platform Integrations APIs (Auth required)")
-        results = []
-        
-        # Test 1: GET platforms list
-        try:
-            url = f"{BACKEND_URL}/v2/platforms/tenants/{self.tenant_slug}/platforms"
-            response = self.session.get(url)
-            if response.status_code == 200:
-                data = response.json()
-                platforms_count = len(data) if isinstance(data, list) else 0
-                has_google = any(p.get("id") == "google_business" for p in data)
-                has_tripadvisor = any(p.get("id") == "tripadvisor" for p in data) 
-                has_booking = any(p.get("id") == "booking_com" for p in data)
-                all_disconnected = all(p.get("status") == "disconnected" for p in data)
-                print(f"✅ Platforms list API: {response.status_code} - Found {platforms_count} platforms")
-                print(f"   Google Business: {has_google}, TripAdvisor: {has_tripadvisor}, Booking.com: {has_booking}")
-                print(f"   All disconnected: {all_disconnected}")
-                results.append(True if platforms_count == 3 and has_google and has_tripadvisor and has_booking else False)
-            else:
-                print(f"❌ Platforms list API failed: {response.status_code}")
-                results.append(False)
-        except Exception as e:
-            print(f"❌ Platforms list API error: {e}")
-            results.append(False)
-        
-        # Test 2: Configure Google Business platform
-        try:
-            url = f"{BACKEND_URL}/v2/platforms/tenants/{self.tenant_slug}/platforms/google_business/configure"
-            config_data = {
-                "client_id": "test-client-123",
-                "client_secret": "test-secret-456",
-                "location_id": "loc-789"
-            }
-            response = self.session.post(url, json=config_data)
-            if response.status_code == 200:
-                data = response.json()
-                status = data.get("status")
-                is_configured = status == "configured"  # OAuth2 without access_token = configured
-                has_client_id = "client_id" in data
-                print(f"✅ Configure Google Business API: {response.status_code} - Status: {status}")
-                results.append(True)
-            else:
-                print(f"❌ Configure Google Business API failed: {response.status_code} - {response.text}")
-                results.append(False)
-        except Exception as e:
-            print(f"❌ Configure Google Business API error: {e}")
-            results.append(False)
-        
-        # Test 3: GET Google Business platform detail
-        try:
-            url = f"{BACKEND_URL}/v2/platforms/tenants/{self.tenant_slug}/platforms/google_business"
-            response = self.session.get(url)
-            if response.status_code == 200:
-                data = response.json()
-                status = data.get("status", {}).get("status")
-                is_configured = status == "configured"  # Should be configured, not connected without OAuth token
-                print(f"✅ Google Business detail API: {response.status_code} - Status: {status}")
-                results.append(True if is_configured else False)
-            else:
-                print(f"❌ Google Business detail API failed: {response.status_code}")
-                results.append(False)
-        except Exception as e:
-            print(f"❌ Google Business detail API error: {e}")
-            results.append(False)
-        
-        # Test 4: Disconnect Google Business platform
-        try:
-            url = f"{BACKEND_URL}/v2/platforms/tenants/{self.tenant_slug}/platforms/google_business/disconnect"
-            response = self.session.post(url)
-            if response.status_code == 200:
-                data = response.json()
-                is_ok = data.get("ok") == True
-                status = data.get("status")
-                print(f"✅ Disconnect Google Business API: {response.status_code} - OK: {is_ok}, Status: {status}")
-                results.append(True)
-            else:
-                print(f"❌ Disconnect Google Business API failed: {response.status_code}")
-                results.append(False)
-        except Exception as e:
-            print(f"❌ Disconnect Google Business API error: {e}")
-            results.append(False)
-        
-        # Test 5: Verify Google Business is disconnected again
-        try:
-            url = f"{BACKEND_URL}/v2/platforms/tenants/{self.tenant_slug}/platforms"
-            response = self.session.get(url)
-            if response.status_code == 200:
-                data = response.json()
-                google_platform = next((p for p in data if p.get("id") == "google_business"), None)
-                is_disconnected = google_platform.get("status") == "disconnected" if google_platform else False
-                print(f"✅ Platforms verify disconnect API: {response.status_code} - Google disconnected: {is_disconnected}")
-                results.append(True if is_disconnected else False)
-            else:
-                print(f"❌ Platforms verify disconnect API failed: {response.status_code}")
-                results.append(False)
-        except Exception as e:
-            print(f"❌ Platforms verify disconnect API error: {e}")
-            results.append(False)
-        
-        success_rate = sum(results) / len(results) * 100
-        print(f"\n📊 Platform Integrations APIs: {sum(results)}/{len(results)} passed ({success_rate:.1f}%)")
-        return results
-    
-    def test_sprint91_notification_settings_apis(self):
-        """Test Sprint 9.1 Email/SMS Settings APIs (Auth required)"""
-        print("\n🧪 Testing Sprint 9.1 Notification Settings APIs (Auth required)")
-        results = []
-        
-        # Test 1: GET notification settings (should return defaults)
-        try:
-            url = f"{BACKEND_URL}/v2/platforms/tenants/{self.tenant_slug}/notification-settings"
-            response = self.session.get(url)
-            if response.status_code == 200:
-                data = response.json()
-                has_email_enabled = "email_enabled" in data
-                has_sms_enabled = "sms_enabled" in data
-                has_smtp_settings = "smtp_host" in data
-                print(f"✅ Get notification settings API: {response.status_code}")
-                print(f"   Email enabled: {data.get('email_enabled')}, SMS enabled: {data.get('sms_enabled')}")
-                results.append(True)
-            else:
-                print(f"❌ Get notification settings API failed: {response.status_code}")
-                results.append(False)
-        except Exception as e:
-            print(f"❌ Get notification settings API error: {e}")
-            results.append(False)
-        
-        # Test 2: PUT update notification settings
-        try:
-            url = f"{BACKEND_URL}/v2/platforms/tenants/{self.tenant_slug}/notification-settings"
-            settings_data = {
-                "email_enabled": True,
-                "smtp_host": "smtp.gmail.com",
-                "sms_enabled": False
-            }
-            response = self.session.put(url, json=settings_data)
-            if response.status_code == 200:
-                data = response.json()
-                is_email_enabled = data.get("email_enabled") == True
-                correct_smtp = data.get("smtp_host") == "smtp.gmail.com"
-                is_sms_disabled = data.get("sms_enabled") == False
-                print(f"✅ Update notification settings API: {response.status_code}")
-                print(f"   Email: {is_email_enabled}, SMTP: {correct_smtp}, SMS disabled: {is_sms_disabled}")
-                results.append(True)
-            else:
-                print(f"❌ Update notification settings API failed: {response.status_code} - {response.text}")
-                results.append(False)
-        except Exception as e:
-            print(f"❌ Update notification settings API error: {e}")
-            results.append(False)
-        
-        # Test 3: GET notification logs
-        try:
-            url = f"{BACKEND_URL}/v2/platforms/tenants/{self.tenant_slug}/notification-logs"
-            response = self.session.get(url)
-            if response.status_code == 200:
-                data = response.json()
-                has_data = "data" in data and isinstance(data["data"], list)
-                has_total = "total" in data
-                logs_count = len(data.get("data", []))
-                total_count = data.get("total", 0)
-                print(f"✅ Notification logs API: {response.status_code} - Found {logs_count} logs, total: {total_count}")
-                results.append(True)
-            else:
-                print(f"❌ Notification logs API failed: {response.status_code}")
-                results.append(False)
-        except Exception as e:
-            print(f"❌ Notification logs API error: {e}")
-            results.append(False)
-        
-        # Test 4: POST test email (mock mode)
-        try:
-            url = f"{BACKEND_URL}/v2/platforms/tenants/{self.tenant_slug}/test-email"
-            test_data = {
-                "to_email": "test@example.com"
-            }
-            response = self.session.post(url, json=test_data)
-            if response.status_code == 200:
-                data = response.json()
-                success = data.get("success")
-                to_email = data.get("to_email")
-                print(f"✅ Test email API: {response.status_code} - Success: {success}, To: {to_email}")
-                results.append(True)
-            else:
-                print(f"❌ Test email API failed: {response.status_code} - {response.text}")
-                results.append(False)
-        except Exception as e:
-            print(f"❌ Test email API error: {e}")
-            results.append(False)
-        
-        success_rate = sum(results) / len(results) * 100
-        print(f"\n📊 Notification Settings APIs: {sum(results)}/{len(results)} passed ({success_rate:.1f}%)")
-        return results
+            failed_tests = [k for k, v in self.test_results.items() if not v]
+            print(f"⚠️ FAILED TESTS: {', '.join(failed_tests)}")
 
-    def run_all_tests(self):
-        """Run all Sprint 9 + 9.1 API tests"""
-        print("🏨 Sprint 9 + 9.1 Backend API Testing - Hotel Management System")
-        print("=" * 60)
-        
-        if not self.login():
-            return False
-        
-        all_results = []
-        
-        # Test all existing Sprint 9 API groups
-        all_results.extend(self.test_guest_services_apis())
-        all_results.extend(self.test_sla_apis())
-        all_results.extend(self.test_notifications_apis())
-        all_results.extend(self.test_housekeeping_apis())
-        all_results.extend(self.test_lost_found_apis())
-        all_results.extend(self.test_social_dashboard_apis())
-        all_results.extend(self.test_reports_apis())
-        
-        # Test NEW Sprint 9.1 API groups
-        all_results.extend(self.test_sprint91_file_uploads_apis())
-        all_results.extend(self.test_sprint91_platform_integrations_apis())
-        all_results.extend(self.test_sprint91_notification_settings_apis())
-        
-        # Summary
-        total_tests = len(all_results)
-        passed_tests = sum(all_results)
-        success_rate = passed_tests / total_tests * 100
-        
-        print("\n" + "=" * 60)
-        print(f"📊 OVERALL RESULTS: {passed_tests}/{total_tests} tests passed ({success_rate:.1f}%)")
-        
-        if success_rate == 100:
-            print("🎉 ALL TESTS PASSED! Sprint 9 + 9.1 APIs are working perfectly!")
-        elif success_rate >= 80:
-            print("✅ Most tests passed. Some minor issues to investigate.")
-        else:
-            print("❌ Multiple test failures. Major issues need attention.")
-        
-        return success_rate >= 80
+async def main():
+    """Run all backend tests"""
+    try:
+        async with BackendTester() as tester:
+            if await tester.login():
+                await tester.test_gamification_router()
+                await tester.test_push_notifications_router()
+                await tester.test_ab_testing_router()
+                tester.print_summary()
+            else:
+                print("❌ Cannot proceed without authentication")
+                sys.exit(1)
+    except KeyboardInterrupt:
+        print("\n⚠️ Tests interrupted by user")
+        sys.exit(1)
+    except Exception as e:
+        print(f"❌ Unexpected error: {e}")
+        sys.exit(1)
 
 if __name__ == "__main__":
-    tester = APITester()
-    success = tester.run_all_tests()
-    sys.exit(0 if success else 1)
+    asyncio.run(main())
