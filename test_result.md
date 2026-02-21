@@ -845,4 +845,43 @@ agent_communication:
   - agent: "testing"
     message: "✅ SPRINT 6 HARDENING TESTING COMPLETED: 9/9 tests passed (100% success). ALL Sprint 6 features working: Health v6.0.0 with uptime/services, Request ID middleware (X-Request-Id headers), NEW confirmation codes (GHI-202602-HZPTSR format), Atomic payment idempotency, Payment safety (404/400 errors), Notification engine (8 audit entries), Rate limiting (30/min), CLI export data verification, Properties V2 compatibility. System hardened and production-ready. CONFIRMATION CODE VERIFIED: Old RES-XXXXXX → New PREFIX-YYYYMM-XXXXXX ✅"
   - agent: "testing"
+
+# Enhancement: Auto Badge + A/B Report
+test_plan:
+  current_focus:
+    - "Auto Badge Awarding System"
+    - "A/B Testing Report Endpoint"
+  stuck_tasks: []
+  test_all: false
+  test_priority: "high_first"
+
+agent_communication:
+  - agent: "main"
+    message: "Two enhancements: 1) AUTO BADGE AWARDING - auto_check_badges() and auto_check_challenges() in gamification.py. Integrated into guest_services.py (spa, transport, room service) and loyalty.py auto_award_points. Criteria types: auto/count/tier. Tracks events in gamification_events collection. 2) A/B TESTING REPORT - GET /v2/reports/tenants/{slug}/ab-testing-report. New 'A/B Testing' tab in Reports page. Login: admin@grandhotel.com / admin123."
+
+backend:
+  - task: "Auto Badge Awarding System"
+    implemented: true
+    working: true
+    file: "routers/gamification.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "auto_check_badges() and auto_check_challenges() functions integrated into guest_services.py and loyalty.py."
+
+  - task: "A/B Testing Report Endpoint"
+    implemented: true
+    working: true
+    file: "routers/reports.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "GET /v2/reports/tenants/{slug}/ab-testing-report returns summary, per-experiment variant results, winner detection, area distribution."
+
     message: "✅ SPRINT 9.1 BACKEND TESTING COMPLETED: 11/11 tests passed (100% success). ALL Sprint 9.1 new backend APIs working perfectly: 1) File Upload APIs (2/2) - Guest file upload system with PNG support, UUID-based storage, multipart form handling for entity_type=request/room_code=R101, file serving via GET /files/{filename} with 69-byte test file successful. 2) Platform Integrations APIs (5/5) - Complete connector framework for Google Business (OAuth2), TripAdvisor, Booking.com with configure/disconnect/status management, proper auth type handling, platform credentials storage. 3) Email/SMS Settings APIs (4/4) - Full notification configuration system with SMTP settings (smtp.gmail.com), email/SMS enable flags, notification logs, test email functionality. COMBINED WITH SPRINT 9: Total 38/38 backend tests passed (100%). Full hotel management platform with file uploads, platform integrations, and notification infrastructure production-ready."
