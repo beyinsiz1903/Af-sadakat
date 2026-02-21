@@ -47,6 +47,7 @@ const navItems = [
   { path: '/compliance', label: 'Compliance', icon: Shield },
   { path: '/growth', label: 'Growth', icon: Share2 },
   { path: '/gamification', label: 'Gamification', icon: Trophy },
+  { path: '/loyalty-engine', label: 'Sadakat Motoru', icon: Gem },
   { path: '/push-notifications', label: 'Push Notifications', icon: BellRing },
   { path: '/ab-testing', label: 'A/B Testing', icon: FlaskConical },
   { path: '/system', label: 'System', icon: Server },
