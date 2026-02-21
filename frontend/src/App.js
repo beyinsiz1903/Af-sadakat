@@ -116,6 +116,9 @@ function App() {
               <Route path="reports" element={<ReportsPage />} />
               <Route path="notifications" element={<NotificationCenterPage />} />
               <Route path="restaurant-reservations" element={<RestaurantReservationsPage />} />
+              <Route path="gamification" element={<GamificationPage />} />
+              <Route path="push-notifications" element={<PushNotificationsPage />} />
+              <Route path="ab-testing" element={<ABTestingPage />} />
               <Route path="settings" element={<SettingsPage />} />
             </Route>
             
