@@ -3825,8 +3825,10 @@ app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
     allow_origins=os.environ.get('CORS_ORIGINS', '*').split(','),
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "X-Request-Id", "X-Property-Id", "X-CSRF-Token", "X-Tenant-Id"],
+    expose_headers=["X-Request-Id", "X-RateLimit-Remaining", "X-CSRF-Token"],
+    max_age=600,
 )
 
 # Sprint 6: Request ID middleware + global exception handler
