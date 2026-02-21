@@ -3171,6 +3171,7 @@ async def start_meta_token_refresh_task():
 
 # (WebSocket endpoint moved below to websocket_endpoint_final with auth revalidation)
 
+@api_router.get("/tenants/{tenant_slug}/reviews")
 async def list_reviews(tenant_slug: str, source: Optional[str] = None, page: int = 1, limit: int = 20):
     tenant = await get_tenant_by_slug(tenant_slug)
     query = {"tenant_id": tenant["id"]}
