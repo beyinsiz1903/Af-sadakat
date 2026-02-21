@@ -31,7 +31,7 @@ def _get_vapid_keys():
         return VAPID_PRIVATE_KEY, VAPID_PUBLIC_KEY
     
     # Try env vars first
-    VAPID_PRIVATE_KEY = os.environ.get("VAPID_PRIVATE_KEY", "")
+    VAPID_PRIVATE_KEY = os.environ.get("VAPID_PRIVATE_KEY", "").replace("\\n", "\n")
     VAPID_PUBLIC_KEY = os.environ.get("VAPID_PUBLIC_KEY", "")
     
     if not VAPID_PRIVATE_KEY or not VAPID_PUBLIC_KEY:
