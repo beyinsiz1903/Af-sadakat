@@ -483,9 +483,12 @@ class BackendTester:
                 print(f"❌ POST /experiments/{self.test_exp_id}/stop error: {e}")
                 self.test_results["ab_experiments_stop"] = False
         
-        # Test 6: Assign user to variant
+        # Test 6: Assign user to variant (use running experiment or restart the created one)
         if hasattr(self, 'test_exp_id'):
             try:
+                # First, try to start the experiment again in case it was stopped
+                await self.session.post(f"{base_url}/experiments/{self.test_exp_id}/start", headers=self.headers())
+                
                 assignment_data = {
                     "experiment_id": self.test_exp_id,
                     "user_id": "test_user_123"
