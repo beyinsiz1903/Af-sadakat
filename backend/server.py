@@ -2638,16 +2638,10 @@ async def get_referral(tenant_slug: str):
 @api_router.get("/r/{referral_code}")
 async def referral_landing(referral_code: str):
     """Public referral landing page data"""
-    referral = await db.referrals.find_one({"code": referral_code})
-    if not referral:
+    data = await get_referral_landing_data(db, referral_code)
+    if not data:
         raise HTTPException(status_code=404, detail="Referral not found")
-    await track_referral_click(db, referral_code)
-    tenant = await db.tenants.find_one({"id": referral["tenant_id"]}, {"_id": 0})
-    return {
-        "referral_code": referral_code,
-        "referrer": tenant.get("name", "") if tenant else "",
-        "message": "Join OmniHub and get premium features!"
-    }
+    return data
 
 @api_router.get("/tenants/{tenant_slug}/growth/stats")
 async def get_growth_stats(tenant_slug: str):
