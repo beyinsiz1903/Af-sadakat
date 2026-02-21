@@ -141,13 +141,13 @@ def test_plans_endpoint():
         print("❌ Plans API failed")
         return False
     
-    # Should return basic/pro/enterprise with prices
-    if not isinstance(result, list) or len(result) < 3:
-        print("❌ Plans API should return at least 3 plans")
+    # Should return object with basic/pro/enterprise keys with prices
+    if not isinstance(result, dict):
+        print("❌ Plans API should return object")
         return False
     
-    plan_names = [p.get("name", "").lower() for p in result]
     required_plans = ["basic", "pro", "enterprise"]
+    plan_names = list(result.keys())
     
     missing_plans = [p for p in required_plans if p not in plan_names]
     if missing_plans:
@@ -155,12 +155,12 @@ def test_plans_endpoint():
         return False
     
     # Check for price info
-    for plan in result:
-        if "price" not in plan:
-            print(f"❌ Plan {plan.get('name')} missing price")
+    for plan_name, plan_data in result.items():
+        if "price_monthly" not in plan_data:
+            print(f"❌ Plan {plan_name} missing price_monthly")
             return False
     
-    print(f"✅ Plans API working - found {len(result)} plans: {[p.get('name') for p in result]}")
+    print(f"✅ Plans API working - found {len(result)} plans: {list(result.keys())}")
     return True
 
 def test_usage_and_billing():
