@@ -3542,6 +3542,9 @@ for router_name, router_module, router_attr in [
     ("reports", "routers.reports", "router"),
     ("file_uploads", "routers.file_uploads", "router"),
     ("platform_integrations", "routers.platform_integrations", "router"),
+    ("gamification", "routers.gamification", "router"),
+    ("push_notifications", "routers.push_notifications", "router"),
+    ("ab_testing", "routers.ab_testing", "router"),
 ]:
     try:
         mod = __import__(router_module, fromlist=[router_attr])
