@@ -37,7 +37,7 @@ class BackendTester:
             }) as resp:
                 if resp.status == 200:
                     data = await resp.json()
-                    self.token = data.get("access_token")
+                    self.token = data.get("token")
                     print(f"✅ Login successful, token: {self.token[:20]}...")
                     return True
                 else:
