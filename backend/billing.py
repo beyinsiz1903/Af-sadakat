@@ -185,7 +185,6 @@ async def handle_stripe_webhook(db, event_type: str, event_data: dict) -> dict:
     # Stub handlers - in production, these would update billing state
     if event_type == "invoice.paid":
         customer_id = event_data.get("customer", "")
-        amount = event_data.get("amount_paid", 0)
         await db.billing_accounts.update_one(
             {"stripe_customer_id": customer_id},
             {"$set": {"status": "active", "last_payment_at": now_utc().isoformat()}}
