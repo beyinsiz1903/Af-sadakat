@@ -132,6 +132,9 @@ function App() {
             
             {/* Payment Public Page (no auth) */}
             <Route path="/pay/:paymentLinkId" element={<PaymentPage />} />
+            
+            {/* Public Referral Landing Page */}
+            <Route path="/r/:referralCode" element={<ReferralLandingPage />} />
           </Routes>
         </BrowserRouter>
         <Toaster position="top-right" theme="dark" />
