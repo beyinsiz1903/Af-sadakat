@@ -351,16 +351,37 @@ async def register(data: dict):
     }
 
 @api_router.post("/auth/login")
-async def login(data: LoginRequest):
+async def login(data: LoginRequest, request: Request = None):
+    # Brute force check
+    if brute_force.is_locked(data.email):
+        remaining = brute_force.get_lockout_remaining(data.email)
+        raise HTTPException(status_code=429, detail=f"Account locked. Try again in {remaining}s")
+    
+    # Rate limit check
+    client_ip = request.client.host if request else "unknown"
+    rate_check = rate_limiter.check_tiered(client_ip, route="auth/login")
+    if rate_check["limited"]:
+        raise HTTPException(status_code=429, detail=f"Too many login attempts. Retry after {rate_check['retry_after']}s")
+    
     user = await db.users.find_one({"email": data.email})
     if not user or not verify_password(data.password, user["password_hash"]):
+        brute_force.record_attempt(data.email, False)
         raise HTTPException(status_code=401, detail="Invalid credentials")
     
     if not user.get("active", True):
         raise HTTPException(status_code=403, detail="Account disabled")
     
+    brute_force.record_attempt(data.email, True)
     tenant = await db.tenants.find_one({"id": user["tenant_id"]})
     token = create_token(user["id"], user["tenant_id"], user["role"])
+    
+    # Create token family for rotation
+    token_family_manager.create_family(user["id"], token)
+    
+    # Create device session
+    user_agent = request.headers.get("user-agent", "") if request else ""
+    session = create_session_doc(user["id"], user["tenant_id"], client_ip, user_agent, token)
+    await db.sessions.insert_one(session)
     
     user_doc = serialize_doc(user)
     user_doc.pop("password_hash", None)
@@ -369,7 +390,9 @@ async def login(data: LoginRequest):
     return {
         "token": token,
         "user": user_doc,
-        "tenant": serialize_doc(tenant)
+        "tenant": serialize_doc(tenant),
+        "session_id": session["id"],
+        "csrf_token": csrf_protection.generate_token(user["id"])
     }
 
 @api_router.get("/auth/me")
