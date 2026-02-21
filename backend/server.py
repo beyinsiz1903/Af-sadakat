@@ -2074,6 +2074,106 @@ async def seed_data():
     await db.ab_experiments.delete_many({"tenant_id": tenant_id})
     await db.ab_experiments.insert_many(ab_experiments_seed)
 
+    # ---- Loyalty Engine V3 Seed Data ----
+    # Tier config
+    await db.tier_config.delete_many({"tenant_id": tenant_id})
+    await db.tier_config.insert_one({
+        "id": new_id(), "tenant_id": tenant_id,
+        "tiers": [
+            {"name": "Bronz", "slug": "bronze", "min_points": 0, "color": "#CD7F32", "icon": "shield",
+             "benefits": ["Hosgeldin puani", "Dogum gunu surprizi"], "multiplier": 1.0, "sort_order": 1},
+            {"name": "Gumus", "slug": "silver", "min_points": 500, "color": "#C0C0C0", "icon": "award",
+             "benefits": ["Oda servisi %5 indirim", "Ucretsiz WiFi yukseltme", "Oncelikli rezervasyon"], "multiplier": 1.25, "sort_order": 2},
+            {"name": "Altin", "slug": "gold", "min_points": 1500, "color": "#FFD700", "icon": "star",
+             "benefits": ["Tum hizmetlerde %10 indirim", "Gec check-out (14:00)", "Ucretsiz oda yukseltme", "Lounge erisimi"], "multiplier": 1.5, "sort_order": 3},
+            {"name": "Platin", "slug": "platinum", "min_points": 5000, "color": "#E5E4E2", "icon": "crown",
+             "benefits": ["Tum hizmetlerde %20 indirim", "Gec check-out (16:00)", "Garantili oda yukseltme", "VIP lounge erisimi", "Hosgeldin amenity", "Ucretsiz havalimanı transferi", "Ozel concierge"], "multiplier": 2.0, "sort_order": 4},
+        ],
+        "auto_upgrade": True, "auto_downgrade": True, "downgrade_period_days": 365,
+        "evaluation_period": "yearly", "updated_at": now_utc().isoformat()
+    })
+
+    # Update existing loyalty accounts with tier_slug
+    await db.loyalty_accounts.update_many(
+        {"tenant_id": tenant_id, "tier_name": "Silver"},
+        {"$set": {"tier_slug": "silver", "tier_color": "#C0C0C0"}}
+    )
+    await db.loyalty_accounts.update_many(
+        {"tenant_id": tenant_id, "tier_name": "Gold"},
+        {"$set": {"tier_slug": "gold", "tier_color": "#FFD700"}}
+    )
+
+    # Point rules
+    await db.point_rules.delete_many({"tenant_id": tenant_id})
+    point_rules_seed = [
+        {"id": new_id(), "tenant_id": tenant_id, "name": "Konaklama Puani", "description": "Her gece konaklama icin puan kazanin", "rule_type": "accommodation", "condition": {"hotel": "*", "min_nights": 1, "room_type": "*"}, "points": 100, "multiplier_enabled": True, "active": True, "valid_from": "", "valid_until": "", "sort_order": 1, "applies_to_tiers": [], "property_ids": [], "created_at": now_utc().isoformat()},
+        {"id": new_id(), "tenant_id": tenant_id, "name": "Deluxe 3 Gece Bonusu", "description": "Deluxe odada 3+ gece kalin, ekstra 500 puan", "rule_type": "accommodation", "condition": {"hotel": "*", "min_nights": 3, "room_type": "deluxe"}, "points": 500, "multiplier_enabled": True, "active": True, "valid_from": "", "valid_until": "", "sort_order": 2, "applies_to_tiers": [], "property_ids": [], "created_at": now_utc().isoformat()},
+        {"id": new_id(), "tenant_id": tenant_id, "name": "Suite VIP Bonus", "description": "Suite odada konaklama icin 1000 bonus puan", "rule_type": "accommodation", "condition": {"hotel": "*", "min_nights": 1, "room_type": "suite"}, "points": 1000, "multiplier_enabled": True, "active": True, "valid_from": "", "valid_until": "", "sort_order": 3, "applies_to_tiers": [], "property_ids": [], "created_at": now_utc().isoformat()},
+        {"id": new_id(), "tenant_id": tenant_id, "name": "Harcama Puani", "description": "Her 100 TRY harcama icin 10 puan", "rule_type": "spend", "condition": {"per_amount": 100, "currency": "TRY"}, "points": 10, "multiplier_enabled": True, "active": True, "valid_from": "", "valid_until": "", "sort_order": 4, "applies_to_tiers": [], "property_ids": [], "created_at": now_utc().isoformat()},
+        {"id": new_id(), "tenant_id": tenant_id, "name": "Spa Aktivite Puani", "description": "Her spa rezervasyonunda 50 puan", "rule_type": "activity", "condition": {"event_type": "spa_booking"}, "points": 50, "multiplier_enabled": True, "active": True, "valid_from": "", "valid_until": "", "sort_order": 5, "applies_to_tiers": [], "property_ids": [], "created_at": now_utc().isoformat()},
+        {"id": new_id(), "tenant_id": tenant_id, "name": "Restoran Siparis Puani", "description": "Her restoran siparisinde 25 puan", "rule_type": "activity", "condition": {"event_type": "order_completed"}, "points": 25, "multiplier_enabled": True, "active": True, "valid_from": "", "valid_until": "", "sort_order": 6, "applies_to_tiers": [], "property_ids": [], "created_at": now_utc().isoformat()},
+        {"id": new_id(), "tenant_id": tenant_id, "name": "Yorum Yazma Bonusu", "description": "Yorum yazin 30 puan kazanin", "rule_type": "activity", "condition": {"event_type": "review_written"}, "points": 30, "multiplier_enabled": False, "active": True, "valid_from": "", "valid_until": "", "sort_order": 7, "applies_to_tiers": [], "property_ids": [], "created_at": now_utc().isoformat()},
+        {"id": new_id(), "tenant_id": tenant_id, "name": "VIP Ozel Davet", "description": "VIP etkinlik davetlerine ozel puan", "rule_type": "custom", "condition": {"trigger": "manual"}, "points": 1000, "multiplier_enabled": False, "active": True, "valid_from": "", "valid_until": "", "sort_order": 8, "applies_to_tiers": ["gold", "platinum"], "property_ids": [], "created_at": now_utc().isoformat()},
+    ]
+    await db.point_rules.insert_many(point_rules_seed)
+
+    # Enhanced rewards catalog V3
+    await db.rewards_catalog_v3.delete_many({"tenant_id": tenant_id})
+    rewards_v3_seed = [
+        {"id": new_id(), "tenant_id": tenant_id, "name": "Ucretsiz Gece Konaklama", "description": "1 gece ucretsiz standart oda konaklama", "points_cost": 2000, "category": "konaklama", "subcategory": "standart", "icon": "bed", "image_url": "", "min_tier": "silver", "is_partner": False, "partner_name": "", "partner_type": "", "is_seasonal": False, "season": "", "valid_from": "", "valid_until": "", "stock": 10, "redeemed_count": 2, "sort_order": 1, "active": True, "created_at": now_utc().isoformat()},
+        {"id": new_id(), "tenant_id": tenant_id, "name": "Spa Paketi", "description": "60 dakika tam vucut masaji + sauna", "points_cost": 800, "category": "spa", "subcategory": "masaj", "icon": "sparkles", "image_url": "", "min_tier": "bronze", "is_partner": False, "partner_name": "", "partner_type": "", "is_seasonal": False, "season": "", "valid_from": "", "valid_until": "", "stock": 20, "redeemed_count": 5, "sort_order": 2, "active": True, "created_at": now_utc().isoformat()},
+        {"id": new_id(), "tenant_id": tenant_id, "name": "Restoran Aksam Yemegi", "description": "2 kisilik ozel aksam yemegi", "points_cost": 1200, "category": "restoran", "subcategory": "fine_dining", "icon": "utensils", "image_url": "", "min_tier": "silver", "is_partner": False, "partner_name": "", "partner_type": "", "is_seasonal": False, "season": "", "valid_from": "", "valid_until": "", "stock": -1, "redeemed_count": 3, "sort_order": 3, "active": True, "created_at": now_utc().isoformat()},
+        {"id": new_id(), "tenant_id": tenant_id, "name": "Oda Yukseltme", "description": "Bir ust kategori odaya ucretsiz gecis", "points_cost": 1500, "category": "konaklama", "subcategory": "upgrade", "icon": "arrow-up-circle", "image_url": "", "min_tier": "gold", "is_partner": False, "partner_name": "", "partner_type": "", "is_seasonal": False, "season": "", "valid_from": "", "valid_until": "", "stock": 5, "redeemed_count": 1, "sort_order": 4, "active": True, "created_at": now_utc().isoformat()},
+        {"id": new_id(), "tenant_id": tenant_id, "name": "Havayolu Milleri (1000 Mil)", "description": "Turkish Airlines 1000 mil transferi", "points_cost": 3000, "category": "partner", "subcategory": "havayolu", "icon": "plane", "image_url": "", "min_tier": "gold", "is_partner": True, "partner_name": "Turkish Airlines", "partner_type": "havayolu", "is_seasonal": False, "season": "", "valid_from": "", "valid_until": "", "stock": -1, "redeemed_count": 0, "sort_order": 5, "active": True, "created_at": now_utc().isoformat()},
+        {"id": new_id(), "tenant_id": tenant_id, "name": "Arac Kiralama 1 Gun", "description": "1 gunluk ucretsiz arac kiralama", "points_cost": 2500, "category": "partner", "subcategory": "arac", "icon": "car", "image_url": "", "min_tier": "gold", "is_partner": True, "partner_name": "Enterprise", "partner_type": "arac_kiralama", "is_seasonal": False, "season": "", "valid_from": "", "valid_until": "", "stock": 3, "redeemed_count": 0, "sort_order": 6, "active": True, "created_at": now_utc().isoformat()},
+        {"id": new_id(), "tenant_id": tenant_id, "name": "Gec Check-out (16:00)", "description": "16:00'ye kadar uzatilmis check-out", "points_cost": 300, "category": "hizmet", "subcategory": "checkout", "icon": "clock", "image_url": "", "min_tier": "bronze", "is_partner": False, "partner_name": "", "partner_type": "", "is_seasonal": False, "season": "", "valid_from": "", "valid_until": "", "stock": -1, "redeemed_count": 12, "sort_order": 7, "active": True, "created_at": now_utc().isoformat()},
+        {"id": new_id(), "tenant_id": tenant_id, "name": "Yaz Ozel: Havuz VIP", "description": "Tum gun VIP havuz alani erisimi", "points_cost": 500, "category": "sezonsal", "subcategory": "yaz", "icon": "sun", "image_url": "", "min_tier": "bronze", "is_partner": False, "partner_name": "", "partner_type": "", "is_seasonal": True, "season": "yaz", "valid_from": "2025-06-01", "valid_until": "2025-09-30", "stock": 50, "redeemed_count": 8, "sort_order": 8, "active": True, "created_at": now_utc().isoformat()},
+        {"id": new_id(), "tenant_id": tenant_id, "name": "Platin Ozel: Ozel Concierge", "description": "24 saat kisisel concierge hizmeti", "points_cost": 5000, "category": "ozel", "subcategory": "platin", "icon": "crown", "image_url": "", "min_tier": "platinum", "is_partner": False, "partner_name": "", "partner_type": "", "is_seasonal": False, "season": "", "valid_from": "", "valid_until": "", "stock": 2, "redeemed_count": 0, "sort_order": 9, "active": True, "created_at": now_utc().isoformat()},
+    ]
+    await db.rewards_catalog_v3.insert_many(rewards_v3_seed)
+
+    # Loyalty campaigns
+    await db.loyalty_campaigns.delete_many({"tenant_id": tenant_id})
+    campaigns_seed = [
+        {"id": new_id(), "tenant_id": tenant_id, "name": "Yaz Kampanyasi 2x Puan", "description": "Temmuz-Agustos arasinda tum konaklamalarda 2x puan", "campaign_type": "seasonal", "target_segment": "all", "target_tiers": [], "channel": "all", "bonus_points": 0, "bonus_multiplier": 2.0, "reward_id": "", "message_template": "Bu yaz tatilinde 2x puan kazanin!", "start_date": "2025-07-01", "end_date": "2025-08-31", "status": "active", "sent_count": 450, "opened_count": 280, "converted_count": 85, "created_at": now_utc().isoformat()},
+        {"id": new_id(), "tenant_id": tenant_id, "name": "Dogum Gunu Surprizi", "description": "Dogum gununde 500 bonus puan", "campaign_type": "birthday", "target_segment": "all", "target_tiers": [], "channel": "email", "bonus_points": 500, "bonus_multiplier": 1.0, "reward_id": "", "message_template": "Dogum gununuz kutlu olsun! 500 bonus puan hediyemiz!", "start_date": "", "end_date": "", "status": "active", "sent_count": 120, "opened_count": 95, "converted_count": 78, "created_at": now_utc().isoformat()},
+        {"id": new_id(), "tenant_id": tenant_id, "name": "Geri Donus Kampanyasi", "description": "60+ gun inaktif uyelere ozel 300 puan", "campaign_type": "win_back", "target_segment": "inactive", "target_tiers": [], "channel": "sms", "bonus_points": 300, "bonus_multiplier": 1.0, "reward_id": "", "message_template": "Sizi ozledik! Geri donun, 300 bonus puan kazanin!", "start_date": "", "end_date": "", "status": "active", "sent_count": 35, "opened_count": 20, "converted_count": 8, "created_at": now_utc().isoformat()},
+        {"id": new_id(), "tenant_id": tenant_id, "name": "Altin Seviye Ozel Teklif", "description": "Altin ve ustu uyeler icin ozel spa indirimi", "campaign_type": "tier_exclusive", "target_segment": "tier_based", "target_tiers": ["gold", "platinum"], "channel": "push", "bonus_points": 200, "bonus_multiplier": 1.0, "reward_id": "", "message_template": "Altin uyelerimize ozel: Ucretsiz spa deneyimi!", "start_date": "2025-07-01", "end_date": "2025-07-31", "status": "draft", "sent_count": 0, "opened_count": 0, "converted_count": 0, "created_at": now_utc().isoformat()},
+    ]
+    await db.loyalty_campaigns.insert_many(campaigns_seed)
+
+    # Referral config
+    await db.referral_config.delete_many({"tenant_id": tenant_id})
+    await db.referral_config.insert_one({
+        "id": new_id(), "tenant_id": tenant_id,
+        "enabled": True, "referrer_points": 200, "referee_points": 100,
+        "max_referrals_per_member": 20, "require_first_stay": True,
+        "updated_at": now_utc().isoformat()
+    })
+
+    # Sample referrals
+    await db.member_referrals.delete_many({"tenant_id": tenant_id})
+    ref_code = "REF-" + hashlib.md5(f"{tenant_id}{contacts[2]['id']}".encode()).hexdigest()[:6].upper()
+    await db.loyalty_accounts.update_one(
+        {"tenant_id": tenant_id, "contact_id": contacts[2]["id"]},
+        {"$set": {"referral_code": ref_code}}
+    )
+    await db.member_referrals.insert_many([
+        {"id": new_id(), "tenant_id": tenant_id, "referrer_contact_id": contacts[2]["id"], "referee_contact_id": contacts[0]["id"], "referral_code": ref_code, "status": "completed", "referrer_points_earned": 200, "referee_points_earned": 100, "created_at": (now_utc() - timedelta(days=15)).isoformat()},
+        {"id": new_id(), "tenant_id": tenant_id, "referrer_contact_id": contacts[2]["id"], "referee_contact_id": contacts[1]["id"], "referral_code": ref_code, "status": "pending", "referrer_points_earned": 0, "referee_points_earned": 0, "created_at": (now_utc() - timedelta(days=5)).isoformat()},
+    ])
+
+    # Communication preferences
+    await db.comm_prefs.delete_many({"tenant_id": tenant_id})
+    await db.comm_prefs.insert_one({
+        "id": new_id(), "tenant_id": tenant_id,
+        "email_enabled": True, "sms_enabled": False, "whatsapp_enabled": False,
+        "push_enabled": True, "inapp_enabled": True,
+        "birthday_campaign": True, "anniversary_campaign": True,
+        "tier_change_notification": True, "points_reminder_days": 30,
+        "inactive_reminder_days": 60, "updated_at": now_utc().isoformat()
+    })
+
     return {
         "message": "Seed data created successfully",
         "tenant_slug": "grand-hotel",
