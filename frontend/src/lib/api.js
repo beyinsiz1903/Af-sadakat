@@ -441,3 +441,53 @@ export const abTestingAPI = {
   trackEvent: (slug, data) => api.post(`/v2/ab-testing/tenants/${slug}/track`, data),
   getStats: (slug) => api.get(`/v2/ab-testing/tenants/${slug}/stats`),
 };
+
+// Loyalty Engine V3
+export const loyaltyEngineAPI = {
+  // Overview
+  getOverview: (slug) => api.get(`/v2/loyalty-engine/tenants/${slug}/overview`),
+  // Point Rules
+  listPointRules: (slug) => api.get(`/v2/loyalty-engine/tenants/${slug}/point-rules`),
+  createPointRule: (slug, data) => api.post(`/v2/loyalty-engine/tenants/${slug}/point-rules`, data),
+  updatePointRule: (slug, id, data) => api.put(`/v2/loyalty-engine/tenants/${slug}/point-rules/${id}`, data),
+  deletePointRule: (slug, id) => api.delete(`/v2/loyalty-engine/tenants/${slug}/point-rules/${id}`),
+  // Tiers
+  getTiers: (slug) => api.get(`/v2/loyalty-engine/tenants/${slug}/tiers`),
+  updateTiers: (slug, data) => api.put(`/v2/loyalty-engine/tenants/${slug}/tiers`, data),
+  evaluateTiers: (slug) => api.post(`/v2/loyalty-engine/tenants/${slug}/tiers/evaluate`),
+  getTierHistory: (slug, params) => api.get(`/v2/loyalty-engine/tenants/${slug}/tier-history`, { params }),
+  // Digital Card
+  getDigitalCard: (slug, contactId) => api.get(`/v2/loyalty-engine/tenants/${slug}/members/${contactId}/digital-card`),
+  getWalletPass: (slug, contactId, params) => api.get(`/v2/loyalty-engine/tenants/${slug}/members/${contactId}/wallet-pass`, { params }),
+  // Referral
+  getReferralStats: (slug) => api.get(`/v2/loyalty-engine/tenants/${slug}/referral/stats`),
+  updateReferralConfig: (slug, data) => api.put(`/v2/loyalty-engine/tenants/${slug}/referral/config`, data),
+  listReferrals: (slug, params) => api.get(`/v2/loyalty-engine/tenants/${slug}/referral/list`, { params }),
+  generateReferralCode: (slug, contactId) => api.post(`/v2/loyalty-engine/tenants/${slug}/members/${contactId}/referral-code`),
+  trackReferral: (slug, data) => api.post(`/v2/loyalty-engine/tenants/${slug}/referral/track`, data),
+  // Rewards Enhanced
+  listRewardsEnhanced: (slug, params) => api.get(`/v2/loyalty-engine/tenants/${slug}/rewards-enhanced`, { params }),
+  createRewardEnhanced: (slug, data) => api.post(`/v2/loyalty-engine/tenants/${slug}/rewards-enhanced`, data),
+  updateRewardEnhanced: (slug, id, data) => api.put(`/v2/loyalty-engine/tenants/${slug}/rewards-enhanced/${id}`, data),
+  deleteRewardEnhanced: (slug, id) => api.delete(`/v2/loyalty-engine/tenants/${slug}/rewards-enhanced/${id}`),
+  // Campaigns
+  listCampaigns: (slug, params) => api.get(`/v2/loyalty-engine/tenants/${slug}/campaigns`, { params }),
+  createCampaign: (slug, data) => api.post(`/v2/loyalty-engine/tenants/${slug}/campaigns`, data),
+  updateCampaign: (slug, id, data) => api.put(`/v2/loyalty-engine/tenants/${slug}/campaigns/${id}`, data),
+  deleteCampaign: (slug, id) => api.delete(`/v2/loyalty-engine/tenants/${slug}/campaigns/${id}`),
+  // Communication
+  getCommPrefs: (slug) => api.get(`/v2/loyalty-engine/tenants/${slug}/communication-prefs`),
+  updateCommPrefs: (slug, data) => api.put(`/v2/loyalty-engine/tenants/${slug}/communication-prefs`, data),
+};
+
+// Loyalty Analytics V3
+export const loyaltyAnalyticsAPI = {
+  getRFM: (slug) => api.get(`/v2/loyalty-analytics/tenants/${slug}/rfm`),
+  getCLV: (slug) => api.get(`/v2/loyalty-analytics/tenants/${slug}/clv`),
+  getChurn: (slug) => api.get(`/v2/loyalty-analytics/tenants/${slug}/churn`),
+  getCohort: (slug, params) => api.get(`/v2/loyalty-analytics/tenants/${slug}/cohort`, { params }),
+  getROI: (slug) => api.get(`/v2/loyalty-analytics/tenants/${slug}/roi`),
+  getSegments: (slug) => api.get(`/v2/loyalty-analytics/tenants/${slug}/segments`),
+  getDashboard: (slug, params) => api.get(`/v2/loyalty-analytics/tenants/${slug}/dashboard`, { params }),
+};
+
