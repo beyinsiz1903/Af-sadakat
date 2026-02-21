@@ -18,4 +18,4 @@ JWT_ALGORITHM = "HS256"
 JWT_EXPIRY_HOURS = 24
 GUEST_JWT_SECRET = os.environ.get("GUEST_JWT_SECRET", "guest-token-secret-change-in-prod")
 VAULT_MASTER_KEY = os.environ.get("VAULT_MASTER_KEY", "vault-master-key-change-in-prod")
-PUBLIC_BASE_URL = os.environ.get("PUBLIC_BASE_URL", "https://engage-plus-8.preview.emergentagent.com")
+PUBLIC_BASE_URL = os.environ.get("PUBLIC_BASE_URL", "https://points-platform-2.preview.emergentagent.com")

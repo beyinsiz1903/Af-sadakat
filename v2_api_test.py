@@ -6,7 +6,7 @@ import requests
 import json
 
 def test_v2_apis():
-    base_url = "https://engage-plus-8.preview.emergentagent.com/api"
+    base_url = "https://points-platform-2.preview.emergentagent.com/api"
     
     # Get fresh token
     print("🔐 Getting authentication token...")

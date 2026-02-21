@@ -1645,7 +1645,7 @@ async def seed_data():
     await db.offers.insert_many(offers_seed)
 
     # Payment links
-    public_url = os.environ.get("PUBLIC_BASE_URL", "https://engage-plus-8.preview.emergentagent.com")
+    public_url = os.environ.get("PUBLIC_BASE_URL", "https://points-platform-2.preview.emergentagent.com")
     payment_links_seed = [
         {"id": pl_sent_1_id, "tenant_id": tenant_id, "offer_id": offer_sent_1_id,
          "provider": "STRIPE_STUB", "url": f"{public_url}/pay/{pl_sent_1_id}",
@@ -1861,7 +1861,7 @@ async def seed_data():
             "meta_app_id": "",
             "meta_app_secret": "",
             "meta_verify_token": meta_verify_token,
-            "oauth_redirect_uri": f"https://engage-plus-8.preview.emergentagent.com/api/v2/integrations/meta/oauth/callback",
+            "oauth_redirect_uri": f"https://points-platform-2.preview.emergentagent.com/api/v2/integrations/meta/oauth/callback",
             "access_token": "",
             "token_expires_at": None,
             "scopes": [],
@@ -2714,7 +2714,7 @@ async def get_room_qr_png(room_id: str):
     if not tenant:
         raise HTTPException(status_code=404, detail="Tenant not found")
     
-    public_url = os.environ.get("PUBLIC_BASE_URL", "https://engage-plus-8.preview.emergentagent.com")
+    public_url = os.environ.get("PUBLIC_BASE_URL", "https://points-platform-2.preview.emergentagent.com")
     qr_url = f"{public_url}/g/{tenant['slug']}/room/{room['room_code']}"
     png_bytes = generate_qr_png(qr_url)
     
@@ -2733,7 +2733,7 @@ async def get_rooms_print_pdf(ids: str = ""):
         raise HTTPException(status_code=404, detail="No rooms found")
     
     tenant = await db.tenants.find_one({"id": rooms[0]["tenant_id"]}, {"_id": 0})
-    public_url = os.environ.get("PUBLIC_BASE_URL", "https://engage-plus-8.preview.emergentagent.com")
+    public_url = os.environ.get("PUBLIC_BASE_URL", "https://points-platform-2.preview.emergentagent.com")
     
     items = [{
         "label": f"Room {r['room_number']}",
@@ -2752,7 +2752,7 @@ async def get_table_qr_png(table_id: str):
         raise HTTPException(status_code=404, detail="Table not found")
     
     tenant = await db.tenants.find_one({"id": table["tenant_id"]}, {"_id": 0})
-    public_url = os.environ.get("PUBLIC_BASE_URL", "https://engage-plus-8.preview.emergentagent.com")
+    public_url = os.environ.get("PUBLIC_BASE_URL", "https://points-platform-2.preview.emergentagent.com")
     qr_url = f"{public_url}/g/{tenant['slug']}/table/{table['table_code']}"
     png_bytes = generate_qr_png(qr_url)
     
@@ -2771,7 +2771,7 @@ async def get_tables_print_pdf(ids: str = ""):
         raise HTTPException(status_code=404, detail="No tables found")
     
     tenant = await db.tenants.find_one({"id": tables[0]["tenant_id"]}, {"_id": 0})
-    public_url = os.environ.get("PUBLIC_BASE_URL", "https://engage-plus-8.preview.emergentagent.com")
+    public_url = os.environ.get("PUBLIC_BASE_URL", "https://points-platform-2.preview.emergentagent.com")
     
     items = [{
         "label": f"Table {t['table_number']}",
