@@ -995,4 +995,229 @@ frontend:
         agent: "testing"
         comment: "✅ Gamification page fully functional after auto badge integration. Verified: 1) Navigation to /gamification successful 2) 'Gamification' heading visible 3) Stats cards accurate: Toplam Rozet (6), Aktif Challenge (3), Odul Cesidi (5), Kazanilan Rozet (0) 4) All 5 tabs present: Rozetler, Meydan Okumalar, Liderlik Tablosu, Odul Katalogu, Odul Talepleri 5) Rozetler tab clicked and active 6) ALL 6 BADGES verified: Ilk Rezervasyon (milestone, +50 puan), Yorum Krali (engagement, +100 puan), Sadik Misafir (loyalty, +500 puan), Spa Gurmesi (experience, +75 puan), Erken Kusu (behavior, +30 puan), VIP Misafir (milestone, +200 puan) 7) Each badge displays icon, name, description, category, and points reward correctly. No breaking changes detected - auto badge integration seamless and production-ready."
 
+
+# Sprint 10: Loyalty Engine V3 - Full Overhaul
+backend:
+  - task: "Loyalty Engine V3 - Point Rules API"
+    implemented: true
+    working: true
+    file: "routers/loyalty_engine.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Dynamic point rules engine with 4 types: accommodation, spend, activity, custom. CRUD endpoints. 8 seed rules. Conditions like {hotel:*, min_nights:3, room_type:deluxe}."
+
+  - task: "Loyalty Engine V3 - Tier Management API"
+    implemented: true
+    working: true
+    file: "routers/loyalty_engine.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "4-tier system (Bronz/Gumus/Altin/Platin) with configurable benefits, multipliers, auto upgrade/downgrade. Tier evaluation endpoint. Tier history tracking."
+
+  - task: "Loyalty Engine V3 - Digital Card & QR API"
+    implemented: true
+    working: true
+    file: "routers/loyalty_engine.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "QR code generation for loyalty cards (using qrcode lib). Apple Wallet/Google Pay pass data. Member digital card with tier info, points, progress bar."
+
+  - task: "Loyalty Engine V3 - Referral System API"
+    implemented: true
+    working: true
+    file: "routers/loyalty_engine.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Member-level referral system. Unique referral codes. Referral tracking (clicks, signups, conversions). Referral config (points, limits). Top referrers. 2 seed referrals."
+
+  - task: "Loyalty Engine V3 - Reward Catalog Enhanced API"
+    implemented: true
+    working: true
+    file: "routers/loyalty_engine.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Enhanced rewards with tier-based access, partner rewards (Turkish Airlines, Enterprise), seasonal rewards, categories. 9 seed rewards including partner and seasonal."
+
+  - task: "Loyalty Engine V3 - Campaigns API"
+    implemented: true
+    working: true
+    file: "routers/loyalty_engine.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Campaign CRUD with types: seasonal, birthday, win_back, tier_exclusive. Channels: email, sms, push, whatsapp. Performance tracking (sent/opened/converted). 4 seed campaigns."
+
+  - task: "Loyalty Engine V3 - Communication Prefs API"
+    implemented: true
+    working: true
+    file: "routers/loyalty_engine.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Omnichannel communication preferences: email, SMS, WhatsApp, push, in-app. Automation: birthday, anniversary, tier change notifications. Timing settings."
+
+  - task: "Loyalty Engine V3 - Self-Service Portal API"
+    implemented: true
+    working: true
+    file: "routers/loyalty_engine.py"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: true
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Guest-facing endpoints: loyalty profile (points, tier, badges, challenges), available rewards with tier filtering, reward redemption."
+
+  - task: "Loyalty Engine V3 - Overview Dashboard API"
+    implemented: true
+    working: true
+    file: "routers/loyalty_engine.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Comprehensive overview: total members, points in circulation, tier distribution, redemption rate, referrals, campaigns, point rules count."
+
+  - task: "Loyalty Analytics V3 - RFM Analysis API"
+    implemented: true
+    working: true
+    file: "routers/loyalty_analytics.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "RFM segmentation: Recency/Frequency/Monetary scoring (1-5). Segments: Sampiyon, Sadik Musteri, Yuksek Harcama, Yeni Musteri, Risk Altinda, Kayip."
+
+  - task: "Loyalty Analytics V3 - CLV Analysis API"
+    implemented: true
+    working: true
+    file: "routers/loyalty_analytics.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Customer Lifetime Value calculation: avg spend, frequency, lifespan prediction. Risk levels: dusuk/orta/yuksek."
+
+  - task: "Loyalty Analytics V3 - Churn Prediction API"
+    implemented: true
+    working: true
+    file: "routers/loyalty_analytics.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Churn risk scoring (0-100). Risk levels: kritik/yuksek/orta/dusuk. Recommended actions per member. Risk distribution."
+
+  - task: "Loyalty Analytics V3 - Cohort & ROI API"
+    implemented: true
+    working: true
+    file: "routers/loyalty_analytics.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Cohort analysis (new vs returning by month). ROI measurement: program cost, estimated revenue, ROI percentage, redemption rate."
+
+  - task: "Loyalty Analytics V3 - AI Segmentation API"
+    implemented: true
+    working: true
+    file: "routers/loyalty_analytics.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "AI-powered segmentation combining RFM+CLV+Churn. 5 segments: Sampiyon, Sadik, Yukselen, Risk Altinda, Kayip. Personalized offer recommendations per segment."
+
+frontend:
+  - task: "Loyalty Engine V3 - Full Management Page"
+    implemented: true
+    working: true
+    file: "pages/LoyaltyEnginePage.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "10-tab comprehensive page: Genel Bakis, Puan Kurallari, Seviye Yonetimi, Odul Katalogu, Kampanyalar, Referral, Dijital Kart, Segmentasyon (RFM/AI/Churn/CLV sub-tabs), Analitik, Iletisim. All tabs connected to API. Digital card with QR code working."
+
+  - task: "Sidebar Updated with Sadakat Motoru"
+    implemented: true
+    working: true
+    file: "components/layout/AdminLayout.js"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: true
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Added 'Sadakat Motoru' with Gem icon to sidebar under System section."
+
+metadata:
+  created_by: "main_agent"
+  version: "10.0"
+  test_sequence: 9
+  run_ui: false
+
+test_plan:
+  current_focus:
+    - "Loyalty Engine V3 - Point Rules API"
+    - "Loyalty Engine V3 - Tier Management API"
+    - "Loyalty Engine V3 - Digital Card & QR API"
+    - "Loyalty Engine V3 - Referral System API"
+    - "Loyalty Engine V3 - Reward Catalog Enhanced API"
+    - "Loyalty Engine V3 - Campaigns API"
+    - "Loyalty Engine V3 - Communication Prefs API"
+    - "Loyalty Engine V3 - Overview Dashboard API"
+    - "Loyalty Analytics V3 - RFM Analysis API"
+    - "Loyalty Analytics V3 - CLV Analysis API"
+    - "Loyalty Analytics V3 - Churn Prediction API"
+    - "Loyalty Analytics V3 - Cohort & ROI API"
+    - "Loyalty Analytics V3 - AI Segmentation API"
+  stuck_tasks: []
+  test_all: false
+  test_priority: "high_first"
+
+agent_communication:
+  - agent: "main"
+    message: "Sprint 10: MASSIVE Loyalty Engine V3 overhaul. TWO new backend routers: 1) routers/loyalty_engine.py - Point rules engine (8 rules, 4 types: accommodation/spend/activity/custom), Tier management (Bronz/Gumus/Altin/Platin with benefits/multipliers), Digital card with QR code, Referral system (member codes, tracking), Enhanced reward catalog (9 rewards: partner/seasonal/tier-based), Campaigns (4 campaigns: seasonal/birthday/win_back/tier_exclusive), Communication prefs (email/sms/whatsapp/push/inapp), Self-service portal, Overview dashboard. 2) routers/loyalty_analytics.py - RFM analysis, CLV calculation, Churn prediction, Cohort analysis, ROI measurement, AI segmentation (5 segments). Frontend: LoyaltyEnginePage.js with 10 tabs. Login: admin@grandhotel.com / admin123. Test ALL new endpoints."
+
     message: "✅ SPRINT 9.1 BACKEND TESTING COMPLETED: 11/11 tests passed (100% success). ALL Sprint 9.1 new backend APIs working perfectly: 1) File Upload APIs (2/2) - Guest file upload system with PNG support, UUID-based storage, multipart form handling for entity_type=request/room_code=R101, file serving via GET /files/{filename} with 69-byte test file successful. 2) Platform Integrations APIs (5/5) - Complete connector framework for Google Business (OAuth2), TripAdvisor, Booking.com with configure/disconnect/status management, proper auth type handling, platform credentials storage. 3) Email/SMS Settings APIs (4/4) - Full notification configuration system with SMTP settings (smtp.gmail.com), email/SMS enable flags, notification logs, test email functionality. COMBINED WITH SPRINT 9: Total 38/38 backend tests passed (100%). Full hotel management platform with file uploads, platform integrations, and notification infrastructure production-ready."
