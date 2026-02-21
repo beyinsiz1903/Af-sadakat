@@ -598,6 +598,23 @@ async def create_room(tenant_slug: str, data: RoomCreate):
     }
     await db.rooms.insert_one(room)
     await db.tenants.update_one({"id": tenant["id"]}, {"$inc": {"usage_counters.rooms": 1}})
+    
+    # Auto QR generation
+    public_url = os.environ.get("PUBLIC_BASE_URL", "")
+    qr_url = f"{public_url}/g/{tenant_slug}/room/{room_code}"
+    try:
+        qr_bytes = generate_qr_png(qr_url)
+        qr_filename = f"qr_room_{room['id']}.png"
+        qr_path = ROOT_DIR / "uploads" / qr_filename
+        qr_path.parent.mkdir(exist_ok=True)
+        with open(qr_path, "wb") as f:
+            f.write(qr_bytes)
+        await db.rooms.update_one({"id": room["id"]}, {"$set": {"qr_image": qr_filename, "qr_url": qr_url}})
+        room["qr_image"] = qr_filename
+        room["qr_url"] = qr_url
+    except Exception as e:
+        logger.warning(f"QR auto-generation for room {room_code}: {e}")
+    
     return serialize_doc(room)
 
 @api_router.get("/tenants/{tenant_slug}/rooms")
