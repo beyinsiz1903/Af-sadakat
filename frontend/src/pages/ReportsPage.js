@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card'
 import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
-import { BarChart3, Users, Star, Clock, TrendingUp, Bot, Shield } from 'lucide-react';
+import { BarChart3, Users, Star, Clock, TrendingUp, Bot, Shield, FlaskConical, Trophy } from 'lucide-react';
 
 export default function ReportsPage() {
   const tenant = useAuthStore((s) => s.tenant);
