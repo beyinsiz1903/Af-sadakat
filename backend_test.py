@@ -346,18 +346,18 @@ def test_referral_and_growth():
     
     # First get referral data to get the code
     referral_result = make_request("GET", "/tenants/grand-hotel/growth/referral")
-    if not referral_result or "referral_code" not in referral_result:
+    if not referral_result or "code" not in referral_result:
         print("❌ Could not get referral code")
         return False
     
-    referral_code = referral_result["referral_code"]
+    referral_code = referral_result["code"]
     
-    # Test 16: Referral Landing
+    # Test 16: Referral Landing (use the full code, not REF- prefix)
     print("Test 16: Referral Landing")
-    landing_result = make_request("GET", f"/r/REF-{referral_code}")
+    landing_result = make_request("GET", f"/r/{referral_code}")
     
     if not landing_result:
-        print(f"❌ Referral landing failed for REF-{referral_code}")
+        print(f"❌ Referral landing failed for {referral_code}")
         return False
     
     required_landing = ["referrer_name", "features", "cta_text"]
