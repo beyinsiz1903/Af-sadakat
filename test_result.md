@@ -1169,11 +1169,14 @@ backend:
     file: "routers/loyalty_analytics.py"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: true
         agent: "main"
         comment: "Churn risk scoring (0-100). Risk levels: kritik/yuksek/orta/dusuk. Recommended actions per member. Risk distribution."
+      - working: true
+        agent: "testing"
+        comment: "✅ Churn Prediction API working perfectly: Analyzed 2 members with Average churn score 13.5. Risk distribution shows 2 members in 'dusuk' (low) risk category. Highest risk member: Ahmed Hassan - 16 score (dusuk). All churn scoring (0-100 scale), Turkish risk levels (kritik/yuksek/orta/dusuk), and recommended actions system functional."
 
   - task: "Loyalty Analytics V3 - Cohort & ROI API"
     implemented: true
