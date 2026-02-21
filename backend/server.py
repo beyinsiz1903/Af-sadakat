@@ -2203,7 +2203,9 @@ from fastapi import Request
 
 @api_router.post("/auth/refresh")
 async def refresh_token(data: dict):
-    """Refresh access token"""
+    """Refresh access token with token family rotation.
+    If a reused token is detected, entire token family is invalidated (theft protection).
+    """
     old_token = data.get("token", "")
     try:
         payload = decode_token(old_token)
@@ -2211,7 +2213,35 @@ async def refresh_token(data: dict):
         if not user:
             raise HTTPException(status_code=401, detail="User not found")
         new_token = create_token(user["id"], user["tenant_id"], user["role"])
-        return {"token": new_token, "user": {k: v for k, v in serialize_doc(user).items() if k != "password_hash"}}
+        
+        # Token family rotation
+        rotation_result = token_family_manager.rotate_token(old_token, new_token)
+        if not rotation_result["valid"]:
+            if rotation_result.get("reason") == "token_reuse_detected":
+                # Possible token theft - invalidate all sessions
+                await db.sessions.update_many(
+                    {"user_id": user["id"]},
+                    {"$set": {"is_active": False}}
+                )
+                await _log_audit(user["tenant_id"], "token_reuse_detected", "user", user["id"], details={"family": rotation_result.get("invalidated_family")})
+                raise HTTPException(status_code=401, detail="Token reuse detected. All sessions invalidated.")
+            # Unknown token - create new family
+            token_family_manager.create_family(user["id"], new_token)
+        
+        # Update session last_seen
+        token_hash = hashlib.sha256(old_token.encode()).hexdigest()
+        await db.sessions.update_one(
+            {"token_hash": token_hash, "is_active": True},
+            {"$set": {"last_seen_at": now_utc().isoformat(), "token_hash": hashlib.sha256(new_token.encode()).hexdigest()}}
+        )
+        
+        return {
+            "token": new_token,
+            "user": {k: v for k, v in serialize_doc(user).items() if k != "password_hash"},
+            "csrf_token": csrf_protection.generate_token(user["id"])
+        }
+    except HTTPException:
+        raise
     except:
         raise HTTPException(status_code=401, detail="Invalid token")
 
