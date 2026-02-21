@@ -2376,10 +2376,18 @@ async def get_billing(tenant_slug: str):
     }
 
 @api_router.post("/billing/webhook/stripe")
-async def stripe_webhook(data: dict):
-    """Placeholder for Stripe webhook - TODO: implement real webhook validation"""
-    logger.info(f"Stripe webhook received (stub): {data.get('type', 'unknown')}")
-    return {"received": True}
+async def stripe_webhook(data: dict, request: Request = None):
+    """Stripe webhook handler with event type routing"""
+    event_type = data.get("type", "unknown")
+    event_data = data.get("data", {}).get("object", {})
+    
+    # In production: verify Stripe signature from headers
+    # stripe_signature = request.headers.get("stripe-signature", "")
+    
+    logger.info(f"Stripe webhook received: {event_type}")
+    result = await handle_stripe_webhook(db, event_type, event_data)
+    await _log_audit("system", f"stripe_webhook_{event_type}", "billing", "webhook", details=result)
+    return result
 
 # ============ PHASE 5: ONBOARDING ============
 @api_router.get("/tenants/{tenant_slug}/onboarding")
