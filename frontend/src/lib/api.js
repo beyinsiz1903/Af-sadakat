@@ -388,3 +388,55 @@ export const platformsAPI = {
   testEmail: (slug, data) => api.post(`/v2/platforms/tenants/${slug}/test-email`, data),
   testSms: (slug, data) => api.post(`/v2/platforms/tenants/${slug}/test-sms`, data),
 };
+
+
+// Gamification V2
+export const gamificationAPI = {
+  listBadges: (slug) => api.get(`/v2/gamification/tenants/${slug}/badges`),
+  createBadge: (slug, data) => api.post(`/v2/gamification/tenants/${slug}/badges`, data),
+  deleteBadge: (slug, id) => api.delete(`/v2/gamification/tenants/${slug}/badges/${id}`),
+  getMemberBadges: (slug, contactId) => api.get(`/v2/gamification/tenants/${slug}/members/${contactId}/badges`),
+  awardBadge: (slug, contactId, data) => api.post(`/v2/gamification/tenants/${slug}/members/${contactId}/award-badge`, data),
+  listChallenges: (slug, params) => api.get(`/v2/gamification/tenants/${slug}/challenges`, { params }),
+  createChallenge: (slug, data) => api.post(`/v2/gamification/tenants/${slug}/challenges`, data),
+  updateChallenge: (slug, id, data) => api.patch(`/v2/gamification/tenants/${slug}/challenges/${id}`, data),
+  deleteChallenge: (slug, id) => api.delete(`/v2/gamification/tenants/${slug}/challenges/${id}`),
+  getLeaderboard: (slug, params) => api.get(`/v2/gamification/tenants/${slug}/leaderboard`, { params }),
+  getMemberStreaks: (slug, contactId) => api.get(`/v2/gamification/tenants/${slug}/members/${contactId}/streaks`),
+  checkIn: (slug, contactId, data) => api.post(`/v2/gamification/tenants/${slug}/members/${contactId}/check-in`, data),
+  listRewards: (slug) => api.get(`/v2/gamification/tenants/${slug}/rewards`),
+  createReward: (slug, data) => api.post(`/v2/gamification/tenants/${slug}/rewards`, data),
+  deleteReward: (slug, id) => api.delete(`/v2/gamification/tenants/${slug}/rewards/${id}`),
+  redeemReward: (slug, contactId, data) => api.post(`/v2/gamification/tenants/${slug}/members/${contactId}/redeem-reward`, data),
+  listRedemptions: (slug, params) => api.get(`/v2/gamification/tenants/${slug}/reward-redemptions`, { params }),
+  updateRedemption: (slug, id, data) => api.patch(`/v2/gamification/tenants/${slug}/reward-redemptions/${id}`, data),
+  getStats: (slug) => api.get(`/v2/gamification/tenants/${slug}/stats`),
+};
+
+// Push Notifications V2
+export const pushAPI = {
+  getVapidKey: (slug) => api.get(`/v2/push/tenants/${slug}/vapid-public-key`),
+  subscribe: (slug, data) => api.post(`/v2/push/tenants/${slug}/subscribe`, data),
+  unsubscribe: (slug, data) => api.delete(`/v2/push/tenants/${slug}/unsubscribe`, { data }),
+  listSubscriptions: (slug, params) => api.get(`/v2/push/tenants/${slug}/subscriptions`, { params }),
+  send: (slug, data) => api.post(`/v2/push/tenants/${slug}/send`, data),
+  sendBulk: (slug, data) => api.post(`/v2/push/tenants/${slug}/send-bulk`, data),
+  listPushLogs: (slug, params) => api.get(`/v2/push/tenants/${slug}/push-logs`, { params }),
+  getStats: (slug) => api.get(`/v2/push/tenants/${slug}/stats`),
+};
+
+// A/B Testing V2
+export const abTestingAPI = {
+  listExperiments: (slug, params) => api.get(`/v2/ab-testing/tenants/${slug}/experiments`, { params }),
+  createExperiment: (slug, data) => api.post(`/v2/ab-testing/tenants/${slug}/experiments`, data),
+  getExperiment: (slug, id) => api.get(`/v2/ab-testing/tenants/${slug}/experiments/${id}`),
+  updateExperiment: (slug, id, data) => api.patch(`/v2/ab-testing/tenants/${slug}/experiments/${id}`, data),
+  deleteExperiment: (slug, id) => api.delete(`/v2/ab-testing/tenants/${slug}/experiments/${id}`),
+  startExperiment: (slug, id) => api.post(`/v2/ab-testing/tenants/${slug}/experiments/${id}/start`),
+  stopExperiment: (slug, id) => api.post(`/v2/ab-testing/tenants/${slug}/experiments/${id}/stop`),
+  pauseExperiment: (slug, id) => api.post(`/v2/ab-testing/tenants/${slug}/experiments/${id}/pause`),
+  getResults: (slug, id) => api.get(`/v2/ab-testing/tenants/${slug}/experiments/${id}/results`),
+  assignVariant: (slug, data) => api.post(`/v2/ab-testing/tenants/${slug}/assign`, data),
+  trackEvent: (slug, data) => api.post(`/v2/ab-testing/tenants/${slug}/track`, data),
+  getStats: (slug) => api.get(`/v2/ab-testing/tenants/${slug}/stats`),
+};
