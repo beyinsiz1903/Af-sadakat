@@ -11,7 +11,7 @@ import sys
 from datetime import datetime
 
 # Backend URL configuration
-BACKEND_URL = "https://hospitality-ops-4.preview.emergentagent.com/api"
+BACKEND_URL = "https://engage-plus-8.preview.emergentagent.com/api"
 
 class APITester:
     def __init__(self):
