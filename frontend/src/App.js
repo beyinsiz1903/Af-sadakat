@@ -120,6 +120,7 @@ function App() {
               <Route path="gamification" element={<GamificationPage />} />
               <Route path="push-notifications" element={<PushNotificationsPage />} />
               <Route path="ab-testing" element={<ABTestingPage />} />
+              <Route path="loyalty-engine" element={<LoyaltyEnginePage />} />
               <Route path="settings" element={<SettingsPage />} />
             </Route>
             
