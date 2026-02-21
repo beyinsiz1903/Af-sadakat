@@ -3585,6 +3585,8 @@ for router_name, router_module, router_attr in [
     ("gamification", "routers.gamification", "router"),
     ("push_notifications", "routers.push_notifications", "router"),
     ("ab_testing", "routers.ab_testing", "router"),
+    ("loyalty_engine", "routers.loyalty_engine", "router"),
+    ("loyalty_analytics", "routers.loyalty_analytics", "router"),
 ]:
     try:
         mod = __import__(router_module, fromlist=[router_attr])
