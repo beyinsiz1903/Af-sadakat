@@ -1154,11 +1154,14 @@ backend:
     file: "routers/loyalty_analytics.py"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: true
         agent: "main"
         comment: "Customer Lifetime Value calculation: avg spend, frequency, lifespan prediction. Risk levels: dusuk/orta/yuksek."
+      - working: true
+        agent: "testing"
+        comment: "✅ CLV Analysis API working perfectly: Analyzed 2 members with Average CLV 53.34, Total CLV 106.67. Highest CLV member: Ahmed Hassan - 86.67 (yuksek risk). All CLV calculations including avg spend per transaction, frequency per month, lifespan predictions, and Turkish risk level classification (dusuk/orta/yuksek) working correctly."
 
   - task: "Loyalty Analytics V3 - Churn Prediction API"
     implemented: true
