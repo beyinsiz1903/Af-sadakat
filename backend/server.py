@@ -17,6 +17,7 @@ import asyncio
 import jwt
 import bcrypt
 import random
+import hashlib
 
 # Add backend dir to path for local imports
 sys.path.insert(0, str(Path(__file__).parent))
