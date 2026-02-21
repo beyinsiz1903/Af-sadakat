@@ -3169,23 +3169,8 @@ async def start_meta_token_refresh_task():
                 logger.error(f"Meta token refresh loop error: {e}")
     asyncio.create_task(meta_token_refresh_loop())
 
-# ============ WEBSOCKET ENDPOINT ============
-@app.websocket("/ws/{tenant_id}")
-async def websocket_endpoint(websocket: WebSocket, tenant_id: str):
-    channel = f"tenant:{tenant_id}"
-    await ws_manager.connect(websocket, channel)
-    try:
-        while True:
-            data = await websocket.receive_text()
-            if data == "ping":
-                await websocket.send_text("pong")
-    except WebSocketDisconnect:
-        ws_manager.disconnect(websocket, channel)
-    except Exception as e:
-        logger.error(f"WebSocket error: {e}")
-        ws_manager.disconnect(websocket, channel)
+# (WebSocket endpoint moved below to websocket_endpoint_final with auth revalidation)
 
-@api_router.get("/tenants/{tenant_slug}/reviews")
 async def list_reviews(tenant_slug: str, source: Optional[str] = None, page: int = 1, limit: int = 20):
     tenant = await get_tenant_by_slug(tenant_slug)
     query = {"tenant_id": tenant["id"]}
