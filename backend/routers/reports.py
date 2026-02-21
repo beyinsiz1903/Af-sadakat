@@ -260,3 +260,104 @@ async def ai_performance(tenant_slug: str, user=Depends(get_current_user)):
         "monthly_usage": usage.get("ai_replies_this_month", 0),
         "monthly_limit": limit_val,
     }
+
+
+@router.get("/tenants/{tenant_slug}/ab-testing-report")
+async def ab_testing_report(tenant_slug: str, user=Depends(get_current_user)):
+    """A/B Testing comprehensive report"""
+    tenant = await resolve_tenant(tenant_slug)
+    tid = tenant["id"]
+    
+    # All experiments
+    experiments = await find_many_scoped("ab_experiments", tid, {}, sort=[("created_at", -1)])
+    
+    total = len(experiments)
+    running = sum(1 for e in experiments if e.get("status") == "running")
+    completed = sum(1 for e in experiments if e.get("status") == "completed")
+    draft = sum(1 for e in experiments if e.get("status") == "draft")
+    paused = sum(1 for e in experiments if e.get("status") == "paused")
+    
+    total_participants = await count_scoped("ab_assignments", tid)
+    total_events = await count_scoped("ab_events", tid)
+    
+    # Per-experiment details with results
+    experiment_results = []
+    for exp in experiments:
+        exp_id = exp.get("id", "")
+        variants = exp.get("variants", [])
+        
+        variant_results = []
+        for v in variants:
+            vname = v.get("name", "")
+            
+            assignment_count = await db.ab_assignments.count_documents({
+                "tenant_id": tid, "experiment_id": exp_id, "variant": vname
+            })
+            event_count = await db.ab_events.count_documents({
+                "tenant_id": tid, "experiment_id": exp_id, "variant": vname
+            })
+            
+            # Unique converters
+            converter_pipeline = [
+                {"$match": {
+                    "tenant_id": tid, "experiment_id": exp_id, "variant": vname,
+                    "event_name": {"$in": ["conversion", "purchase", "booking", "signup"]}
+                }},
+                {"$group": {"_id": "$user_id"}},
+                {"$count": "c"}
+            ]
+            converters = 0
+            async for doc in db.ab_events.aggregate(converter_pipeline):
+                converters = doc.get("c", 0)
+            
+            conversion_rate = round((converters / max(assignment_count, 1)) * 100, 2)
+            
+            variant_results.append({
+                "variant": vname,
+                "traffic_percent": v.get("traffic_percent", 0),
+                "participants": assignment_count,
+                "events": event_count,
+                "converters": converters,
+                "conversion_rate": conversion_rate,
+            })
+        
+        # Determine winner
+        winner = None
+        if len(variant_results) >= 2 and exp.get("status") in ["running", "completed"]:
+            sorted_v = sorted(variant_results, key=lambda r: r["conversion_rate"], reverse=True)
+            if sorted_v[0]["conversion_rate"] > sorted_v[1]["conversion_rate"] and sorted_v[0]["participants"] > 0:
+                winner = sorted_v[0]["variant"]
+        
+        experiment_results.append({
+            "id": exp_id,
+            "name": exp.get("name", ""),
+            "status": exp.get("status", ""),
+            "feature_area": exp.get("feature_area", ""),
+            "hypothesis": exp.get("hypothesis", ""),
+            "primary_metric": exp.get("primary_metric", ""),
+            "total_participants": exp.get("total_participants", 0),
+            "variants": variant_results,
+            "winner": winner,
+            "start_date": exp.get("start_date", ""),
+            "end_date": exp.get("end_date", ""),
+        })
+    
+    # Feature area distribution
+    area_dist = {}
+    for exp in experiments:
+        area = exp.get("feature_area", "general")
+        area_dist[area] = area_dist.get(area, 0) + 1
+    
+    return {
+        "summary": {
+            "total_experiments": total,
+            "running": running,
+            "completed": completed,
+            "draft": draft,
+            "paused": paused,
+            "total_participants": total_participants,
+            "total_events_tracked": total_events,
+        },
+        "experiments": experiment_results,
+        "feature_area_distribution": area_dist,
+    }
