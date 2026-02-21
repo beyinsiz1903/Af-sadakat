@@ -161,6 +161,18 @@ async def create_spa_booking(tenant_slug: str, room_code: str, data: dict):
         f"Spa: {data.get('service_type', '')} - {data.get('preferred_date', '')} {data.get('preferred_time', '')}",
         data.get("guest_name", ""), data.get("guest_phone", ""), "spa_booking", booking["id"])
     
+    # Auto gamification: badge + challenge check
+    try:
+        from routers.gamification import auto_check_badges, auto_check_challenges
+        contact_id = room.get("current_guest_contact_id", "")
+        if contact_id:
+            await auto_check_badges(tid, contact_id, "spa_booking", booking["id"])
+            await auto_check_badges(tid, contact_id, "service_used", booking["id"])
+            await auto_check_challenges(tid, contact_id, "spa_booking")
+            await auto_check_challenges(tid, contact_id, "service_used")
+    except Exception:
+        pass
+    
     return booking
 
 @router.post("/g/{tenant_slug}/room/{room_code}/transport-request")
