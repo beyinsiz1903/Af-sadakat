@@ -12,7 +12,187 @@ from core.tenant_guard import (
     insert_scoped, update_scoped, delete_scoped, log_audit
 )
 
+import logging
+
+logger = logging.getLogger(__name__)
+
 router = APIRouter(prefix="/api/v2/gamification", tags=["gamification"])
+
+
+# ============ AUTO BADGE AWARDING (called by other routers) ============
+async def auto_check_badges(tenant_id: str, contact_id: str, event_type: str, ref_id: str = ""):
+    """Automatically check and award badges based on event.
+    Called by guest_services, loyalty, reviews, etc.
+    
+    event_type: reservation_confirmed, review_written, stay_completed,
+                spa_booking, early_checkin, service_used, order_completed,
+                request_closed, tier_upgrade
+    """
+    if not contact_id or not tenant_id:
+        return
+
+    try:
+        # Increment event counter
+        counter_key = {"tenant_id": tenant_id, "contact_id": contact_id, "event_type": event_type}
+        existing_counter = await db.gamification_events.find_one(counter_key)
+        if existing_counter:
+            new_count = existing_counter.get("count", 0) + 1
+            await db.gamification_events.update_one(
+                counter_key,
+                {"$set": {"count": new_count, "last_event_at": now_utc().isoformat(), "last_ref_id": ref_id}}
+            )
+        else:
+            new_count = 1
+            await db.gamification_events.insert_one({
+                **counter_key,
+                "id": new_id(),
+                "count": 1,
+                "last_event_at": now_utc().isoformat(),
+                "last_ref_id": ref_id,
+                "created_at": now_utc().isoformat(),
+            })
+
+        # Get all active badges matching this event
+        badges = await db.badges.find(
+            {"tenant_id": tenant_id, "active": True, "criteria_event": event_type}
+        ).to_list(100)
+
+        for badge in badges:
+            badge_id = badge.get("id", "")
+            criteria_type = badge.get("criteria_type", "manual")
+            criteria_value = badge.get("criteria_value", 1)
+
+            # Check if already earned
+            already_earned = await db.earned_badges.find_one({
+                "tenant_id": tenant_id, "contact_id": contact_id, "badge_id": badge_id
+            })
+            if already_earned:
+                continue
+
+            # Check criteria
+            should_award = False
+            if criteria_type == "auto":
+                # Award on first occurrence
+                should_award = True
+            elif criteria_type == "count":
+                # Award when count reaches threshold
+                should_award = new_count >= criteria_value
+            elif criteria_type == "tier":
+                # Award when points reach tier threshold
+                acct = await db.loyalty_accounts.find_one({"tenant_id": tenant_id, "contact_id": contact_id})
+                if acct and acct.get("points_balance", 0) >= criteria_value:
+                    should_award = True
+
+            if should_award:
+                # Award the badge
+                earned = {
+                    "id": new_id(),
+                    "tenant_id": tenant_id,
+                    "contact_id": contact_id,
+                    "badge_id": badge_id,
+                    "badge_name": badge.get("name", ""),
+                    "badge_icon": badge.get("icon", "star"),
+                    "badge_color": badge.get("color", "#FFD700"),
+                    "earned_at": now_utc().isoformat(),
+                    "awarded_by": "system",
+                    "auto_awarded": True,
+                    "trigger_event": event_type,
+                    "created_at": now_utc().isoformat(),
+                }
+                await db.earned_badges.insert_one(earned)
+
+                # Award bonus points
+                points_reward = badge.get("points_reward", 0)
+                if points_reward > 0:
+                    acct = await db.loyalty_accounts.find_one({"tenant_id": tenant_id, "contact_id": contact_id})
+                    if acct:
+                        await db.loyalty_accounts.update_one(
+                            {"tenant_id": tenant_id, "contact_id": contact_id},
+                            {"$inc": {"points_balance": points_reward}}
+                        )
+                        # Ledger entry
+                        await db.loyalty_ledger.insert_one({
+                            "id": new_id(), "tenant_id": tenant_id,
+                            "contact_id": contact_id, "direction": "EARN",
+                            "points": points_reward,
+                            "reason": f"Rozet odulu: {badge.get('name', '')}",
+                            "ref_type": "badge", "ref_id": badge_id,
+                            "created_at": now_utc().isoformat(),
+                        })
+
+                # Create notification
+                await db.notifications.insert_one({
+                    "id": new_id(), "tenant_id": tenant_id,
+                    "type": "BADGE_AUTO_EARNED",
+                    "title": f"Rozet Kazanildi: {badge.get('name', '')}",
+                    "body": f"Tebrikler! '{badge.get('name', '')}' rozetini kazandiniz!",
+                    "entity_type": "badge", "entity_id": badge_id,
+                    "read": False, "priority": "normal",
+                    "created_at": now_utc().isoformat(),
+                })
+
+                logger.info(f"Auto-awarded badge '{badge.get('name')}' to contact {contact_id[:8]}...")
+
+    except Exception as e:
+        logger.error(f"Auto badge check error: {e}")
+
+
+async def auto_check_challenges(tenant_id: str, contact_id: str, event_type: str):
+    """Automatically increment challenge progress based on event."""
+    if not contact_id or not tenant_id:
+        return
+
+    try:
+        # Find active challenges matching this event
+        challenges = await db.challenges.find(
+            {"tenant_id": tenant_id, "status": "active", "target_event": event_type}
+        ).to_list(50)
+
+        for challenge in challenges:
+            challenge_id = challenge.get("id", "")
+            target_value = challenge.get("target_value", 1)
+
+            existing = await db.challenge_progress.find_one({
+                "tenant_id": tenant_id, "contact_id": contact_id, "challenge_id": challenge_id
+            })
+
+            if existing:
+                if existing.get("completed"):
+                    continue  # Already completed
+                new_val = existing.get("current_value", 0) + 1
+                completed = new_val >= target_value
+                await db.challenge_progress.update_one(
+                    {"tenant_id": tenant_id, "contact_id": contact_id, "challenge_id": challenge_id},
+                    {"$set": {
+                        "current_value": new_val,
+                        "completed": completed,
+                        "completed_at": now_utc().isoformat() if completed else "",
+                        "updated_at": now_utc().isoformat()
+                    }}
+                )
+                if completed:
+                    await _award_challenge_completion(tenant_id, contact_id, challenge)
+                    logger.info(f"Challenge '{challenge.get('name')}' completed by {contact_id[:8]}...")
+            else:
+                completed = 1 >= target_value
+                await db.challenge_progress.insert_one({
+                    "id": new_id(), "tenant_id": tenant_id,
+                    "contact_id": contact_id, "challenge_id": challenge_id,
+                    "challenge_name": challenge.get("name", ""),
+                    "current_value": 1, "target_value": target_value,
+                    "completed": completed,
+                    "completed_at": now_utc().isoformat() if completed else "",
+                    "created_at": now_utc().isoformat(),
+                })
+                await db.challenges.update_one(
+                    {"tenant_id": tenant_id, "id": challenge_id},
+                    {"$inc": {"participants_count": 1}}
+                )
+                if completed:
+                    await _award_challenge_completion(tenant_id, contact_id, challenge)
+
+    except Exception as e:
+        logger.error(f"Auto challenge progress error: {e}")
 
 
 # ============ BADGES ============
