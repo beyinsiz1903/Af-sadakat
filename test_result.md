@@ -539,22 +539,103 @@ FLOW F - Sidebar: All required navigation items present (Notifications, Housekee
 System is ready for production use with all Sprint 9 features fully operational."
 
 test_plan:
-  current_focus: []
+  current_focus:
+    - "Gamification Router APIs"
+    - "Push Notifications Router APIs"
+    - "A/B Testing Router APIs"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
 
 agent_communication:
   - agent: "main"
-    message: "Sprint 7 AI Sales Engine implemented. Key features: 1) AI auto-reply in webchat using OpenAI gpt-4o-mini with tool calling. 2) 4 tools: check_availability_and_price, validate_discount, create_offer, generate_payment_link. 3) Room rates admin (3 types seeded), discount rules (max 10%), business policies. 4) State machine for conversation flow. 5) AI Sales admin page with 4 tabs. 6) Guest webchat enhanced with AI badge and payment link buttons. Login: admin@grandhotel.com / admin123. AI enabled for Main property by default. Test the full flow: start webchat -> ask about rooms -> AI quotes price from DB -> ask for discount -> AI validates -> accept -> AI creates offer + payment link."
-  - agent: "testing"
-    message: "✅ SPRINT 7 BACKEND TESTING: 23/23 tests passed (100%). All AI Sales endpoints working: settings, room rates CRUD, discount rules, policies, AI stats, webchat AI auto-reply. Full booking flow verified: price quote from DB -> discount validation -> offer creation -> payment link generation. OpenAI gpt-4o-mini + tool calling functional."
-  - agent: "testing"
-    message: "✅ SPRINT 7 FRONTEND TESTING: All 3 flows passed. FLOW A: Admin AI Sales page with 4 tabs working (Settings, Room Rates, Discounts, Policies). FLOW B: Guest webchat AI booking flow working - AI responds in Turkish with correct pricing (4400 TRY for 2 nights deluxe). FLOW C: Property switch functionality verified. No critical issues found."
-  - agent: "testing"
-    message: "✅ SPRINT 7 AI SALES ENGINE TESTING COMPLETED: 23/23 tests passed (100% success). ALL AI Sales Engine components working perfectly: 1) AI Sales Settings API (2 properties, Main enabled) 2) Room Rates CRUD (4 types: standard 1200, deluxe 2200, suite 4500, economy 800 TRY) 3) Discount Rules (max 10%, min 3 nights) 4) Business Policies (check-in 14:00, check-out 12:00) 5) AI Stats (20/500 replies used, 1 offer created) 6) OpenAI Tool Calling Provider (LiteLLM + gpt-4o-mini working) 7) AI Tools (all 4 tools functional: pricing, discount validation, offer creation, payment links) 8) Webchat AI Auto-Reply (Turkish/English support, full booking flow: INFO→PRICE_QUOTED→PAYMENT_SENT) 9) GET Messages endpoint. FULL AI BOOKING FLOW TESTED: User asks → AI calls check_availability_and_price → AI quotes 4400 TRY for 2 nights deluxe → User confirms → AI calls create_offer + generate_payment_link → Payment URL provided. System production-ready for AI-powered hotel bookings."
-  - agent: "testing"
-    message: "✅ UI TESTING COMPLETED: Successfully verified all 3 flows of Sprint 7. FLOW A - Admin AI Sales Settings: Verified all required elements (AI Sales Engine heading, stats cards showing 23/500 replies and 2 offers created, 4 tabs with Settings showing Enable AI Auto-Reply toggle ON, Room Rates showing 4 room types including Deluxe 2200 TRY, Discounts showing max 10% discount, and Policies showing check-in time 14:00). FLOW B - Guest AI Booking Chat: Successfully tested Turkish language support with message 'Merhaba, deluxe oda bakmak istiyorum 20-22 Mayis icin 2 kisi' and verified AI responds properly with pricing (4400 TRY) for the requested dates and AI Assistant badge is displayed. FLOW C - Property Switch: Verified property selection dropdown works correctly. All features are production-ready for AI-powered booking automation."
+    message: "Three new feature modules implemented: 1) GAMIFICATION - Badges CRUD (6 seeded: Ilk Rezervasyon, Yorum Krali, Sadik Misafir, Spa Gurmesi, Erken Kusu, VIP Misafir), Challenges CRUD (3 seeded), Rewards Catalog CRUD (5 seeded), Leaderboard, Streaks, Reward Redemptions, Badge Awarding with bonus points. 2) PUSH NOTIFICATIONS - VAPID-based Web Push (pywebpush), Push subscriptions, Send to specific user or bulk, Push logs, Stats, Service Worker. 3) A/B TESTING - Experiments CRUD (4 seeded: 2 running, 1 draft, 1 completed), Variants with traffic split, Start/Stop/Pause, User variant assignment (deterministic hash), Event tracking, Results with conversion rates and winner detection. All routers registered in server.py. All seed data loaded. Login: admin@grandhotel.com / admin123. Test all new endpoints."
+
+backend:
+  - task: "Gamification Router"
+    implemented: true
+    working: true
+    file: "routers/gamification.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Full gamification system: Badges CRUD + award, Challenges CRUD + progress, Leaderboard, Streaks (daily check-in), Rewards Catalog CRUD, Reward Redemptions CRUD, Stats. 6 badges, 3 challenges, 5 rewards seeded."
+
+  - task: "Push Notifications Router"
+    implemented: true
+    working: true
+    file: "routers/push_notifications.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Web Push via VAPID/pywebpush. Endpoints: vapid-public-key, subscribe, unsubscribe, list subscriptions, send push, send-bulk, push-logs, stats. VAPID keys in .env."
+
+  - task: "A/B Testing Router"
+    implemented: true
+    working: true
+    file: "routers/ab_testing.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Full A/B testing: Experiments CRUD, Start/Stop/Pause, User Assignment (deterministic hash), Event Tracking, Results with conversion rates and winner detection, Stats. 4 experiments seeded (2 running, 1 draft, 1 completed)."
+
+frontend:
+  - task: "Gamification Page"
+    implemented: true
+    working: true
+    file: "pages/GamificationPage.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "5-tab page: Rozetler(badges grid), Meydan Okumalar(challenges with progress bars), Liderlik Tablosu(leaderboard with rank medals), Odul Katalogu(rewards grid), Odul Talepleri(redemptions list). Stats cards. CRUD dialogs."
+
+  - task: "Push Notifications Page"
+    implemented: true
+    working: true
+    file: "pages/PushNotificationsPage.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Stats cards, browser push subscription button, send push dialog, active subscriptions list, push log history. Service worker registered at /sw.js."
+
+  - task: "A/B Testing Page"
+    implemented: true
+    working: true
+    file: "pages/ABTestingPage.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Stats cards, experiment list with start/stop/pause/delete controls, variant traffic split visualization bars, expandable results section with winner detection. Create experiment dialog with dynamic variant management."
+
+  - task: "Sidebar Navigation Updated"
+    implemented: true
+    working: true
+    file: "components/layout/AdminLayout.js"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Added Gamification, Push Notifications, A/B Testing to sidebar under System section."
 
 backend:
   - task: "Sprint 6: Health endpoint v6"
