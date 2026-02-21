@@ -12,7 +12,7 @@ import {
 import { BarChart3, CreditCard, Shield, Share2, Server } from 'lucide-react';
 import { FileText as AuditIcon } from 'lucide-react';
 import { Bot, Bell, Sparkles, Package, Globe, FileBarChart, CalendarDays } from 'lucide-react';
-import { Trophy, BellRing, FlaskConical } from 'lucide-react';
+import { Trophy, BellRing, FlaskConical, Gem } from 'lucide-react';
 import { Button } from '../ui/button';
 import { ScrollArea } from '../ui/scroll-area';
 import { Separator } from '../ui/separator';
