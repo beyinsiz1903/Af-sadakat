@@ -75,7 +75,7 @@ def authenticate():
     global auth_token
     
     print("🔐 Authenticating...")
-    result = make_request("POST", "/v2/auth/login", {
+    result = make_request("POST", "/auth/login", {
         "email": LOGIN_EMAIL,
         "password": LOGIN_PASSWORD
     })
