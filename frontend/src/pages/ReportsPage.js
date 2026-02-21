@@ -43,6 +43,12 @@ export default function ReportsPage() {
     enabled: !!tenant?.slug && tab === 'ai',
   });
 
+  const { data: abReport } = useQuery({
+    queryKey: ['ab-report', tenant?.slug],
+    queryFn: () => reportsAPI.abTestingReport(tenant?.slug).then(r => r.data),
+    enabled: !!tenant?.slug && tab === 'ab',
+  });
+
   const tabs = [
     { id: 'department', label: 'Department', icon: Shield },
     { id: 'satisfaction', label: 'Guest Satisfaction', icon: Star },
