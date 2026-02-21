@@ -120,6 +120,17 @@ async def create_room_service_order(tenant_slug: str, room_code: str, data: dict
         f"Room Service: {item_names} ({len(items)} items, {total} TRY)",
         data.get("guest_name", ""), data.get("guest_phone", ""), "order", order["id"])
     
+    # Auto gamification
+    try:
+        from routers.gamification import auto_check_badges, auto_check_challenges
+        contact_id = room.get("current_guest_contact_id", "")
+        if contact_id:
+            await auto_check_badges(tid, contact_id, "service_used", order["id"])
+            await auto_check_challenges(tid, contact_id, "restaurant_order")
+            await auto_check_challenges(tid, contact_id, "service_used")
+    except Exception:
+        pass
+    
     return order
 
 @router.post("/g/{tenant_slug}/room/{room_code}/spa-booking")
