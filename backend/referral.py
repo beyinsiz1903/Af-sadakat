@@ -1,4 +1,4 @@
-"""Referral & Growth module"""
+"""Referral & Growth module with public landing page support and investor metrics"""
 import uuid
 import hashlib
 from datetime import datetime, timezone
@@ -26,6 +26,8 @@ async def get_or_create_referral(db, tenant_id: str, tenant_slug: str) -> dict:
         "clicks": 0,
         "signups": 0,
         "rewards_earned": 0,
+        "reward_type": "ai_credits",
+        "reward_amount": 50,
         "created_at": now_utc().isoformat()
     }
     await db.referrals.insert_one(referral)
@@ -50,6 +52,35 @@ async def track_referral_signup(db, code: str, new_tenant_id: str):
             "referred_tenant_id": new_tenant_id,
             "code": code,
             "reward": 50,
+            "reward_type": "ai_credits",
             "created_at": now_utc().isoformat()
         })
     return referral
+
+async def get_referral_landing_data(db, referral_code: str) -> dict:
+    """Get data for public referral landing page /r/{referralCode}"""
+    referral = await db.referrals.find_one({"code": referral_code})
+    if not referral:
+        return None
+    
+    await track_referral_click(db, referral_code)
+    
+    tenant = await db.tenants.find_one({"id": referral["tenant_id"]}, {"_id": 0})
+    tenant_name = tenant.get("name", "Kritik") if tenant else "Kritik"
+    
+    return {
+        "referral_code": referral_code,
+        "referrer_name": tenant_name,
+        "reward_type": "ai_credits",
+        "reward_amount": 50,
+        "message": f"{tenant_name} sizi Kritik'e davet ediyor! Kaydolun ve 50 ucretsiz AI kredi kazanin.",
+        "features": [
+            "AI destekli misafir iletisimi",
+            "Akilli rezervasyon yonetimi",
+            "Cok kanalli mesajlasma (WhatsApp, Instagram, Web)",
+            "Sadakat programi motoru",
+            "Gercek zamanli analitik"
+        ],
+        "cta_text": "Ucretsiz Baslayın",
+        "cta_url": f"/register?ref={referral_code}"
+    }
