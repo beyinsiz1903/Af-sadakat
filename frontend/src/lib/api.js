@@ -318,6 +318,7 @@ export const reportsAPI = {
   peakDemand: (slug, params) => api.get(`/v2/reports/tenants/${slug}/peak-demand`, { params }),
   staffProductivity: (slug, params) => api.get(`/v2/reports/tenants/${slug}/staff-productivity`, { params }),
   aiPerformance: (slug) => api.get(`/v2/reports/tenants/${slug}/ai-performance`),
+  abTestingReport: (slug) => api.get(`/v2/reports/tenants/${slug}/ab-testing-report`),
 };
 
 // AI Sales V2
