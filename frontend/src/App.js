@@ -37,6 +37,9 @@ import SocialDashboardPage from './pages/SocialDashboardPage';
 import ReportsPage from './pages/ReportsPage';
 import NotificationCenterPage from './pages/NotificationCenterPage';
 import RestaurantReservationsPage from './pages/RestaurantReservationsPage';
+import GamificationPage from './pages/GamificationPage';
+import PushNotificationsPage from './pages/PushNotificationsPage';
+import ABTestingPage from './pages/ABTestingPage';
 
 // Guest Pages
 import GuestRoomPanel from './pages/guest/GuestRoomPanel';
