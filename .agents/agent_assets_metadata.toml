@@ -6,3 +6,9 @@ id = "kCe3HPz87NKEUGxDI6BVG"
 uri = "file://AUDIT_RAPORU.md"
 type = "text"
 title = "OmniHub Denetim Raporu (Türkçe)"
+
+[[outputs]]
+id = "BdOvF4IZzML2UyBbbYnsE"
+uri = "file://DEGERLENDIRME_RAPORU.md"
+type = "text"
+title = "OmniHub - İş Fikri Değerlendirme ve Geliştirme Raporu"
