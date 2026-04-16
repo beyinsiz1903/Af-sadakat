@@ -19,15 +19,15 @@ export default function SystemMetricsPage() {
   });
 
   const metricCards = metrics ? [
-    { label: 'Active Tenants', value: metrics.tenants, icon: Server, color: 'text-blue-400' },
-    { label: 'Total Users', value: metrics.users, icon: Users, color: 'text-emerald-400' },
-    { label: 'Requests Handled', value: metrics.requests_handled, icon: ClipboardList, color: 'text-amber-400' },
-    { label: 'Orders Processed', value: metrics.orders_processed, icon: UtensilsCrossed, color: 'text-pink-400' },
-    { label: 'Messages', value: metrics.messages, icon: MessageSquare, color: 'text-purple-400' },
-    { label: 'Reviews', value: metrics.reviews, icon: Star, color: 'text-amber-400' },
-    { label: 'Reservations', value: metrics.reservations, icon: CalendarDays, color: 'text-indigo-400' },
+    { label: 'Active Tenants', value: metrics.active_tenants ?? metrics.total_tenants, icon: Server, color: 'text-blue-400' },
+    { label: 'Total Users', value: metrics.total_users, icon: Users, color: 'text-emerald-400' },
+    { label: 'Requests Handled', value: metrics.total_requests_handled, icon: ClipboardList, color: 'text-amber-400' },
+    { label: 'Orders Processed', value: metrics.total_orders_processed, icon: UtensilsCrossed, color: 'text-pink-400' },
+    { label: 'Messages', value: metrics.total_messages_processed, icon: MessageSquare, color: 'text-purple-400' },
+    { label: 'Reviews', value: metrics.total_reviews, icon: Star, color: 'text-amber-400' },
+    { label: 'Reservations', value: metrics.total_reservations, icon: CalendarDays, color: 'text-indigo-400' },
     { label: 'AI Replies', value: metrics.ai_replies_generated, icon: Zap, color: 'text-emerald-400' },
-    { label: 'MRR (Stub)', value: `$${metrics.mrr_stub}`, icon: DollarSign, color: 'text-emerald-400' },
+    { label: 'MRR', value: `$${metrics.mrr}`, icon: DollarSign, color: 'text-emerald-400' },
   ] : [];
 
   return (

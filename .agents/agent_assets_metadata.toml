@@ -1,0 +1,8 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "kCe3HPz87NKEUGxDI6BVG"
+uri = "file://AUDIT_RAPORU.md"
+type = "text"
+title = "OmniHub Denetim Raporu (Türkçe)"
