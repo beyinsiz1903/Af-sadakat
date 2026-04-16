@@ -14,7 +14,7 @@ import {
   CheckCircle2, Wifi, Phone, MapPin, Clock, Coffee, Waves, Dumbbell, Car, Shirt,
   AlarmClock, KeyRound, ShoppingBag, LogOut, MessageCircle, Info, Megaphone,
   ChevronRight, ArrowLeft, Luggage, AlertCircle, Heart, ClipboardList, Camera, Paperclip, CalendarDays, Users,
-  Receipt, CreditCard
+  Receipt, CreditCard, Bell, BellOff, Settings, X, Volume2, VolumeX
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -89,12 +89,142 @@ export default function GuestRoomPanel() {
   const [folioData, setFolioData] = useState(null);
   const [folioLoading, setFolioLoading] = useState(false);
   const folioLoadedRef = React.useRef(false);
+  const [pushSupported, setPushSupported] = useState(false);
+  const [pushSubscribed, setPushSubscribed] = useState(false);
+  const [pushLoading, setPushLoading] = useState(false);
+  const [showNotifPanel, setShowNotifPanel] = useState(false);
+  const [showNotifPrefs, setShowNotifPrefs] = useState(false);
+  const [notifications, setNotifications] = useState([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [notifPrefs, setNotifPrefs] = useState({
+    housekeeping: true, maintenance: true, room_service: true,
+    laundry: true, spa: true, transport: true, wakeup: true, reception: true,
+  });
+
+  useEffect(() => {
+    if ('serviceWorker' in navigator && 'PushManager' in window) {
+      navigator.serviceWorker.register('/sw.js').then(() => {
+        setPushSupported(true);
+        checkPushSubscription();
+      }).catch(e => console.error('SW registration failed:', e));
+    }
+  }, []);
 
   useEffect(() => {
     loadData();
     const interval = setInterval(loadRequests, 8000);
-    return () => clearInterval(interval);
+    const notifInterval = setInterval(loadUnreadCount, 15000);
+    return () => { clearInterval(interval); clearInterval(notifInterval); };
   }, [tenantSlug, roomCode]);
+
+  const checkPushSubscription = async () => {
+    try {
+      const reg = await navigator.serviceWorker.ready;
+      const sub = await reg.pushManager.getSubscription();
+      setPushSubscribed(!!sub);
+      if (sub) {
+        const res = await guestServicesAPI.getPushPreferences(tenantSlug, roomCode, sub.endpoint);
+        if (res.data?.subscribed) {
+          setNotifPrefs(res.data.preferences || notifPrefs);
+        }
+      }
+    } catch (e) { console.error('Push check error:', e); }
+  };
+
+  const urlBase64ToUint8Array = (base64String) => {
+    const padding = '='.repeat((4 - base64String.length % 4) % 4);
+    const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+    const rawData = window.atob(base64);
+    const outputArray = new Uint8Array(rawData.length);
+    for (let i = 0; i < rawData.length; ++i) outputArray[i] = rawData.charCodeAt(i);
+    return outputArray;
+  };
+
+  const handlePushToggle = async () => {
+    setPushLoading(true);
+    try {
+      if (pushSubscribed) {
+        const reg = await navigator.serviceWorker.ready;
+        const sub = await reg.pushManager.getSubscription();
+        if (sub) {
+          await guestServicesAPI.pushUnsubscribe(tenantSlug, roomCode, { endpoint: sub.endpoint });
+          await sub.unsubscribe();
+        }
+        setPushSubscribed(false);
+        toast.success(lang === 'tr' ? 'Bildirimler kapatıldı' : 'Notifications disabled');
+      } else {
+        const permission = await Notification.requestPermission();
+        if (permission !== 'granted') {
+          toast.error(lang === 'tr' ? 'Bildirim izni reddedildi' : 'Notification permission denied');
+          setPushLoading(false);
+          return;
+        }
+        const vapidRes = await guestServicesAPI.getVapidKey(tenantSlug);
+        const vapidKey = vapidRes.data?.public_key;
+        if (!vapidKey || vapidKey === 'dummy_public_key') {
+          toast.error(lang === 'tr' ? 'Bildirim servisi yapılandırılmamış' : 'Push service not configured');
+          setPushLoading(false);
+          return;
+        }
+        const reg = await navigator.serviceWorker.ready;
+        const sub = await reg.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToUint8Array(vapidKey),
+        });
+        await guestServicesAPI.pushSubscribe(tenantSlug, roomCode, {
+          subscription: sub.toJSON(),
+          preferences: notifPrefs,
+          lang: lang,
+        });
+        setPushSubscribed(true);
+        toast.success(lang === 'tr' ? 'Bildirimler açıldı! Talep durumlarından haberdar olacaksınız.' : 'Notifications enabled! You\'ll be notified of request updates.');
+      }
+    } catch (e) {
+      console.error('Push toggle error:', e);
+      toast.error(lang === 'tr' ? 'Bildirim ayarı değiştirilemedi' : 'Failed to change notification setting');
+    } finally {
+      setPushLoading(false);
+    }
+  };
+
+  const handlePrefChange = async (key) => {
+    const updated = { ...notifPrefs, [key]: !notifPrefs[key] };
+    setNotifPrefs(updated);
+    if (pushSubscribed) {
+      try {
+        const reg = await navigator.serviceWorker.ready;
+        const sub = await reg.pushManager.getSubscription();
+        await guestServicesAPI.updatePushPreferences(tenantSlug, roomCode, {
+          endpoint: sub?.endpoint || '',
+          preferences: updated,
+          lang: lang,
+        });
+      } catch (e) { console.error('Pref update error:', e); }
+    }
+  };
+
+  const loadNotifications = async () => {
+    try {
+      const res = await guestServicesAPI.getGuestNotifications(tenantSlug, roomCode);
+      setNotifications(res.data || []);
+    } catch (e) {}
+  };
+
+  const loadUnreadCount = async () => {
+    try {
+      const res = await guestServicesAPI.getUnreadNotifCount(tenantSlug, roomCode);
+      setUnreadCount(res.data?.count || 0);
+    } catch (e) {}
+  };
+
+  const handleOpenNotifPanel = async () => {
+    setShowNotifPanel(true);
+    await loadNotifications();
+    if (unreadCount > 0) {
+      await guestServicesAPI.markNotificationsRead(tenantSlug, roomCode);
+      setUnreadCount(0);
+    }
+  };
 
   useEffect(() => {
     if (activeTab === 'folio' && !folioData && !folioLoading && !folioLoadedRef.current) {
@@ -314,7 +444,20 @@ export default function GuestRoomPanel() {
                 )}
               </div>
             </div>
-            <div className="flex gap-1">
+            <div className="flex items-center gap-1">
+              {pushSupported && (
+                <button
+                  onClick={handleOpenNotifPanel}
+                  className="relative p-1.5 rounded-lg hover:bg-[hsl(var(--secondary))] transition-colors"
+                >
+                  <Bell className={`w-4.5 h-4.5 ${pushSubscribed ? 'text-[hsl(var(--primary))]' : 'text-[hsl(var(--muted-foreground))]'}`} />
+                  {unreadCount > 0 && (
+                    <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+                      {unreadCount > 9 ? '9+' : unreadCount}
+                    </span>
+                  )}
+                </button>
+              )}
               <Button size="sm" variant={lang === 'en' ? 'default' : 'ghost'} className="text-xs px-2 h-7" onClick={() => setLang('en')}>EN</Button>
               <Button size="sm" variant={lang === 'tr' ? 'default' : 'ghost'} className="text-xs px-2 h-7" onClick={() => setLang('tr')}>TR</Button>
             </div>
@@ -1176,6 +1319,123 @@ export default function GuestRoomPanel() {
                 {t('Confirm Reservation', 'Rezervasyonu Onayla')}
               </Button>
             </>)}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Notification Panel */}
+      <Dialog open={showNotifPanel} onOpenChange={setShowNotifPanel}>
+        <DialogContent className="max-w-md max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center justify-between">
+              <span className="flex items-center gap-2">
+                <Bell className="w-5 h-5" />
+                {t('Notifications', 'Bildirimler')}
+              </span>
+              <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => { setShowNotifPanel(false); setShowNotifPrefs(true); }}>
+                <Settings className="w-4 h-4" />
+              </Button>
+            </DialogTitle>
+          </DialogHeader>
+
+          {!pushSubscribed ? (
+            <div className="text-center py-6">
+              <Bell className="w-12 h-12 mx-auto mb-3 text-[hsl(var(--muted-foreground))]" />
+              <h3 className="font-semibold mb-2">{t('Enable Notifications', 'Bildirimleri Aç')}</h3>
+              <p className="text-sm text-[hsl(var(--muted-foreground))] mb-4">
+                {t(
+                  'Get notified when your request status changes — "Your laundry is ready", "Your order is on its way!"',
+                  'Talep durumunuz değiştiğinde bildirim alın — "Çamaşırlarınız hazır", "Siparişiniz yola çıktı!"'
+                )}
+              </p>
+              <Button onClick={handlePushToggle} disabled={pushLoading} className="w-full">
+                {pushLoading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Bell className="w-4 h-4 mr-2" />}
+                {t('Enable Push Notifications', 'Bildirimleri Etkinleştir')}
+              </Button>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between px-2 py-1.5 mb-2 bg-emerald-500/10 rounded-lg">
+                <span className="text-xs text-emerald-400 flex items-center gap-1.5">
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  {t('Notifications active', 'Bildirimler aktif')}
+                </span>
+                <Button size="sm" variant="ghost" className="h-6 text-xs text-red-400" onClick={handlePushToggle} disabled={pushLoading}>
+                  {pushLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : t('Disable', 'Kapat')}
+                </Button>
+              </div>
+
+              {notifications.length === 0 ? (
+                <div className="text-center py-6 text-sm text-[hsl(var(--muted-foreground))]">
+                  {t('No notifications yet', 'Henüz bildirim yok')}
+                </div>
+              ) : (
+                notifications.map((n, i) => {
+                  const catConf = categoryConfig[n.service_type] || {};
+                  const CatIcon = catConf.icon || Info;
+                  return (
+                    <div key={n.id || i} className={`flex items-start gap-3 p-3 rounded-lg ${n.read ? 'bg-[hsl(var(--secondary))]/50' : 'bg-[hsl(var(--secondary))]'}`}>
+                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${catConf.bg || 'bg-blue-500/10'}`}>
+                        <CatIcon className={`w-4 h-4 ${catConf.color || 'text-blue-400'}`} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium">{lang === 'tr' ? n.title_tr : n.title_en}</p>
+                        <p className="text-xs text-[hsl(var(--muted-foreground))] mt-0.5">{lang === 'tr' ? n.body_tr : n.body_en}</p>
+                        <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-1">{timeAgo(n.created_at)}</p>
+                      </div>
+                      {!n.read && <div className="w-2 h-2 bg-[hsl(var(--primary))] rounded-full mt-2 flex-shrink-0" />}
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Notification Preferences */}
+      <Dialog open={showNotifPrefs} onOpenChange={setShowNotifPrefs}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Settings className="w-5 h-5" />
+              {t('Notification Preferences', 'Bildirim Tercihleri')}
+            </DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-[hsl(var(--muted-foreground))] mb-3">
+            {t('Choose which notifications you want to receive:', 'Hangi bildirimleri almak istediğinizi seçin:')}
+          </p>
+          <div className="space-y-2">
+            {[
+              { key: 'housekeeping', en: 'Housekeeping', tr: 'Kat Hizmeti' },
+              { key: 'maintenance', en: 'Technical Service', tr: 'Teknik Servis' },
+              { key: 'room_service', en: 'Room Service / Orders', tr: 'Oda Servisi / Siparişler' },
+              { key: 'laundry', en: 'Laundry', tr: 'Çamaşır/Ütü' },
+              { key: 'spa', en: 'Spa & Wellness', tr: 'Spa & Masaj' },
+              { key: 'transport', en: 'Transport', tr: 'Transfer' },
+              { key: 'wakeup', en: 'Wake-up Call', tr: 'Uyandırma' },
+              { key: 'reception', en: 'Reception', tr: 'Resepsiyon' },
+            ].map(item => {
+              const catConf = categoryConfig[item.key] || {};
+              const CatIcon = catConf.icon || Info;
+              return (
+                <button
+                  key={item.key}
+                  onClick={() => handlePrefChange(item.key)}
+                  className="w-full flex items-center justify-between p-3 rounded-lg bg-[hsl(var(--secondary))] hover:bg-[hsl(var(--secondary))]/80 transition-colors"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${catConf.bg || 'bg-blue-500/10'}`}>
+                      <CatIcon className={`w-4 h-4 ${catConf.color || 'text-blue-400'}`} />
+                    </div>
+                    <span className="text-sm font-medium">{lang === 'tr' ? item.tr : item.en}</span>
+                  </div>
+                  <div className={`w-10 h-6 rounded-full transition-colors flex items-center px-1 ${notifPrefs[item.key] ? 'bg-[hsl(var(--primary))] justify-end' : 'bg-[hsl(var(--muted))] justify-start'}`}>
+                    <div className="w-4 h-4 bg-white rounded-full shadow" />
+                  </div>
+                </button>
+              );
+            })}
           </div>
         </DialogContent>
       </Dialog>

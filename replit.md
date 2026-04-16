@@ -61,3 +61,4 @@ This starts:
 - **Personalized Welcome**: Room-specific guest greeting ("Welcome, Ahmed!") based on current occupant
 - **Room Folio**: Guests can view all in-stay charges (room service, minibar, spa, laundry, transport) via QR panel
 - **Guest Services**: 14+ service categories including spa booking, transport, laundry, wake-up calls, restaurant reservations
+- **Guest Push Notifications**: Web Push notifications when request status changes (TR/EN) — "Çamaşırlarınız hazır", "Siparişiniz yola çıktı" — with per-category preference toggles. In-app notification panel with unread badges. Hooked into all admin status update endpoints (requests, orders, spa, transport, laundry, wake-up calls).

@@ -1,10 +1,13 @@
 """Guest Services Router - Enhanced guest experience
 Hotel info, room service ordering, spa/activity booking, transport,
-laundry, wake-up calls, minibar, surveys, announcements, multi-language
+laundry, wake-up calls, minibar, surveys, announcements, multi-language,
+guest push notifications
 """
 from fastapi import APIRouter, HTTPException, Query
 from typing import Optional, List
 import os
+import json
+import logging
 
 from core.config import db
 from core.tenant_guard import (
@@ -14,7 +17,134 @@ from core.tenant_guard import (
 )
 from fastapi import Depends
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter(prefix="/api/v2/guest-services", tags=["guest-services"])
+
+
+GUEST_STATUS_MESSAGES = {
+    "IN_PROGRESS": {
+        "housekeeping": {"en": "Housekeeping team is on the way to your room", "tr": "Kat hizmeti ekibi odanıza geliyor"},
+        "maintenance": {"en": "Technical team is heading to your room", "tr": "Teknik ekip odanıza geliyor"},
+        "room_service": {"en": "Your order is being prepared", "tr": "Siparişiniz hazırlanıyor"},
+        "laundry": {"en": "Your laundry is being processed", "tr": "Çamaşırlarınız işleme alındı"},
+        "spa": {"en": "Your spa booking is confirmed", "tr": "Spa rezervasyonunuz onaylandı"},
+        "transport": {"en": "Your transport is being arranged", "tr": "Transferiniz ayarlanıyor"},
+        "wakeup": {"en": "Your wake-up call is scheduled", "tr": "Uyandırma servisiniz ayarlandı"},
+        "reception": {"en": "Reception is handling your request", "tr": "Resepsiyon talebinizle ilgileniyor"},
+        "default": {"en": "Your request is being processed", "tr": "Talebiniz işleme alındı"},
+    },
+    "DONE": {
+        "housekeeping": {"en": "Housekeeping is complete!", "tr": "Kat hizmeti tamamlandı!"},
+        "maintenance": {"en": "Technical service is complete!", "tr": "Teknik servis tamamlandı!"},
+        "room_service": {"en": "Your order has been delivered!", "tr": "Siparişiniz teslim edildi!"},
+        "laundry": {"en": "Your laundry is ready!", "tr": "Çamaşırlarınız hazır!"},
+        "spa": {"en": "Your spa session is complete!", "tr": "Spa seansınız tamamlandı!"},
+        "transport": {"en": "Your transport is ready!", "tr": "Transferiniz hazır!"},
+        "wakeup": {"en": "Wake-up call completed", "tr": "Uyandırma servisi tamamlandı"},
+        "reception": {"en": "Your request has been fulfilled!", "tr": "Talebiniz karşılandı!"},
+        "default": {"en": "Your request is complete!", "tr": "Talebiniz tamamlandı!"},
+    },
+    "PREPARING": {
+        "room_service": {"en": "Your order is being prepared in the kitchen", "tr": "Siparişiniz mutfakta hazırlanıyor"},
+        "default": {"en": "Your request is being prepared", "tr": "Talebiniz hazırlanıyor"},
+    },
+    "READY": {
+        "room_service": {"en": "Your order is on its way!", "tr": "Siparişiniz yola çıktı!"},
+        "default": {"en": "Your request is ready!", "tr": "Talebiniz hazır!"},
+    },
+    "CONFIRMED": {
+        "spa": {"en": "Your spa booking is confirmed!", "tr": "Spa rezervasyonunuz onaylandı!"},
+        "transport": {"en": "Your transport is confirmed!", "tr": "Transferiniz onaylandı!"},
+        "default": {"en": "Your booking is confirmed!", "tr": "Rezervasyonunuz onaylandı!"},
+    },
+    "CANCELLED": {
+        "default": {"en": "Your request has been cancelled", "tr": "Talebiniz iptal edildi"},
+    },
+    "SERVED": {
+        "room_service": {"en": "Your order has been served. Enjoy!", "tr": "Siparişiniz servis edildi. Afiyet olsun!"},
+        "default": {"en": "Service completed!", "tr": "Servis tamamlandı!"},
+    },
+}
+
+STATUS_TITLES = {
+    "IN_PROGRESS": {"en": "In Progress", "tr": "İşleme Alındı"},
+    "DONE": {"en": "Completed", "tr": "Tamamlandı"},
+    "PREPARING": {"en": "Preparing", "tr": "Hazırlanıyor"},
+    "READY": {"en": "Ready", "tr": "Hazır"},
+    "CONFIRMED": {"en": "Confirmed", "tr": "Onaylandı"},
+    "CANCELLED": {"en": "Cancelled", "tr": "İptal"},
+    "SERVED": {"en": "Served", "tr": "Servis Edildi"},
+    "CLOSED": {"en": "Closed", "tr": "Kapatıldı"},
+}
+
+
+async def notify_guest_status_change(tenant_id: str, room_code: str, service_type: str, new_status: str, request_description: str = ""):
+    """Send push notification to all guest subscriptions for a room when status changes"""
+    try:
+        subs = await db.guest_push_subscriptions.find({
+            "tenant_id": tenant_id,
+            "room_code": room_code,
+            "active": True
+        }).to_list(50)
+
+        if not subs:
+            return
+
+        status_msgs = GUEST_STATUS_MESSAGES.get(new_status, {})
+        svc_msgs = status_msgs.get(service_type, status_msgs.get("default", {}))
+        if not svc_msgs:
+            svc_msgs = {"en": f"Request status: {new_status}", "tr": f"Talep durumu: {new_status}"}
+
+        title_msgs = STATUS_TITLES.get(new_status, {"en": new_status, "tr": new_status})
+
+        from routers.push_notifications import send_web_push
+
+        for sub in subs:
+            prefs = sub.get("preferences", {})
+            if not prefs.get(service_type, True):
+                continue
+
+            sub_lang = sub.get("lang", "tr")
+            title = f"🏨 {title_msgs.get(sub_lang, title_msgs.get('en', new_status))}"
+            body = svc_msgs.get(sub_lang, svc_msgs.get("en", ""))
+            if request_description:
+                body = f"{body}\n📋 {request_description[:80]}"
+
+            subscription_info = sub.get("subscription", {})
+            if subscription_info:
+                tenant_doc = await db.tenants.find_one({"id": tenant_id})
+                t_slug = tenant_doc.get("slug", "") if tenant_doc else ""
+                guest_url = f"/g/{t_slug}/room/{room_code}" if t_slug else "/"
+                await send_web_push(
+                    subscription_info=subscription_info,
+                    title=title,
+                    body=body,
+                    data={
+                        "type": "status_change",
+                        "service_type": service_type,
+                        "status": new_status,
+                        "room_code": room_code,
+                        "url": guest_url,
+                    }
+                )
+
+        await db.guest_notifications.insert_one({
+            "id": new_id(),
+            "tenant_id": tenant_id,
+            "room_code": room_code,
+            "service_type": service_type,
+            "status": new_status,
+            "title_en": title_msgs.get("en", new_status),
+            "title_tr": title_msgs.get("tr", new_status),
+            "body_en": svc_msgs.get("en", ""),
+            "body_tr": svc_msgs.get("tr", ""),
+            "read": False,
+            "created_at": now_utc().isoformat(),
+        })
+
+    except Exception as e:
+        logger.error(f"Guest notification failed: {e}")
 
 # Helper: create a guest_request record so all services appear on admin Requests Board
 async def _create_linked_request(tid, room, category, dept_code, description, guest_name="", guest_phone="", linked_entity_type="", linked_entity_id=""):
@@ -856,12 +986,19 @@ async def list_spa_bookings(tenant_slug: str, status: Optional[str] = None, user
 @router.patch("/tenants/{tenant_slug}/spa-bookings/{booking_id}")
 async def update_spa_booking(tenant_slug: str, booking_id: str, data: dict, user=Depends(get_current_user)):
     tenant = await resolve_tenant(tenant_slug)
+    booking = await find_one_scoped("spa_bookings", tenant["id"], {"id": booking_id})
     update = {}
     if "status" in data:
         update["status"] = data["status"].upper()
     if "notes" in data:
         update["notes"] = data["notes"]
-    return await update_scoped("spa_bookings", tenant["id"], booking_id, update)
+    result = await update_scoped("spa_bookings", tenant["id"], booking_id, update)
+    if "status" in data and booking:
+        try:
+            await notify_guest_status_change(tenant["id"], booking.get("room_code", ""), "spa", data["status"].upper(), booking.get("service_type", ""))
+        except Exception as e:
+            logger.error(f"Guest notify error: {e}")
+    return result
 
 # Transport Requests Admin
 @router.get("/tenants/{tenant_slug}/transport-requests")
@@ -875,6 +1012,7 @@ async def list_transport_requests(tenant_slug: str, status: Optional[str] = None
 @router.patch("/tenants/{tenant_slug}/transport-requests/{req_id}")
 async def update_transport_request(tenant_slug: str, req_id: str, data: dict, user=Depends(get_current_user)):
     tenant = await resolve_tenant(tenant_slug)
+    req = await find_one_scoped("transport_requests", tenant["id"], {"id": req_id})
     update = {}
     if "status" in data:
         update["status"] = data["status"].upper()
@@ -884,7 +1022,14 @@ async def update_transport_request(tenant_slug: str, req_id: str, data: dict, us
         update["driver_name"] = data["driver_name"]
     if "vehicle_info" in data:
         update["vehicle_info"] = data["vehicle_info"]
-    return await update_scoped("transport_requests", tenant["id"], req_id, update)
+    result = await update_scoped("transport_requests", tenant["id"], req_id, update)
+    if "status" in data and req:
+        try:
+            desc = f'{req.get("transport_type", "")} → {req.get("destination", "")}'
+            await notify_guest_status_change(tenant["id"], req.get("room_code", ""), "transport", data["status"].upper(), desc)
+        except Exception as e:
+            logger.error(f"Guest notify error: {e}")
+    return result
 
 # Laundry Requests Admin  
 @router.get("/tenants/{tenant_slug}/laundry-requests")
@@ -898,12 +1043,20 @@ async def list_laundry_requests(tenant_slug: str, status: Optional[str] = None, 
 @router.patch("/tenants/{tenant_slug}/laundry-requests/{req_id}")
 async def update_laundry_request(tenant_slug: str, req_id: str, data: dict, user=Depends(get_current_user)):
     tenant = await resolve_tenant(tenant_slug)
+    req = await find_one_scoped("laundry_requests", tenant["id"], {"id": req_id})
     update = {}
     if "status" in data:
         update["status"] = data["status"].upper()
     if "notes" in data:
         update["notes"] = data["notes"]
-    return await update_scoped("laundry_requests", tenant["id"], req_id, update)
+    result = await update_scoped("laundry_requests", tenant["id"], req_id, update)
+    if "status" in data and req:
+        try:
+            desc = f'{req.get("service_type", "regular")} - {req.get("items_description", "")}'
+            await notify_guest_status_change(tenant["id"], req.get("room_code", ""), "laundry", data["status"].upper(), desc)
+        except Exception as e:
+            logger.error(f"Guest notify error: {e}")
+    return result
 
 # Wake-up Calls Admin
 @router.get("/tenants/{tenant_slug}/wakeup-calls")
@@ -914,10 +1067,18 @@ async def list_wakeup_calls(tenant_slug: str, user=Depends(get_current_user)):
 @router.patch("/tenants/{tenant_slug}/wakeup-calls/{call_id}")
 async def update_wakeup_call(tenant_slug: str, call_id: str, data: dict, user=Depends(get_current_user)):
     tenant = await resolve_tenant(tenant_slug)
+    call = await find_one_scoped("wakeup_calls", tenant["id"], {"id": call_id})
     update = {}
     if "status" in data:
         update["status"] = data["status"].upper()
-    return await update_scoped("wakeup_calls", tenant["id"], call_id, update)
+    result = await update_scoped("wakeup_calls", tenant["id"], call_id, update)
+    if "status" in data and call:
+        try:
+            desc = f'{call.get("wakeup_date", "")} {call.get("wakeup_time", "")}'
+            await notify_guest_status_change(tenant["id"], call.get("room_code", ""), "wakeup", data["status"].upper(), desc)
+        except Exception as e:
+            logger.error(f"Guest notify error: {e}")
+    return result
 
 # Guest Surveys Admin
 @router.get("/tenants/{tenant_slug}/surveys")
@@ -1041,3 +1202,178 @@ async def update_services_config(tenant_slug: str, data: dict, user=Depends(get_
     for svc in ALL_GUEST_SERVICES:
         services.append({**svc, "enabled": merged.get(svc["key"], svc["default_enabled"])})
     return services
+
+
+# ============ GUEST PUSH NOTIFICATIONS ============
+
+@router.get("/g/{tenant_slug}/push/vapid-key")
+async def guest_vapid_key(tenant_slug: str):
+    from routers.push_notifications import _get_vapid_keys
+    _, public_key = _get_vapid_keys()
+    return {"public_key": public_key}
+
+
+@router.post("/g/{tenant_slug}/room/{room_code}/push/subscribe")
+async def guest_push_subscribe(tenant_slug: str, room_code: str, data: dict):
+    tenant = await resolve_tenant(tenant_slug)
+    tid = tenant["id"]
+
+    room = await find_one_scoped("rooms", tid, {"room_code": room_code})
+    if not room:
+        raise HTTPException(status_code=404, detail="Room not found")
+
+    subscription = data.get("subscription", {})
+    if not subscription or not subscription.get("endpoint"):
+        raise HTTPException(status_code=400, detail="Invalid subscription")
+
+    endpoint = subscription.get("endpoint", "")
+    existing = await db.guest_push_subscriptions.find_one({
+        "tenant_id": tid,
+        "room_code": room_code,
+        "subscription.endpoint": endpoint
+    })
+
+    prefs = data.get("preferences", {
+        "housekeeping": True,
+        "maintenance": True,
+        "room_service": True,
+        "laundry": True,
+        "spa": True,
+        "transport": True,
+        "wakeup": True,
+        "reception": True,
+    })
+    lang = data.get("lang", "tr")
+
+    if existing:
+        await db.guest_push_subscriptions.update_one(
+            {"_id": existing["_id"]},
+            {"$set": {
+                "subscription": subscription,
+                "preferences": prefs,
+                "lang": lang,
+                "active": True,
+                "updated_at": now_utc().isoformat()
+            }}
+        )
+        return {"status": "updated", "message": "Subscription updated"}
+    else:
+        await db.guest_push_subscriptions.insert_one({
+            "id": new_id(),
+            "tenant_id": tid,
+            "room_code": room_code,
+            "subscription": subscription,
+            "preferences": prefs,
+            "lang": lang,
+            "active": True,
+            "created_at": now_utc().isoformat(),
+            "updated_at": now_utc().isoformat(),
+        })
+        return {"status": "subscribed", "message": "Push notifications enabled"}
+
+
+@router.delete("/g/{tenant_slug}/room/{room_code}/push/unsubscribe")
+async def guest_push_unsubscribe(tenant_slug: str, room_code: str, data: dict):
+    tenant = await resolve_tenant(tenant_slug)
+    tid = tenant["id"]
+
+    endpoint = data.get("endpoint", "")
+    if endpoint:
+        await db.guest_push_subscriptions.update_many(
+            {"tenant_id": tid, "room_code": room_code, "subscription.endpoint": endpoint},
+            {"$set": {"active": False, "updated_at": now_utc().isoformat()}}
+        )
+    else:
+        await db.guest_push_subscriptions.update_many(
+            {"tenant_id": tid, "room_code": room_code},
+            {"$set": {"active": False, "updated_at": now_utc().isoformat()}}
+        )
+    return {"status": "unsubscribed"}
+
+
+@router.get("/g/{tenant_slug}/room/{room_code}/push/preferences")
+async def guest_push_preferences(tenant_slug: str, room_code: str, endpoint: str = ""):
+    tenant = await resolve_tenant(tenant_slug)
+    tid = tenant["id"]
+
+    query = {"tenant_id": tid, "room_code": room_code, "active": True}
+    if endpoint:
+        query["subscription.endpoint"] = endpoint
+
+    sub = await db.guest_push_subscriptions.find_one(query)
+    if not sub:
+        return {
+            "subscribed": False,
+            "preferences": {
+                "housekeeping": True, "maintenance": True, "room_service": True,
+                "laundry": True, "spa": True, "transport": True,
+                "wakeup": True, "reception": True,
+            }
+        }
+
+    return {
+        "subscribed": True,
+        "preferences": sub.get("preferences", {}),
+        "lang": sub.get("lang", "tr"),
+    }
+
+
+@router.put("/g/{tenant_slug}/room/{room_code}/push/preferences")
+async def update_guest_push_preferences(tenant_slug: str, room_code: str, data: dict):
+    tenant = await resolve_tenant(tenant_slug)
+    tid = tenant["id"]
+
+    endpoint = data.get("endpoint", "")
+    prefs = data.get("preferences", {})
+    lang = data.get("lang")
+
+    update_data = {"preferences": prefs, "updated_at": now_utc().isoformat()}
+    if lang:
+        update_data["lang"] = lang
+
+    query = {"tenant_id": tid, "room_code": room_code, "active": True}
+    if endpoint:
+        query["subscription.endpoint"] = endpoint
+
+    result = await db.guest_push_subscriptions.update_many(query, {"$set": update_data})
+    if result.modified_count == 0:
+        raise HTTPException(status_code=404, detail="No active subscription found")
+
+    return {"status": "updated", "preferences": prefs}
+
+
+@router.get("/g/{tenant_slug}/room/{room_code}/notifications")
+async def guest_notifications_list(tenant_slug: str, room_code: str, limit: int = 20):
+    tenant = await resolve_tenant(tenant_slug)
+    tid = tenant["id"]
+
+    notifs = await db.guest_notifications.find(
+        {"tenant_id": tid, "room_code": room_code}
+    ).sort("created_at", -1).limit(limit).to_list(limit)
+
+    for n in notifs:
+        n.pop("_id", None)
+    return notifs
+
+
+@router.post("/g/{tenant_slug}/room/{room_code}/notifications/mark-read")
+async def guest_notifications_mark_read(tenant_slug: str, room_code: str):
+    tenant = await resolve_tenant(tenant_slug)
+    tid = tenant["id"]
+
+    await db.guest_notifications.update_many(
+        {"tenant_id": tid, "room_code": room_code, "read": False},
+        {"$set": {"read": True}}
+    )
+    return {"status": "ok"}
+
+
+@router.get("/g/{tenant_slug}/room/{room_code}/notifications/unread-count")
+async def guest_notifications_unread(tenant_slug: str, room_code: str):
+    tenant = await resolve_tenant(tenant_slug)
+    tid = tenant["id"]
+
+    count = await db.guest_notifications.count_documents(
+        {"tenant_id": tid, "room_code": room_code, "read": False}
+    )
+    return {"count": count}

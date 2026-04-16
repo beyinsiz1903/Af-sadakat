@@ -156,6 +156,17 @@ async def update_request_v2(tenant_slug: str, request_id: str, data: dict, user=
     from server import ws_manager
     await ws_manager.broadcast_tenant(tenant["id"], "request", "guest_request", "updated", updated)
     
+    if "status" in data:
+        try:
+            from routers.guest_services import notify_guest_status_change
+            room_code = req.get("room_code", "")
+            svc_type = req.get("category", req.get("department_code", "default")).lower()
+            desc = req.get("description", "")[:80]
+            await notify_guest_status_change(tenant["id"], room_code, svc_type, data["status"].upper(), desc)
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).error(f"Guest notify error: {e}")
+    
     return updated
 
 # ============ REQUEST COMMENTS ============

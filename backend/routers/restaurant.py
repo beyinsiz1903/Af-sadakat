@@ -271,4 +271,14 @@ async def update_order_status_v2(tenant_slug: str, order_id: str, data: dict, us
     except:
         pass
     
+    try:
+        from routers.guest_services import notify_guest_status_change
+        room_code = order.get("room_code", "")
+        desc_parts = [f'{i.get("menu_item_name","")} x{i.get("quantity",1)}' for i in order.get("items", [])[:2]]
+        desc = ", ".join(desc_parts)
+        await notify_guest_status_change(tenant["id"], room_code, "room_service", new_status, desc)
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).error(f"Guest notify error: {e}")
+    
     return updated
