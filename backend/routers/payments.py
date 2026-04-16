@@ -7,10 +7,9 @@ from fastapi import APIRouter, HTTPException, Request
 import secrets
 import logging
 
-from core.config import db, STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET, STRIPE_PUBLIC_KEY, STRIPE_MODE, PUBLIC_BASE_URL
+from core.config import db, STRIPE_SECRET_KEY, STRIPE_PUBLIC_KEY, STRIPE_MODE
 from core.tenant_guard import (
-    serialize_doc, new_id, now_utc,
-    find_one_scoped, insert_scoped, update_scoped, log_audit
+    serialize_doc, new_id, now_utc, log_audit
 )
 from core.middleware import rate_limit_ip, generate_unique_confirmation_code
 

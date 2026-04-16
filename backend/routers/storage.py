@@ -8,7 +8,7 @@ import uuid
 from pathlib import Path
 
 from core.config import db
-from core.tenant_guard import serialize_doc, new_id, now_utc, resolve_tenant, get_current_user
+from core.tenant_guard import serialize_doc, now_utc, resolve_tenant, get_current_user
 from fastapi import Depends
 
 logger = logging.getLogger("omnihub.storage")

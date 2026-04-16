@@ -3,16 +3,14 @@ Hotel info, room service ordering, spa/activity booking, transport,
 laundry, wake-up calls, minibar, surveys, announcements, multi-language,
 guest push notifications
 """
-from fastapi import APIRouter, HTTPException, Query
-from typing import Optional, List
-import os
-import json
+from fastapi import APIRouter, HTTPException
+from typing import Optional
 import logging
 
 from core.config import db
 from core.tenant_guard import (
     resolve_tenant, serialize_doc, new_id, now_utc,
-    find_one_scoped, find_many_scoped, count_scoped,
+    find_one_scoped, find_many_scoped,
     insert_scoped, update_scoped, delete_scoped, log_audit, get_current_user
 )
 from fastapi import Depends
@@ -1529,7 +1527,6 @@ async def express_checkout(tenant_slug: str, room_code: str, data: dict):
 
 
 async def _build_folio(tid, room_code, room):
-    from datetime import datetime
     check_in_str = room.get("current_guest_check_in", "")
     items = []
     currency = "TRY"
@@ -1539,7 +1536,7 @@ async def _build_folio(tid, room_code, room):
     for o in orders:
         if o.get("created_at", "") >= check_in_str:
             amt = sum(i.get("price", 0) * i.get("quantity", 1) for i in o.get("items", []))
-            items.append({"type": "room_service", "description": f"Room Service Order", "amount": amt, "date": o.get("created_at", "")})
+            items.append({"type": "room_service", "description": "Room Service Order", "amount": amt, "date": o.get("created_at", "")})
             total += amt
 
     minibar = await db.minibar_orders.find({"tenant_id": tid, "room_code": room_code}).to_list(100)
