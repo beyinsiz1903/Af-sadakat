@@ -8,8 +8,8 @@ channel = "stable-25_05"
 [userenv]
 
 [userenv.shared]
-MONGO_URL = "mongodb://localhost:27017"
-DB_NAME = "omni_inbox_hub"
+MONGO_URL = "mongodb+srv://crm-web:Syrocecrm@syroce.no04m9w.mongodb.net/?appName=Syroce"
+DB_NAME = "syroce-sadakat"
 
 [workflows]
 runButton = "Project"
