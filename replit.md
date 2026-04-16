@@ -58,3 +58,6 @@ This starts:
 - **Loyalty Program**: Points, tiers, gamification
 - **Real-time**: WebSocket updates per tenant channel
 - **Guest Portal**: QR-code-based room/table access for guests
+- **Personalized Welcome**: Room-specific guest greeting ("Welcome, Ahmed!") based on current occupant
+- **Room Folio**: Guests can view all in-stay charges (room service, minibar, spa, laundry, transport) via QR panel
+- **Guest Services**: 14+ service categories including spa booking, transport, laundry, wake-up calls, restaurant reservations

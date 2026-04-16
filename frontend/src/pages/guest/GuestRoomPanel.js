@@ -13,16 +13,17 @@ import {
   Hotel, Sparkles, Wrench, UtensilsCrossed, BellRing, HelpCircle, Send, Star, Loader2,
   CheckCircle2, Wifi, Phone, MapPin, Clock, Coffee, Waves, Dumbbell, Car, Shirt,
   AlarmClock, KeyRound, ShoppingBag, LogOut, MessageCircle, Info, Megaphone,
-  ChevronRight, ArrowLeft, Luggage, AlertCircle, Heart, ClipboardList, Camera, Paperclip, CalendarDays, Users
+  ChevronRight, ArrowLeft, Luggage, AlertCircle, Heart, ClipboardList, Camera, Paperclip, CalendarDays, Users,
+  Receipt, CreditCard
 } from 'lucide-react';
 import { toast } from 'sonner';
 
 const TABS = [
-  { id: 'home', label: 'Home', icon: Hotel },
-  { id: 'services', label: 'Services', icon: ClipboardList },
-  { id: 'dining', label: 'Dining', icon: UtensilsCrossed },
-  { id: 'info', label: 'Hotel Info', icon: Info },
-  { id: 'requests', label: 'My Requests', icon: MessageCircle },
+  { id: 'home', label: 'Home', labelTr: 'Ana Sayfa', icon: Hotel },
+  { id: 'services', label: 'Services', labelTr: 'Servisler', icon: ClipboardList },
+  { id: 'dining', label: 'Dining', labelTr: 'Yemek', icon: UtensilsCrossed },
+  { id: 'folio', label: 'Folio', labelTr: 'Folyo', icon: Receipt },
+  { id: 'requests', label: 'My Requests', labelTr: 'Taleplerim', icon: MessageCircle },
 ];
 
 const categoryConfig = {
@@ -85,12 +86,25 @@ export default function GuestRoomPanel() {
   const [ratingForm, setRatingForm] = useState({ requestId: null, rating: 0, comment: '' });
   const [uploadFiles, setUploadFiles] = useState([]);
   const [uploading, setUploading] = useState(false);
+  const [folioData, setFolioData] = useState(null);
+  const [folioLoading, setFolioLoading] = useState(false);
+  const folioLoadedRef = React.useRef(false);
 
   useEffect(() => {
     loadData();
     const interval = setInterval(loadRequests, 8000);
     return () => clearInterval(interval);
   }, [tenantSlug, roomCode]);
+
+  useEffect(() => {
+    if (activeTab === 'folio' && !folioData && !folioLoading && !folioLoadedRef.current) {
+      folioLoadedRef.current = true;
+      setFolioLoading(true);
+      guestServicesAPI.getRoomFolio(tenantSlug, roomCode)
+        .then(res => { setFolioData(res.data); setFolioLoading(false); })
+        .catch(() => { setFolioData({ items: [], total: 0 }); setFolioLoading(false); });
+    }
+  }, [activeTab, folioData, folioLoading, tenantSlug, roomCode]);
 
   const loadData = async () => {
     try {
@@ -100,6 +114,9 @@ export default function GuestRoomPanel() {
       ]);
       setRoomInfo(infoRes.data);
       setRequests(reqRes.data);
+      if (infoRes.data?.current_guest_name) {
+        setGuestName(infoRes.data.current_guest_name);
+      }
 
       // Load additional data
       try {
@@ -280,10 +297,21 @@ export default function GuestRoomPanel() {
                 <Hotel className="w-5 h-5 text-white" />
               </div>
               <div>
-                <h1 className="text-lg font-bold">{roomInfo.tenant.name}</h1>
-                <p className="text-xs text-[hsl(var(--muted-foreground))]">
-                  {t('Room', 'Oda')} {roomInfo.room.room_number} • {roomInfo.room.room_type}
-                </p>
+                {roomInfo.current_guest_name ? (
+                  <>
+                    <h1 className="text-lg font-bold">{t('Welcome', 'Hosgeldiniz')}, {roomInfo.current_guest_name.split(' ')[0]}!</h1>
+                    <p className="text-xs text-[hsl(var(--muted-foreground))]">
+                      {roomInfo.tenant.name} • {t('Room', 'Oda')} {roomInfo.room.room_number}
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <h1 className="text-lg font-bold">{roomInfo.tenant.name}</h1>
+                    <p className="text-xs text-[hsl(var(--muted-foreground))]">
+                      {t('Room', 'Oda')} {roomInfo.room.room_number} • {roomInfo.room.room_type}
+                    </p>
+                  </>
+                )}
               </div>
             </div>
             <div className="flex gap-1">
@@ -484,77 +512,104 @@ export default function GuestRoomPanel() {
           </div>
         )}
 
-        {activeTab === 'info' && hotelInfo && (
+        {activeTab === 'folio' && (
           <div className="space-y-3">
-            <Card className="bg-[hsl(var(--card))] border-[hsl(var(--border))]">
-              <CardContent className="p-4">
-                <h3 className="font-semibold mb-1">{hotelInfo.hotel_name || roomInfo.tenant.name}</h3>
-                {hotelInfo.description && <p className="text-xs text-[hsl(var(--muted-foreground))] mb-3">{hotelInfo.description}</p>}
-                <div className="space-y-2 text-xs">
-                  {hotelInfo.address && <div className="flex items-center gap-2"><MapPin className="w-3.5 h-3.5 text-[hsl(var(--primary))]" /><span>{hotelInfo.address}</span></div>}
-                  {hotelInfo.phone && <div className="flex items-center gap-2"><Phone className="w-3.5 h-3.5 text-[hsl(var(--primary))]" /><span>{hotelInfo.phone}</span></div>}
-                  {hotelInfo.wifi_name && <div className="flex items-center gap-2"><Wifi className="w-3.5 h-3.5 text-[hsl(var(--primary))]" /><span>WiFi: {hotelInfo.wifi_name} / {hotelInfo.wifi_password}</span></div>}
-                  <div className="flex items-center gap-2"><Clock className="w-3.5 h-3.5 text-[hsl(var(--primary))]" /><span>Check-in: {hotelInfo.check_in_time} | Check-out: {hotelInfo.check_out_time}</span></div>
+            {(() => {
+              if (folioLoading) return (
+                <div className="text-center py-8">
+                  <Loader2 className="w-6 h-6 animate-spin mx-auto text-[hsl(var(--primary))]" />
                 </div>
-              </CardContent>
-            </Card>
+              );
+              if (!folioData) return null;
 
-            {/* Facilities */}
-            {hotelInfo.facilities?.length > 0 && (
-              <Card className="bg-[hsl(var(--card))] border-[hsl(var(--border))]">
-                <CardContent className="p-4">
-                  <h3 className="font-semibold mb-3 text-sm">{t('Facilities', 'Tesisler')}</h3>
-                  <div className="space-y-2">
-                    {hotelInfo.facilities.map((f, i) => (
-                      <div key={i} className="flex items-start gap-3 p-2 rounded-lg bg-[hsl(var(--secondary))]">
-                        <div className="w-8 h-8 rounded-lg bg-[hsl(var(--primary)/0.1)] flex items-center justify-center flex-shrink-0">
-                          {f.icon === 'pool' ? <Waves className="w-4 h-4 text-blue-400" /> :
-                           f.icon === 'spa' ? <Heart className="w-4 h-4 text-pink-400" /> :
-                           f.icon === 'gym' ? <Dumbbell className="w-4 h-4 text-green-400" /> :
-                           f.icon === 'restaurant' ? <UtensilsCrossed className="w-4 h-4 text-amber-400" /> :
-                           <Hotel className="w-4 h-4 text-[hsl(var(--primary))]" />}
-                        </div>
-                        <div className="flex-1">
-                          <p className="text-xs font-semibold">{f.name}</p>
-                          <p className="text-[10px] text-[hsl(var(--muted-foreground))]">{f.hours} • {f.floor}</p>
-                          {f.description && <p className="text-[10px] text-[hsl(var(--muted-foreground))]">{f.description}</p>}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            )}
+              const folioTypeIcons = {
+                room_service: UtensilsCrossed,
+                minibar: Coffee,
+                spa: Heart,
+                laundry: Shirt,
+                transport: Car,
+              };
+              const folioTypeColors = {
+                room_service: 'text-emerald-400 bg-emerald-500/10',
+                minibar: 'text-teal-400 bg-teal-500/10',
+                spa: 'text-pink-400 bg-pink-500/10',
+                laundry: 'text-cyan-400 bg-cyan-500/10',
+                transport: 'text-orange-400 bg-orange-500/10',
+              };
 
-            {/* Emergency Contacts */}
-            {hotelInfo.emergency_contacts?.length > 0 && (
-              <Card className="bg-[hsl(var(--card))] border-[hsl(var(--border))]">
-                <CardContent className="p-4">
-                  <h3 className="font-semibold mb-3 text-sm">{t('Emergency Contacts', 'Acil Numaralar')}</h3>
-                  {hotelInfo.emergency_contacts.map((c, i) => (
-                    <div key={i} className="flex items-center justify-between py-1.5 border-b border-[hsl(var(--border))] last:border-0">
-                      <div>
-                        <p className="text-xs font-medium">{c.name}</p>
-                        <p className="text-[10px] text-[hsl(var(--muted-foreground))]">{c.description}</p>
-                      </div>
-                      <a href={`tel:${c.number}`} className="text-xs font-bold text-[hsl(var(--primary))]">{c.number}</a>
+              return (<>
+                <Card className="bg-[hsl(var(--card))] border-[hsl(var(--border))]">
+                  <CardContent className="p-4">
+                    <div className="flex items-center justify-between mb-1">
+                      <h3 className="font-semibold text-sm">{t('Room Folio', 'Oda Folyosu')}</h3>
+                      <Button size="sm" variant="ghost" className="text-xs h-7" onClick={() => { setFolioData(null); setFolioLoading(false); folioLoadedRef.current = false; }}>
+                        {t('Refresh', 'Yenile')}
+                      </Button>
                     </div>
-                  ))}
-                </CardContent>
-              </Card>
-            )}
+                    {folioData.guest_name && (
+                      <p className="text-xs text-[hsl(var(--muted-foreground))]">
+                        {folioData.guest_name} &bull; {t('Room', 'Oda')} {folioData.room_number}
+                      </p>
+                    )}
+                    {(folioData.check_in || folioData.check_out) && (
+                      <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-0.5">
+                        {folioData.check_in} &rarr; {folioData.check_out}
+                      </p>
+                    )}
+                  </CardContent>
+                </Card>
 
-            {/* Policies */}
-            <Card className="bg-[hsl(var(--card))] border-[hsl(var(--border))]">
-              <CardContent className="p-4">
-                <h3 className="font-semibold mb-3 text-sm">{t('Policies', 'Kurallar')}</h3>
-                <div className="space-y-1.5 text-xs text-[hsl(var(--muted-foreground))]">
-                  {hotelInfo.parking_info && <p>🅿️ {hotelInfo.parking_info}</p>}
-                  {hotelInfo.pet_policy && <p>🐾 {hotelInfo.pet_policy}</p>}
-                  {hotelInfo.smoking_policy && <p>🚭 {hotelInfo.smoking_policy}</p>}
-                </div>
-              </CardContent>
-            </Card>
+                <Card className="bg-gradient-to-br from-[hsl(var(--primary)/0.15)] to-[hsl(var(--primary)/0.05)] border-[hsl(var(--primary)/0.3)]">
+                  <CardContent className="p-4 text-center">
+                    <p className="text-xs text-[hsl(var(--muted-foreground))] mb-1">{t('Total Charges', 'Toplam Harcama')}</p>
+                    <p className="text-3xl font-bold text-[hsl(var(--primary))]">
+                      {folioData.total.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} <span className="text-sm font-normal">TRY</span>
+                    </p>
+                    <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-1">
+                      {folioData.items.length} {t('items', 'kalem')}
+                    </p>
+                  </CardContent>
+                </Card>
+
+                {folioData.items.length === 0 ? (
+                  <div className="text-center py-8 text-[hsl(var(--muted-foreground))]">
+                    <Receipt className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                    <p className="text-sm">{t('No charges yet', 'Henuz harcama yok')}</p>
+                    <p className="text-xs mt-1">{t('Your room service orders, spa bookings and other charges will appear here.', 'Oda servisi siparisleriniz, spa randevulariniz ve diger harcamalariniz burada gorunecek.')}</p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {folioData.items.map(item => {
+                      const Icon = folioTypeIcons[item.type] || Receipt;
+                      const colors = folioTypeColors[item.type] || 'text-gray-400 bg-gray-500/10';
+                      const [textColor, bgColor] = colors.split(' ');
+                      return (
+                        <Card key={item.id} className="bg-[hsl(var(--card))] border-[hsl(var(--border))]">
+                          <CardContent className="p-3">
+                            <div className="flex items-center gap-3">
+                              <div className={`w-9 h-9 rounded-lg ${bgColor} flex items-center justify-center flex-shrink-0`}>
+                                <Icon className={`w-4 h-4 ${textColor}`} />
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-xs font-semibold">{lang === 'tr' ? item.type_label : item.type_label_en}</p>
+                                <p className="text-[10px] text-[hsl(var(--muted-foreground))] truncate">{item.description}</p>
+                                <p className="text-[10px] text-[hsl(var(--muted-foreground))]">
+                                  {new Date(item.date).toLocaleDateString(lang === 'tr' ? 'tr-TR' : 'en-US', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                                </p>
+                              </div>
+                              <div className="text-right flex-shrink-0">
+                                <p className="text-sm font-bold">{item.amount > 0 ? item.amount.toLocaleString('tr-TR') : '-'} <span className="text-[10px] font-normal">TRY</span></p>
+                                <Badge className="text-[9px] mt-0.5">{item.status}</Badge>
+                              </div>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      );
+                    })}
+                  </div>
+                )}
+              </>);
+            })()}
           </div>
         )}
 
@@ -729,7 +784,7 @@ export default function GuestRoomPanel() {
               <button key={tab.id} onClick={() => setActiveTab(tab.id)}
                 className={`flex-1 flex flex-col items-center py-2.5 ${activeTab === tab.id ? 'text-[hsl(var(--primary))]' : 'text-[hsl(var(--muted-foreground))]'}`}>
                 <Icon className="w-5 h-5" />
-                <span className="text-[10px] mt-0.5 font-medium">{t(tab.label, tab.label)}</span>
+                <span className="text-[10px] mt-0.5 font-medium">{lang === 'tr' && tab.labelTr ? tab.labelTr : tab.label}</span>
               </button>
             );
           })}

@@ -396,6 +396,142 @@ async def get_room_bookings(tenant_slug: str, room_code: str):
     
     return {"spa_bookings": spa, "transport_requests": transport, "wakeup_calls": wakeup, "laundry_requests": laundry, "restaurant_reservations": restaurant_rez}
 
+@router.get("/g/{tenant_slug}/room/{room_code}/folio")
+async def get_room_folio(tenant_slug: str, room_code: str):
+    """Get room folio - all charges/spending for the current stay"""
+    tenant = await resolve_tenant(tenant_slug)
+    tid = tenant["id"]
+
+    room = await find_one_scoped("rooms", tid, {"room_code": room_code})
+    if not room:
+        raise HTTPException(status_code=404, detail="Room not found")
+
+    check_in = room.get("current_guest_check_in", "")
+    check_out = room.get("current_guest_check_out", "")
+
+    date_filter = {}
+    if check_in:
+        date_filter["created_at"] = {"$gte": check_in}
+
+    items = []
+
+    order_query = {"room_code": room_code}
+    if check_in:
+        order_query["created_at"] = {"$gte": check_in}
+    orders = await find_many_scoped("orders", tid, order_query, sort=[("created_at", -1)], limit=100)
+    for o in orders:
+        desc_parts = [f'{i.get("menu_item_name","")} x{i.get("quantity",1)}' for i in o.get("items", [])[:3]]
+        items.append({
+            "id": o["id"],
+            "type": "room_service",
+            "type_label": "Oda Servisi",
+            "type_label_en": "Room Service",
+            "description": ", ".join(desc_parts),
+            "amount": o.get("total", 0),
+            "currency": "TRY",
+            "status": o.get("status", ""),
+            "date": o.get("created_at", ""),
+        })
+
+    minibar_query = {"room_code": room_code}
+    if check_in:
+        minibar_query["created_at"] = {"$gte": check_in}
+    minibar = await find_many_scoped("minibar_orders", tid, minibar_query, sort=[("created_at", -1)], limit=100)
+    for m in minibar:
+        desc_parts = [f'{i.get("name", i.get("menu_item_name",""))} x{i.get("quantity",1)}' for i in m.get("items", [])[:3]]
+        items.append({
+            "id": m["id"],
+            "type": "minibar",
+            "type_label": "Minibar",
+            "type_label_en": "Minibar",
+            "description": ", ".join(desc_parts),
+            "amount": m.get("total", 0),
+            "currency": "TRY",
+            "status": m.get("status", ""),
+            "date": m.get("created_at", ""),
+        })
+
+    spa_query = {"room_code": room_code}
+    if check_in:
+        spa_query["created_at"] = {"$gte": check_in}
+    spa = await find_many_scoped("spa_bookings", tid, spa_query, sort=[("created_at", -1)])
+    for s in spa:
+        svc_type = s.get("service_type", "")
+        spa_svc = None
+        if svc_type:
+            spa_svc = await find_one_scoped("spa_services", tid, {"id": svc_type})
+            if not spa_svc:
+                spa_svc = await find_one_scoped("spa_services", tid, {"name": svc_type})
+        spa_price = spa_svc.get("price", 0) if spa_svc else 0
+        spa_name = spa_svc.get("name", svc_type) if spa_svc else (svc_type or "Spa")
+        items.append({
+            "id": s["id"],
+            "type": "spa",
+            "type_label": "Spa",
+            "type_label_en": "Spa",
+            "description": spa_name,
+            "amount": spa_price,
+            "currency": "TRY",
+            "status": s.get("status", ""),
+            "date": s.get("created_at", ""),
+        })
+
+    laundry_query = {"room_code": room_code}
+    if check_in:
+        laundry_query["created_at"] = {"$gte": check_in}
+    laundry = await find_many_scoped("laundry_requests", tid, laundry_query, sort=[("created_at", -1)])
+    laundry_prices = {"regular": 150, "express": 250, "dry_clean": 300}
+    for l in laundry:
+        stype = l.get("service_type", "regular")
+        items.append({
+            "id": l["id"],
+            "type": "laundry",
+            "type_label": "Camasir",
+            "type_label_en": "Laundry",
+            "description": f'{stype.replace("_"," ").title()} - {l.get("items_description","")}',
+            "amount": laundry_prices.get(stype, 150),
+            "currency": "TRY",
+            "status": l.get("status", ""),
+            "date": l.get("created_at", ""),
+        })
+
+    transport_query = {"room_code": room_code}
+    if check_in:
+        transport_query["created_at"] = {"$gte": check_in}
+    transport = await find_many_scoped("transport_requests", tid, transport_query, sort=[("created_at", -1)])
+    transport_prices = {"taxi": 0, "airport_transfer": 500, "vip_transfer": 1000, "shuttle": 200}
+    for tr in transport:
+        ttype = tr.get("transport_type", "taxi")
+        price = transport_prices.get(ttype, 0)
+        items.append({
+            "id": tr["id"],
+            "type": "transport",
+            "type_label": "Transfer",
+            "type_label_en": "Transport",
+            "description": f'{ttype.replace("_"," ").title()} → {tr.get("destination","")}',
+            "amount": price,
+            "currency": "TRY",
+            "status": tr.get("status", ""),
+            "date": tr.get("created_at", ""),
+        })
+
+    items.sort(key=lambda x: x.get("date", ""), reverse=True)
+
+    total = sum(i["amount"] for i in items)
+
+    guest_name = room.get("current_guest_name", "")
+
+    return {
+        "room_number": room.get("room_number", ""),
+        "room_type": room.get("room_type", ""),
+        "guest_name": guest_name,
+        "check_in": check_in,
+        "check_out": check_out,
+        "items": items,
+        "total": total,
+        "currency": "TRY",
+    }
+
 @router.get("/g/{tenant_slug}/announcements")
 async def get_announcements(tenant_slug: str):
     """Get active announcements for guests"""

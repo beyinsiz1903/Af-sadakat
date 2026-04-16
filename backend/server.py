@@ -1330,7 +1330,10 @@ async def get_room_info(tenant_slug: str, room_code: str):
         "tenant": {"name": tenant["name"], "slug": tenant["slug"]},
         "room": serialize_doc(room),
         "service_categories": [serialize_doc(c) for c in categories],
-        "loyalty_enabled": tenant.get("loyalty_rules", {}).get("enabled", False)
+        "loyalty_enabled": tenant.get("loyalty_rules", {}).get("enabled", False),
+        "current_guest_name": room.get("current_guest_name", ""),
+        "current_guest_check_in": room.get("current_guest_check_in", ""),
+        "current_guest_check_out": room.get("current_guest_check_out", ""),
     }
 
 @api_router.get("/g/{tenant_slug}/table/{table_code}/info")
@@ -1413,11 +1416,18 @@ async def seed_data():
     await db.service_categories.insert_many(service_cats)
     
     # Rooms (using simple codes for demo - production uses secure random codes)
+    room_guests = {
+        "101": {"name": "John Smith", "check_in": (now_utc() - timedelta(days=2)).strftime("%Y-%m-%d"), "check_out": (now_utc() + timedelta(days=1)).strftime("%Y-%m-%d")},
+        "102": {"name": "Maria Garcia", "check_in": (now_utc() - timedelta(days=1)).strftime("%Y-%m-%d"), "check_out": (now_utc() + timedelta(days=3)).strftime("%Y-%m-%d")},
+        "201": {"name": "Ahmed Hassan", "check_in": (now_utc() - timedelta(days=3)).strftime("%Y-%m-%d"), "check_out": (now_utc() + timedelta(days=2)).strftime("%Y-%m-%d")},
+        "202": {"name": "Elif Yilmaz", "check_in": now_utc().strftime("%Y-%m-%d"), "check_out": (now_utc() + timedelta(days=4)).strftime("%Y-%m-%d")},
+    }
     rooms = []
     for floor in range(1, 4):
         for room_num in range(1, 3):
             rn = f"{floor}0{room_num}"
-            rooms.append({
+            guest = room_guests.get(rn)
+            room_data = {
                 "id": new_id(), "tenant_id": tenant_id,
                 "room_number": rn, "room_code": f"R{rn}",
                 "room_type": "deluxe" if floor == 3 else "standard",
@@ -1425,9 +1435,13 @@ async def seed_data():
                 "is_active": True,
                 "qr_version": 1,
                 "qr_link": f"/g/grand-hotel/room/R{rn}",
-                "status": "available",
+                "status": "occupied" if guest else "available",
+                "current_guest_name": guest["name"] if guest else "",
+                "current_guest_check_in": guest["check_in"] if guest else "",
+                "current_guest_check_out": guest["check_out"] if guest else "",
                 "created_at": now_utc().isoformat()
-            })
+            }
+            rooms.append(room_data)
     await db.rooms.insert_many(rooms)
     
     # Tables (using simple codes for demo)
