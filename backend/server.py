@@ -903,21 +903,85 @@ async def ai_suggest_reply(tenant_slug: str, context: dict):
     return {"suggestion": reply, "intent": intent, "language": language, "sector": sector, "provider": "mock_template_v1"}
 
 # ============ LOYALTY ROUTES ============
+import random as _random
+
+@api_router.post("/g/{tenant_slug}/loyalty/send-otp")
+async def send_loyalty_otp(tenant_slug: str, data: dict):
+    tenant = await get_tenant_by_slug(tenant_slug)
+    phone = data.get("phone", "")
+    if not phone:
+        raise HTTPException(status_code=400, detail="Phone required")
+    
+    otp_code = str(_random.randint(100000, 999999))
+    expires_at = now_utc()
+    from datetime import timedelta
+    expires_at = (now_utc() + timedelta(minutes=5)).isoformat()
+    
+    await db.otp_codes.delete_many({"phone": phone, "tenant_id": tenant["id"]})
+    await db.otp_codes.insert_one({
+        "id": new_id(), "tenant_id": tenant["id"], "phone": phone,
+        "code": otp_code, "verified": False,
+        "created_at": now_utc().isoformat(), "expires_at": expires_at
+    })
+    
+    try:
+        from services.notification_engine import send_sms
+        sms_sent = await send_sms(phone, f"OmniHub dogrulama kodunuz: {otp_code}")
+        if sms_sent:
+            return {"sent": True, "message": "OTP sent via SMS"}
+    except Exception as e:
+        logger.warning(f"SMS send failed: {e}")
+    
+    return {"sent": True, "otp_stub": otp_code, "message": "OTP sent (stub - SMS not configured)"}
+
+@api_router.post("/g/{tenant_slug}/loyalty/verify-otp")
+async def verify_loyalty_otp(tenant_slug: str, data: dict):
+    tenant = await get_tenant_by_slug(tenant_slug)
+    phone = data.get("phone", "")
+    code = data.get("code", "")
+    if not phone or not code:
+        raise HTTPException(status_code=400, detail="Phone and code required")
+    
+    record = await db.otp_codes.find_one({
+        "tenant_id": tenant["id"], "phone": phone, "verified": False
+    })
+    if not record:
+        raise HTTPException(status_code=400, detail="No OTP found. Please request a new one.")
+    
+    if record["code"] != code:
+        raise HTTPException(status_code=400, detail="Invalid OTP code")
+    
+    if record.get("expires_at") and record["expires_at"] < now_utc().isoformat():
+        raise HTTPException(status_code=400, detail="OTP expired. Please request a new one.")
+    
+    await db.otp_codes.update_one({"id": record["id"]}, {"$set": {"verified": True}})
+    return {"verified": True, "message": "Phone verified successfully"}
+
 @api_router.post("/g/{tenant_slug}/loyalty/join")
 async def join_loyalty(tenant_slug: str, data: dict):
     tenant = await get_tenant_by_slug(tenant_slug)
     phone = data.get("phone", "")
     email = data.get("email", "")
-    name = data.get("name", "")
+    name = data.get("name", data.get("guest_name", ""))
+    room_code = data.get("room_code", "")
     
     if not phone and not email:
         raise HTTPException(status_code=400, detail="Phone or email required")
+    
+    otp_verified = False
+    if phone:
+        otp_record = await db.otp_codes.find_one({
+            "tenant_id": tenant["id"], "phone": phone, "verified": True
+        })
+        if otp_record:
+            otp_verified = True
+            await db.otp_codes.delete_many({"tenant_id": tenant["id"], "phone": phone})
     
     contact = await _upsert_contact(tenant["id"], name, phone, email)
     
     existing = await db.loyalty_accounts.find_one({"tenant_id": tenant["id"], "contact_id": contact["id"]})
     if existing:
-        return serialize_doc(existing)
+        return {**serialize_doc(existing), "contact_id": contact["id"], "otp_verified": otp_verified}
     
     account = {
         "id": new_id(),
@@ -934,7 +998,7 @@ async def join_loyalty(tenant_slug: str, data: dict):
     await db.loyalty_accounts.insert_one(account)
     await db.contacts.update_one({"id": contact["id"]}, {"$set": {"loyalty_account_id": account["id"]}})
     
-    return {**serialize_doc(account), "otp_stub": "123456", "message": "OTP sent (stub)"}
+    return {**serialize_doc(account), "contact_id": contact["id"], "otp_verified": otp_verified}
 
 @api_router.get("/tenants/{tenant_slug}/loyalty/accounts")
 async def list_loyalty_accounts(tenant_slug: str):
@@ -3255,6 +3319,8 @@ for router_name, router_module, router_attr in [
     ("tenants", "routers.tenants", "router"),
     ("billing", "routers.billing", "router"),
     ("system", "routers.system", "router"),
+    ("pms_integration", "routers.pms_integration", "router"),
+    ("storage", "routers.storage", "router"),
 ]:
     try:
         mod = __import__(router_module, fromlist=[router_attr])

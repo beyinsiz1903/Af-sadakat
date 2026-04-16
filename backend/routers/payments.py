@@ -1,12 +1,13 @@
-"""Payments V2 Router: Mock payment provider with idempotent webhook simulation.
-No real payment gateway. Provides provider interface + StripeStub.
+"""Payments V2 Router: Dual-mode payment provider (Real Stripe or Stub).
+When STRIPE_SECRET_KEY is set, uses real Stripe Checkout Sessions.
+Otherwise falls back to mock webhook simulation.
 Public endpoints for guest checkout. Rate limited.
 """
 from fastapi import APIRouter, HTTPException, Request
 import secrets
 import logging
 
-from core.config import db
+from core.config import db, STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET, STRIPE_PUBLIC_KEY, STRIPE_MODE, PUBLIC_BASE_URL
 from core.tenant_guard import (
     serialize_doc, new_id, now_utc,
     find_one_scoped, insert_scoped, update_scoped, log_audit
@@ -16,6 +17,23 @@ from core.middleware import rate_limit_ip, generate_unique_confirmation_code
 logger = logging.getLogger("omnihub.payments")
 
 router = APIRouter(prefix="/api/v2/payments", tags=["payments"])
+
+stripe = None
+if STRIPE_MODE == "live":
+    try:
+        import stripe as _stripe
+        _stripe.api_key = STRIPE_SECRET_KEY
+        stripe = _stripe
+        logger.info("Stripe LIVE mode enabled")
+    except ImportError:
+        logger.warning("stripe package not installed, falling back to stub")
+
+@router.get("/config")
+async def get_payment_config():
+    return {
+        "mode": STRIPE_MODE,
+        "public_key": STRIPE_PUBLIC_KEY if STRIPE_MODE == "live" else None,
+    }
 
 
 @router.get("/pay/{payment_link_id}")
@@ -121,7 +139,10 @@ async def checkout(payment_link_id: str, request: Request):
 async def webhook_mock_succeed(data: dict, request: Request):
     """Idempotent mock payment success webhook.
     If already succeeded, returns 200 without duplicating.
+    DISABLED in live Stripe mode for security.
     """
+    if STRIPE_MODE == "live":
+        raise HTTPException(status_code=403, detail="Mock webhooks disabled in live mode")
     rate_limit_ip(request, 30, 60)
     payment_link_id = data.get("paymentLinkId", data.get("payment_link_id", ""))
     provider_payment_id = data.get("providerPaymentId", data.get("provider_payment_id", f"pi_stub_{secrets.token_hex(8)}"))
@@ -289,7 +310,9 @@ async def webhook_mock_succeed(data: dict, request: Request):
 
 @router.post("/webhook/mock/fail")
 async def webhook_mock_fail(data: dict, request: Request):
-    """Mock payment failure webhook"""
+    """Mock payment failure webhook. DISABLED in live mode."""
+    if STRIPE_MODE == "live":
+        raise HTTPException(status_code=403, detail="Mock webhooks disabled in live mode")
     rate_limit_ip(request, 30, 60)
     payment_link_id = data.get("paymentLinkId", data.get("payment_link_id", ""))
     if not payment_link_id:

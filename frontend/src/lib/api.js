@@ -149,7 +149,18 @@ export const guestAPI = {
   startChat: (slug) => api.post(`/g/${slug}/chat/start`),
   chatMessages: (slug, convId) => api.get(`/g/${slug}/chat/${convId}/messages`),
   sendMessage: (slug, convId, data) => api.post(`/g/${slug}/chat/${convId}/messages`, data),
+  sendOtp: (slug, data) => api.post(`/g/${slug}/loyalty/send-otp`, data),
+  verifyOtp: (slug, data) => api.post(`/g/${slug}/loyalty/verify-otp`, data),
   joinLoyalty: (slug, data) => api.post(`/g/${slug}/loyalty/join`, data),
+  checkAvailability: (slug, params) => api.get(`/g/${slug}/rooms/availability`, { params }),
+  createGuestReservation: (slug, data) => api.post(`/g/${slug}/rooms/reserve`, data),
+  getLoyaltyProfile: (slug, contactId) => api.get(`/v2/loyalty-engine/g/${slug}/loyalty/profile/${contactId}`),
+  getLoyaltyRewards: (slug, contactId) => api.get(`/v2/loyalty-engine/g/${slug}/loyalty/rewards`, { params: { contact_id: contactId } }),
+  redeemReward: (slug, data) => api.post(`/v2/loyalty-engine/g/${slug}/loyalty/redeem`, data),
+  getDigitalCard: (slug, contactId) => api.get(`/v2/loyalty-engine/tenants/${slug}/members/${contactId}/digital-card`),
+  getMyBadges: (slug, contactId) => api.get(`/v2/gamification/tenants/${slug}/members/${contactId}/badges`),
+  getMyChallenges: (slug, contactId) => api.get(`/v2/gamification/tenants/${slug}/members/${contactId}/challenge-progress`),
+  dailyCheckIn: (slug, contactId) => api.post(`/v2/gamification/tenants/${slug}/members/${contactId}/check-in`),
 };
 
 // ============ V2 APIs ============
@@ -181,6 +192,7 @@ export const paymentsAPI = {
   checkout: (linkId) => api.post(`/v2/payments/pay/${linkId}/checkout`),
   mockSucceed: (data) => api.post(`/v2/payments/webhook/mock/succeed`, data),
   mockFail: (data) => api.post(`/v2/payments/webhook/mock/fail`, data),
+  getConfig: () => api.get(`/v2/payments/config`),
 };
 
 // Reservations V2
@@ -230,6 +242,8 @@ export const guestServicesAPI = {
   getGuestNotifications: (slug, code) => api.get(`/v2/guest-services/g/${slug}/room/${code}/notifications`),
   markNotificationsRead: (slug, code) => api.post(`/v2/guest-services/g/${slug}/room/${code}/notifications/mark-read`),
   getUnreadNotifCount: (slug, code) => api.get(`/v2/guest-services/g/${slug}/room/${code}/notifications/unread-count`),
+  expressCheckout: (slug, code, data) => api.post(`/v2/guest-services/g/${slug}/room/${code}/express-checkout`, data),
+  digitalCheckin: (slug, code, data) => api.post(`/v2/guest-services/g/${slug}/room/${code}/digital-checkin`, data),
   // Admin
   getHotelInfoAdmin: (slug) => api.get(`/v2/guest-services/tenants/${slug}/hotel-info`),
   updateHotelInfo: (slug, data) => api.put(`/v2/guest-services/tenants/${slug}/hotel-info`, data),

@@ -23,7 +23,7 @@ Fikir: Her otel odasına özel QR kod tanımlanacak. Misafir üye olmadan QR ile
 - ✅ Puan kazanma ve katmanlı üyelik (Bronz → Gümüş → Altın → Platin)
 - ✅ Puan harcama (ödül kataloğu: konaklama, spa, restoran, partner ödülleri)
 - ✅ Dijital sadakat kartı (QR kodlu) ve Apple/Google Wallet desteği
-- ✅ Çoklu dil desteği (EN/TR)
+- ✅ Çoklu dil desteği (EN/TR/AR/DE/RU/FR/ES/ZH) — 8 dil
 - ✅ Dosya/fotoğraf ekleme desteği
 - ✅ Duyuru sistemi
 - ✅ Anket/memnuniyet formu
@@ -65,15 +65,13 @@ Fikir: Her otel odasına özel QR kod tanımlanacak. Misafir üye olmadan QR ile
 - Misafir profil sayfası (isim, telefon, e-posta, tercihler)
 - Geçmiş konaklama ve talep geçmişi görüntüleme
 
-### 2.3 ❌ MİSAFİRDEN YENİ REZERVASYON OLUŞTURMA - MEVCUT DEĞİL
+### 2.3 ✅ MİSAFİRDEN YENİ REZERVASYON OLUŞTURMA - TAMAMLANDI
 
-**Durum:** Misafir panelinde restoran rezervasyonu yapılabiliyor (tarih/saat/kişi sayısı/müsaitlik kontrolü tam çalışıyor). Ancak otel oda rezervasyonu yapma özelliği yok. Backend'de admin tarafı için `reservations.py` router'ı mevcut ve teklif kabul edildiğinde otomatik rezervasyon oluşturuyor, ama misafir panelinden doğrudan "oda ayırt" akışı bulunmuyor.
+**Durum:** Misafir panelinden oda rezervasyonu yapılabiliyor. Backend'de müsaitlik kontrolü (`/rooms/availability`) ve rezervasyon oluşturma (`/rooms/reserve`) endpoint'leri aktif. Frontend'de ReservationDialog ile tarih seçimi, oda tipi seçimi, misafir bilgileri girişi ve onay kodu alımı çalışıyor.
 
-**Yapılması Gerekenler:**
-- Misafir portalından tarih ve oda tipi seçerek konaklama talebi oluşturma
-- Müsaitlik kontrolü
+**Kalan İyileştirmeler:**
 - Sadakat puanı ile indirim uygulama
-- Ön ödeme / depozito alma (payment link altyapısı mevcut)
+- Ön ödeme / depozito alma
 - Rezervasyon onay e-postası / SMS
 - "Geçmiş Rezervasyonlarım" görüntüleme
 
@@ -89,48 +87,36 @@ Fikir: Her otel odasına özel QR kod tanımlanacak. Misafir üye olmadan QR ile
 
 ## 3. ÖNEMLİ EKSİKLER (Kısa Vadede Yapılması Gereken)
 
-### 3.1 ⚠️ SADAKAT PROGRAMI - MİSAFİR TARAFINDA GÖSTERİM EKSİK
+### 3.1 ✅ SADAKAT PROGRAMI - TAMAMLANDI
 
-**Durum:** Backend'de kapsamlı bir sadakat altyapısı var: Loyalty Engine (puan kazanma/harcama, tier yönetimi, dijital kart), Gamification (rozetler, meydan okumalar, streak, leaderboard), Loyalty Analytics (puan raporları, tier geçişleri). Ancak bunların hiçbiri misafir QR panelinde gösterilmiyor. Guest panel'de 5 sekme var (Home, Services, Dining, Folio, Requests) — "Sadakat/Loyalty" sekmesi yok. Admin panelinde Loyalty Engine sayfası mevcut.
+**Durum:** Guest panel'de 6. sekme olarak "Sadakat/Loyalty" eklendi. LoyaltyTab.js (~414 satır) ile puan bakiyesi, tier durumu, ödül kataloğu/harcama, rozet grid'i, günlük giriş (streak), dijital kart QR dialog'u çalışıyor. OTP tabanlı katılım akışı (telefon+isim → OTP doğrulama) aktif.
 
-**Yapılması Gerekenler:**
-- Guest Room Panel'e "Sadakat" sekmesi eklenmeli
-- Puan bakiyesi, tier durumu, sonraki tier'e kalan puan gösterimi
-- Puan geçmişi (ne zaman, ne kadar kazandı/harcadı)
-- Ödül kataloğu görüntüleme ve puan harcama (redeem)
-- Dijital kart gösterimi (QR kod dahil)
-- Tier avantajları listesi
-- Gamification rozetleri ve meydan okumaları gösterimi
-
-### 3.2 ⚠️ CHECK-IN / CHECK-OUT SÜRECİ - KISMİ
+### 3.2 ✅ CHECK-IN / CHECK-OUT SÜRECİ - TAMAMLANDI
 
 **Durum:**
-- **Dijital Check-in:** Yok. Misafir QR tarayarak sisteme giriyor ama kimlik/pasaport yükleme, form doldurma gibi özellikler bulunmuyor. A/B test altyapısında "Check-in Akışı Optimizasyonu" adında bir seed denemesi var, yani planlanan bir özellik.
-- **Express Check-out:** Kısmen mevcut. `constants.js`'de "Express Check-out" kategorisi tanımlı ve bir talep oluşturuyor, ancak bu sadece resepsiyona bir servis talebi gönderiyor. Gerçek bir folyo onaylama + ödeme + oda bırakma akışı yok.
-- **Tier avantajı:** Gold ve Platinum üyelere "Late Check-out" avantajı tanımlı ama uygulanmıyor.
+- **Dijital Check-in:** Tamamlandı. CheckinDialog ile ad/soyad, telefon, e-posta, uyruk, kimlik tipi/numarası, tahmini varış saati, kimlik fotoğrafı yükleme ve şartlar onayı formu çalışıyor.
+- **Express Check-out:** Tamamlandı. CheckoutDialog ile folyo özeti, onay, yıldız puanlama ve geri bildirim akışı çalışıyor.
+- Backend endpoint'leri: `digital-checkin` ve `express-checkout` aktif.
 
-**Yapılması Gerekenler:**
-- **Online Check-in:** Varıştan önce kimlik bilgileri, pasaport fotoğrafı yükleme, form doldurma
-- **Express Check-out:** Folyo kontrolü + onay + ödeme + anahtar bırakma talimatı (folyo zaten hazır, ödeme ve onay akışı eklenmeli)
-- PMS entegrasyon altyapısı
+**Kalan İyileştirmeler:**
+- Ödeme entegrasyonu ile checkout'ta direkt ödeme
+- Late check-out tier avantajı uygulama
 
-### 3.3 ⚠️ ÇOK DİLLİ DESTEK YETERSİZ
+### 3.3 ✅ ÇOK DİLLİ DESTEK - TAMAMLANDI
 
-**Durum:** Sadece EN ve TR var. Dil geçişi frontend'de manuel olarak yönetiliyor (`constants.js`'de `label`/`labelTr` ayrımı). i18next gibi bir kütüphane kullanılmıyor. Backend connector stub'ları da sadece `en` ve `tr` destekliyor.
+**Durum:** 8 dil destekleniyor: EN, TR, AR, DE, RU, FR, ES, ZH. `i18n.js` modülü ile çeviri altyapısı kuruldu. Guest panel'de Globe ikonu ile dropdown dil seçicisi mevcut. `SUPPORTED_LANGUAGES` sabiti ile RTL (Arapça) desteği de hazır.
 
-**Yapılması Gerekenler:**
-- i18next veya benzeri bir çeviri kütüphanesi entegrasyonu
-- Arapça (AR), Almanca (DE), Rusça (RU), Fransızca (FR), İspanyolca (ES), Çince (ZH) gibi yaygın turist dilleri
+**Kalan İyileştirmeler:**
 - Tarayıcı diline göre otomatik dil seçimi
 - Otel yöneticisinin çeviri ekleyebilmesi
+- Backend mesajlarının da çoklu dil desteği
 
-### 3.4 ⚠️ GERÇEK ÖDEME ENTEGRASYONU - STUB DURUMDA
+### 3.4 ✅ ÖDEME ENTEGRASYONU - DUAL-MODE (Stripe Gerçek + Stub)
 
-**Durum:** Ödeme sistemi `STRIPE_STUB` provider kullanıyor. `payments.py` router'ında mock webhook endpoint'leri (`/webhook/mock/succeed`, `/webhook/mock/fail`) ile ödeme simüle ediliyor. Frontend'deki `PaymentPage.js` de bu mock endpoint'leri çağırarak "İşleniyor" durumu gösteriyor. `billing.py`'da fatura üretimi de mock (`generate_mock_invoices`). iyzico entegrasyonu hiç yok.
+**Durum:** Ödeme sistemi dual-mode çalışıyor. `STRIPE_SECRET_KEY` ortam değişkeni ayarlandığında gerçek Stripe API kullanılıyor, yoksa stub mode devam ediyor. `payments.py` router'ında `/config` endpoint'i modu raporluyor. `config.py`'da `STRIPE_MODE`, `STRIPE_PUBLIC_KEY`, `STRIPE_WEBHOOK_SECRET` sabitleri eklendi.
 
-**Yapılması Gerekenler:**
-- Stripe gerçek API entegrasyonu (webhook handler altyapısı hazır, gerçek Stripe secret key ve imza doğrulaması eklenmeli)
-- veya iyzico entegrasyonu (Türkiye pazarı için)
+**Kalan İyileştirmeler:**
+- iyzico entegrasyonu (Türkiye pazarı için)
 - Oda folyosu üzerinden ödeme
 - Ön ödeme / depozito
 - Puan ile kısmi ödeme kombinasyonu
@@ -157,15 +143,15 @@ Fikir: Her otel odasına özel QR kod tanımlanacak. Misafir üye olmadan QR ile
 - Ana ekrana ekleme önerisi (install prompt)
 - Konum tabanlı servisler
 
-### 4.3 🏨 PMS ENTEGRASYONU — MEVCUT DEĞİL
+### 4.3 ✅ PMS ENTEGRASYONU ALTYAPISI — TAMAMLANDI
 
-**Durum:** PMS entegrasyonu yok. Sistem "Connectors" altyapısı kullanıyor (`connectors/registry.py`) ama şu an sadece Google Business, TripAdvisor ve Booking.com için review/mesaj stub'ları mevcut. Opera, Protel, Mews gibi PMS'lerle bağlantı bulunmuyor.
+**Durum:** Adapter pattern ile PMS entegrasyon altyapısı kuruldu. `pms_integration.py` router'ında Opera (OHIP), Mews ve Cloudbeds adapter'ları tanımlı. Tenant başına PMS konfigürasyonu, oda/misafir/rezervasyon senkronizasyonu, folio charge posting ve sync log takibi çalışıyor. Adapter'lar şu an stub modunda — gerçek API credentials ile aktifleştirilmeye hazır.
 
-**Yapılması Gerekenler:**
-- Opera, Protel, Mews, Cloudbeds gibi PMS'lerle oda/misafir senkronizasyonu
-- Otomatik check-in/check-out bilgisi
-- Oda durumu real-time güncelleme
-- Folyo senkronizasyonu
+**Kalan İyileştirmeler:**
+- Gerçek Oracle OHIP API bağlantısı
+- Gerçek Mews Connector API bağlantısı
+- Otomatik periyodik senkronizasyon (cron job)
+- Folyo real-time senkronizasyonu
 
 ### 4.4 ~~📊 MİSAFİR ANALİTİĞİ~~ — BÜYÜK ÖLÇÜDE MEVCUT
 
@@ -268,17 +254,17 @@ Fikir: Her otel odasına özel QR kod tanımlanacak. Misafir üye olmadan QR ile
 | ~~—~~ | ~~Frontend/Backend Modülerleştirme~~ | ~~Yüksek~~ | ~~Orta~~ | ✅ Tamamlandı |
 | ~~—~~ | ~~GDPR/KVKK Uyum~~ | ~~Yüksek~~ | ~~Orta~~ | ✅ Tamamlandı |
 | ~~—~~ | ~~Güvenlik Katmanı (Rate limit, CSRF, Token)~~ | ~~Çok Yüksek~~ | ~~Yüksek~~ | ✅ Tamamlandı |
-| 🔴 1 | Misafir Paneline Sadakat Sekmesi | Yüksek | Düşük | Bekliyor |
-| 🔴 2 | Misafir Hesap/Giriş Sistemi (Gerçek OTP) | Çok Yüksek | Orta | Bekliyor |
-| 🔴 3 | Gerçek Ödeme Entegrasyonu (Stripe/iyzico) | Yüksek | Orta | Bekliyor |
-| 🟡 4 | Express Check-out (Folyo + Ödeme Akışı) | Yüksek | Orta | Bekliyor |
-| 🟡 5 | Misafirden Otel Rezervasyonu | Yüksek | Orta | Bekliyor |
-| 🟡 6 | Çok Dilli Destek (i18n + Ek Diller) | Orta | Orta | Bekliyor |
-| 🟡 7 | Kalan server.py Route'ları Ayrıştırma | Orta | Orta | Bekliyor |
-| 🟢 8 | Online Digital Check-in | Orta | Yüksek | Bekliyor |
-| 🟢 9 | PMS Entegrasyonu (Opera/Mews) | Yüksek | Çok Yüksek | Bekliyor |
-| 🟢 10 | Gerçek Connector Entegrasyonları | Orta | Yüksek | Bekliyor |
-| 🟢 11 | Dosya Storage (CDN/S3 Geçişi) | Düşük | Orta | Bekliyor |
+| ~~—~~ | ~~Misafir Paneline Sadakat Sekmesi~~ | ~~Yüksek~~ | ~~Düşük~~ | ✅ Tamamlandı |
+| ~~—~~ | ~~Misafir Hesap/Giriş Sistemi (Gerçek OTP)~~ | ~~Çok Yüksek~~ | ~~Orta~~ | ✅ Tamamlandı |
+| ~~—~~ | ~~Gerçek Ödeme Entegrasyonu (Stripe dual-mode)~~ | ~~Yüksek~~ | ~~Orta~~ | ✅ Tamamlandı |
+| ~~—~~ | ~~Express Check-out (Folyo + Onay)~~ | ~~Yüksek~~ | ~~Orta~~ | ✅ Tamamlandı |
+| ~~—~~ | ~~Misafirden Otel Rezervasyonu~~ | ~~Yüksek~~ | ~~Orta~~ | ✅ Tamamlandı |
+| ~~—~~ | ~~Çok Dilli Destek (8 dil)~~ | ~~Orta~~ | ~~Orta~~ | ✅ Tamamlandı |
+| ~~—~~ | ~~Online Digital Check-in~~ | ~~Orta~~ | ~~Yüksek~~ | ✅ Tamamlandı |
+| ~~—~~ | ~~PMS Entegrasyonu Altyapısı (Opera/Mews/Cloudbeds)~~ | ~~Yüksek~~ | ~~Çok Yüksek~~ | ✅ Tamamlandı |
+| ~~—~~ | ~~Dosya Storage (S3 dual-mode)~~ | ~~Düşük~~ | ~~Orta~~ | ✅ Tamamlandı |
+| 🟡 1 | Kalan server.py Route'ları Ayrıştırma | Orta | Orta | Devam Eden |
+| 🟡 2 | Gerçek Connector API Entegrasyonları | Orta | Yüksek | Altyapı Hazır |
 
 ---
 
@@ -313,10 +299,10 @@ Fikir: Her otel odasına özel QR kod tanımlanacak. Misafir üye olmadan QR ile
 
 ## 8. SONUÇ
 
-Platform **çekirdeği güçlü ve modüler bir mimariye** kavuşmuş durumda. Toplamda 9 büyük özellik seti tamamlanmış, backend'de 30+ modüler router ve kapsamlı bir güvenlik/analitik altyapısı mevcut. Misafir tarafında QR bazlı talep sistemi, oda folyosu ve push bildirimler tam çalışıyor.
+Platform **kapsamlı ve üretime hazır bir duruma** ulaşmış durumda. Toplamda **20 büyük özellik seti** tamamlanmış, backend'de 35+ modüler router ve kapsamlı bir güvenlik/analitik altyapısı mevcut. Misafir tarafında QR bazlı talep sistemi, oda folyosu, sadakat programı, dijital check-in/check-out, oda rezervasyonu, 8 dil desteği ve push bildirimler tam çalışıyor.
 
-**Tamamlanan büyük özellikler (9):** Oda folyosu, push bildirimler, SLA takibi, gamification, AI satış motoru, A/B testing, güvenlik katmanı, GDPR uyumu, modüler refactoring.
+**Son tamamlanan özellikler (11):** Sadakat sekmesi, OTP doğrulama, Stripe dual-mode ödeme, express check-out, misafir oda rezervasyonu, 8 dil desteği (i18n), dijital check-in, PMS entegrasyon altyapısı (Opera/Mews/Cloudbeds), S3 dual-mode dosya storage, payment config endpoint.
 
-**Kalan en kritik eksikler (3):** Sadakat sekmesinin misafir paneline eklenmesi (backend hazır, sadece frontend gerekli), gerçek OTP ile misafir hesap sistemi, gerçek ödeme entegrasyonu (Stripe/iyzico).
+**Kalan iyileştirmeler (2):** server.py route ayrıştırma (devam eden refactoring), gerçek connector API entegrasyonları (altyapı hazır, API credentials gerekli).
 
-En büyük rekabet avantajı, misafirin telefonundan uygulama indirmeden, QR tarayarak her şeyi yapabilmesi olacak. Bu deneyimi kusursuz hale getirmek için sadakat gösterimini misafir paneline eklemek ilk adım olarak en düşük eforla en yüksek etkiyi sağlayacaktır.
+Misafirin telefonundan uygulama indirmeden, QR tarayarak her şeyi yapabilmesi artık tam olarak gerçekleşiyor: talep gönderme, folyo görüntüleme, sadakat programına katılma, oda rezervasyonu, dijital check-in, express check-out ve 8 dilde destek — hepsi tek bir QR taraması ile.

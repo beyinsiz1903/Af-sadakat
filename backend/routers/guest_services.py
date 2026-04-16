@@ -1377,3 +1377,240 @@ async def guest_notifications_unread(tenant_slug: str, room_code: str):
         {"tenant_id": tid, "room_code": room_code, "read": False}
     )
     return {"count": count}
+
+
+@router.get("/g/{tenant_slug}/rooms/availability")
+async def check_room_availability(tenant_slug: str, check_in: str = "", check_out: str = "", guests: int = 1):
+    tenant = await resolve_tenant(tenant_slug)
+    tid = tenant["id"]
+
+    room_rates = await db.room_rates.find({"tenant_id": tid}).to_list(50)
+    available = []
+    for rt in room_rates:
+        rt = serialize_doc(rt)
+        existing = await db.reservations.count_documents({
+            "tenant_id": tid, "room_type": rt.get("room_type", ""),
+            "status": {"$in": ["CONFIRMED", "CHECKED_IN"]},
+            "$or": [
+                {"check_in": {"$lt": check_out}, "check_out": {"$gt": check_in}}
+            ]
+        }) if check_in and check_out else 0
+        capacity = rt.get("total_rooms", 10)
+        rooms_left = max(0, capacity - existing)
+        if rooms_left > 0 or not check_in:
+            nights = 1
+            if check_in and check_out:
+                from datetime import datetime
+                try:
+                    d1 = datetime.fromisoformat(check_in)
+                    d2 = datetime.fromisoformat(check_out)
+                    nights = max(1, (d2 - d1).days)
+                except: pass
+            base_price = rt.get("base_price", rt.get("price_per_night", 0))
+            available.append({
+                "room_type": rt.get("room_type", ""),
+                "display_name": rt.get("display_name", rt.get("room_type", "").replace("_", " ").title()),
+                "base_price": base_price,
+                "total_price": base_price * nights,
+                "nights": nights,
+                "currency": rt.get("currency", "TRY"),
+                "max_guests": rt.get("max_guests", 2),
+                "amenities": rt.get("amenities", []),
+                "rooms_available": rooms_left,
+            })
+    return {"available_rooms": available, "check_in": check_in, "check_out": check_out}
+
+
+@router.post("/g/{tenant_slug}/rooms/reserve")
+async def guest_create_reservation(tenant_slug: str, data: dict):
+    tenant = await resolve_tenant(tenant_slug)
+    tid = tenant["id"]
+
+    required = ["room_type", "check_in", "check_out", "guest_name"]
+    for f in required:
+        if not data.get(f):
+            raise HTTPException(status_code=400, detail=f"{f} required")
+
+    room_rate = await db.room_rates.find_one({"tenant_id": tid, "room_type": data["room_type"]})
+    if not room_rate:
+        raise HTTPException(status_code=400, detail="Invalid room type")
+
+    from datetime import datetime
+    try:
+        d1 = datetime.fromisoformat(data["check_in"])
+        d2 = datetime.fromisoformat(data["check_out"])
+        nights = max(1, (d2 - d1).days)
+    except:
+        raise HTTPException(status_code=400, detail="Invalid dates")
+
+    base_price = room_rate.get("base_price", room_rate.get("price_per_night", 0))
+    total = base_price * nights
+
+    from core.middleware import generate_unique_confirmation_code
+    confirmation_code = await generate_unique_confirmation_code(tid, "GHI")
+
+    reservation = {
+        "id": new_id(), "tenant_id": tid,
+        "property_id": data.get("property_id", ""),
+        "status": "PENDING",
+        "confirmation_code": confirmation_code,
+        "guest_name": data["guest_name"],
+        "guest_email": data.get("guest_email", ""),
+        "guest_phone": data.get("guest_phone", ""),
+        "room_type": data["room_type"],
+        "check_in": data["check_in"],
+        "check_out": data["check_out"],
+        "nights": nights,
+        "guests_count": data.get("guests_count", 1),
+        "price_per_night": base_price,
+        "price_total": total,
+        "currency": room_rate.get("currency", "TRY"),
+        "special_requests": data.get("special_requests", ""),
+        "source": "GUEST_PORTAL",
+        "created_at": now_utc().isoformat(),
+        "updated_at": now_utc().isoformat(),
+    }
+    await db.reservations.insert_one(reservation)
+
+    await log_audit(tid, "RESERVATION_CREATED", "reservation", reservation["id"], "guest",
+                    {"confirmation_code": confirmation_code, "source": "GUEST_PORTAL"})
+
+    return {
+        "reservation": serialize_doc(reservation),
+        "confirmation_code": confirmation_code,
+        "message": "Reservation created successfully"
+    }
+
+
+@router.post("/g/{tenant_slug}/room/{room_code}/express-checkout")
+async def express_checkout(tenant_slug: str, room_code: str, data: dict):
+    tenant = await resolve_tenant(tenant_slug)
+    tid = tenant["id"]
+
+    room = await db.rooms.find_one({"tenant_id": tid, "room_code": room_code})
+    if not room:
+        raise HTTPException(status_code=404, detail="Room not found")
+
+    folio = await _build_folio(tid, room_code, room)
+    checkout_request = {
+        "id": new_id(), "tenant_id": tid,
+        "room_code": room_code,
+        "guest_name": data.get("guest_name", room.get("current_guest_name", "")),
+        "folio_total": folio.get("total", 0),
+        "folio_items_count": len(folio.get("items", [])),
+        "payment_method": data.get("payment_method", "room_charge"),
+        "folio_confirmed": data.get("folio_confirmed", False),
+        "feedback": data.get("feedback", ""),
+        "rating": data.get("rating", 0),
+        "status": "PENDING",
+        "created_at": now_utc().isoformat(),
+    }
+    await db.checkout_requests.insert_one(checkout_request)
+
+    await db.guest_requests.insert_one({
+        "id": new_id(), "tenant_id": tid,
+        "room_id": str(room.get("_id", room.get("id", ""))),
+        "room_code": room_code,
+        "category": "checkout",
+        "description": f"Express checkout - Folio: {folio.get('total', 0)} {folio.get('currency', 'TRY')}",
+        "priority": "high",
+        "status": "OPEN",
+        "guest_name": checkout_request["guest_name"],
+        "created_at": now_utc().isoformat(),
+        "updated_at": now_utc().isoformat(),
+    })
+
+    return {
+        "checkout_id": checkout_request["id"],
+        "folio": folio,
+        "status": "PENDING",
+        "message": "Express checkout request submitted. Front desk will process shortly."
+    }
+
+
+async def _build_folio(tid, room_code, room):
+    from datetime import datetime
+    check_in_str = room.get("current_guest_check_in", "")
+    items = []
+    currency = "TRY"
+    total = 0
+
+    orders = await db.orders.find({"tenant_id": tid, "room_code": room_code}).to_list(100)
+    for o in orders:
+        if o.get("created_at", "") >= check_in_str:
+            amt = sum(i.get("price", 0) * i.get("quantity", 1) for i in o.get("items", []))
+            items.append({"type": "room_service", "description": f"Room Service Order", "amount": amt, "date": o.get("created_at", "")})
+            total += amt
+
+    minibar = await db.minibar_orders.find({"tenant_id": tid, "room_code": room_code}).to_list(100)
+    for m in minibar:
+        if m.get("created_at", "") >= check_in_str:
+            amt = m.get("total", 0)
+            items.append({"type": "minibar", "description": "Minibar", "amount": amt, "date": m.get("created_at", "")})
+            total += amt
+
+    spa = await db.spa_bookings.find({"tenant_id": tid, "room_code": room_code}).to_list(50)
+    for s in spa:
+        if s.get("created_at", "") >= check_in_str:
+            amt = s.get("price", 0)
+            items.append({"type": "spa", "description": f"Spa - {s.get('service_type', '')}", "amount": amt, "date": s.get("created_at", "")})
+            total += amt
+
+    laundry = await db.laundry_requests.find({"tenant_id": tid, "room_code": room_code}).to_list(50)
+    for l in laundry:
+        if l.get("created_at", "") >= check_in_str:
+            amt = l.get("price", 0)
+            items.append({"type": "laundry", "description": "Laundry", "amount": amt, "date": l.get("created_at", "")})
+            total += amt
+
+    return {"items": items, "total": round(total, 2), "currency": currency}
+
+
+@router.post("/g/{tenant_slug}/room/{room_code}/digital-checkin")
+async def digital_checkin(tenant_slug: str, room_code: str, data: dict):
+    tenant = await resolve_tenant(tenant_slug)
+    tid = tenant["id"]
+
+    room = await db.rooms.find_one({"tenant_id": tid, "room_code": room_code})
+    if not room:
+        raise HTTPException(status_code=404, detail="Room not found")
+
+    checkin_record = {
+        "id": new_id(), "tenant_id": tid,
+        "room_code": room_code,
+        "guest_name": data.get("guest_name", ""),
+        "guest_email": data.get("guest_email", ""),
+        "guest_phone": data.get("guest_phone", ""),
+        "nationality": data.get("nationality", ""),
+        "id_type": data.get("id_type", "passport"),
+        "id_number": data.get("id_number", ""),
+        "arrival_time": data.get("arrival_time", ""),
+        "special_requests": data.get("special_requests", ""),
+        "id_photo_uploaded": bool(data.get("id_photo_id")),
+        "id_photo_id": data.get("id_photo_id", ""),
+        "terms_accepted": data.get("terms_accepted", False),
+        "status": "SUBMITTED",
+        "created_at": now_utc().isoformat(),
+    }
+    await db.digital_checkins.insert_one(checkin_record)
+
+    await db.guest_notifications.insert_one({
+        "id": new_id(), "tenant_id": tid,
+        "room_code": room_code,
+        "type": "checkin",
+        "title_en": "Digital check-in received",
+        "title_tr": "Dijital check-in alindi",
+        "body_en": "Your pre-arrival check-in has been submitted. We'll have everything ready for you!",
+        "body_tr": "Varis oncesi check-in'iniz alindi. Her seyi sizin icin hazirlayacagiz!",
+        "read": False,
+        "created_at": now_utc().isoformat(),
+    })
+
+    await log_audit(tid, "DIGITAL_CHECKIN", "checkin", checkin_record["id"], "guest",
+                    {"room_code": room_code, "guest_name": data.get("guest_name", "")})
+
+    return {
+        "checkin_id": checkin_record["id"],
+        "status": "SUBMITTED",
+        "message": "Digital check-in submitted successfully"
+    }

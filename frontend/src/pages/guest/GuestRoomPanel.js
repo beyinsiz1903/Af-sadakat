@@ -3,15 +3,17 @@ import { useParams } from 'react-router-dom';
 import { guestAPI, guestServicesAPI, uploadAPI } from '../../lib/api';
 import { Card, CardContent } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
-import { Hotel, Wifi, Bell, Loader2 } from 'lucide-react';
+import { Hotel, Wifi, Bell, Loader2, Globe } from 'lucide-react';
 import { toast } from 'sonner';
 import { TABS } from './constants';
 import { GuestProvider } from './GuestContext';
+import { SUPPORTED_LANGUAGES } from '../../lib/i18n';
 import HomeTab from './components/HomeTab';
 import ServicesTab from './components/ServicesTab';
 import DiningTab from './components/DiningTab';
 import FolioTab from './components/FolioTab';
 import RequestsTab from './components/RequestsTab';
+import LoyaltyTab from './components/LoyaltyTab';
 import GeneralRequestDialog from './dialogs/GeneralRequestDialog';
 import SpaDialog from './dialogs/SpaDialog';
 import TransportDialog from './dialogs/TransportDialog';
@@ -22,6 +24,9 @@ import SurveyDialog from './dialogs/SurveyDialog';
 import RestaurantDialog from './dialogs/RestaurantDialog';
 import NotificationPanel from './dialogs/NotificationPanel';
 import NotifPrefsDialog from './dialogs/NotifPrefsDialog';
+import CheckoutDialog from './dialogs/CheckoutDialog';
+import ReservationDialog from './dialogs/ReservationDialog';
+import CheckinDialog from './dialogs/CheckinDialog';
 
 export default function GuestRoomPanel() {
   const { tenantSlug, roomCode } = useParams();
@@ -52,6 +57,9 @@ export default function GuestRoomPanel() {
   const [showSurveyDialog, setShowSurveyDialog] = useState(false);
   const [showRoomServiceDialog, setShowRoomServiceDialog] = useState(false);
   const [showRestaurantDialog, setShowRestaurantDialog] = useState(false);
+  const [showCheckoutDialog, setShowCheckoutDialog] = useState(false);
+  const [showReservationDialog, setShowReservationDialog] = useState(false);
+  const [showCheckinDialog, setShowCheckinDialog] = useState(false);
 
   const [form, setForm] = useState({ category: 'housekeeping', description: '', priority: 'normal' });
   const [spaForm, setSpaForm] = useState({ service_type: '', preferred_date: '', preferred_time: '', persons: 1, notes: '' });
@@ -387,8 +395,19 @@ export default function GuestRoomPanel() {
                     )}
                   </button>
                 )}
-                <Button size="sm" variant={lang === 'en' ? 'default' : 'ghost'} className="text-xs px-2 h-7" onClick={() => setLang('en')}>EN</Button>
-                <Button size="sm" variant={lang === 'tr' ? 'default' : 'ghost'} className="text-xs px-2 h-7" onClick={() => setLang('tr')}>TR</Button>
+                <div className="relative group">
+                  <button className="flex items-center gap-1 text-xs px-2 h-7 rounded border border-[hsl(var(--border))] bg-[hsl(var(--secondary))]">
+                    <Globe className="w-3 h-3" /> {SUPPORTED_LANGUAGES.find(l => l.code === lang)?.label || 'EN'}
+                  </button>
+                  <div className="hidden group-hover:block absolute right-0 top-7 bg-[hsl(var(--card))] border border-[hsl(var(--border))] rounded-lg shadow-lg z-50 min-w-[100px]">
+                    {SUPPORTED_LANGUAGES.map(l => (
+                      <button key={l.code} onClick={() => setLang(l.code)}
+                        className={`w-full text-left px-3 py-1.5 text-xs hover:bg-[hsl(var(--secondary))] ${lang === l.code ? 'text-[hsl(var(--primary))] font-medium' : ''}`}>
+                        {l.label} - {l.name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
               </div>
             </div>
             {hotelInfo?.wifi_name && (
@@ -404,10 +423,11 @@ export default function GuestRoomPanel() {
         </div>
 
         <div className="max-w-md mx-auto px-4 -mt-1">
-          {activeTab === 'home' && <HomeTab requests={requests} activeServices={activeServices} announcements={announcements} onOpenService={openService} onSetTab={setActiveTab} onShowSurvey={() => setShowSurveyDialog(true)} />}
+          {activeTab === 'home' && <HomeTab requests={requests} activeServices={activeServices} announcements={announcements} onOpenService={openService} onSetTab={setActiveTab} onShowSurvey={() => setShowSurveyDialog(true)} onShowCheckout={() => setShowCheckoutDialog(true)} onShowReservation={() => setShowReservationDialog(true)} onShowCheckin={() => setShowCheckinDialog(true)} />}
           {activeTab === 'services' && <ServicesTab activeServices={activeServices} onOpenService={openService} />}
           {activeTab === 'dining' && <DiningTab menuData={menuData} cartItems={cartItems} onAddToCart={addToCart} onShowCart={() => setShowRoomServiceDialog(true)} />}
           {activeTab === 'folio' && <FolioTab folioData={folioData} folioLoading={folioLoading} onRefresh={() => { setFolioData(null); setFolioLoading(false); folioLoadedRef.current = false; }} />}
+          {activeTab === 'loyalty' && <LoyaltyTab />}
           {activeTab === 'requests' && <RequestsTab requests={requests} myBookings={myBookings} ratingForm={ratingForm} setRatingForm={setRatingForm} onRate={handleRate} onShowRequestForm={() => setShowRequestForm(true)} />}
         </div>
 
@@ -436,6 +456,9 @@ export default function GuestRoomPanel() {
         <RestaurantDialog open={showRestaurantDialog} onOpenChange={setShowRestaurantDialog} restaurants={restaurants} restaurantForm={restaurantForm} setRestaurantForm={setRestaurantForm} selectedRestaurant={selectedRestaurant} setSelectedRestaurant={setSelectedRestaurant} availableSlots={availableSlots} setAvailableSlots={setAvailableSlots} guestName={guestName} setGuestName={setGuestName} guestPhone={guestPhone} setGuestPhone={setGuestPhone} submitting={submitting} onSubmit={handleRestaurantReservation} />
         <NotificationPanel open={showNotifPanel} onOpenChange={setShowNotifPanel} notifications={notifications} pushSubscribed={pushSubscribed} pushLoading={pushLoading} onPushToggle={handlePushToggle} onShowPrefs={() => { setShowNotifPanel(false); setShowNotifPrefs(true); }} />
         <NotifPrefsDialog open={showNotifPrefs} onOpenChange={setShowNotifPrefs} notifPrefs={notifPrefs} onPrefChange={handlePrefChange} />
+        <CheckoutDialog open={showCheckoutDialog} onOpenChange={setShowCheckoutDialog} />
+        <ReservationDialog open={showReservationDialog} onOpenChange={setShowReservationDialog} />
+        <CheckinDialog open={showCheckinDialog} onOpenChange={setShowCheckinDialog} />
       </div>
     </GuestProvider>
   );

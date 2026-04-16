@@ -19,3 +19,8 @@ JWT_EXPIRY_HOURS = 24
 GUEST_JWT_SECRET = os.environ.get("GUEST_JWT_SECRET", "guest-token-secret-change-in-prod")
 VAULT_MASTER_KEY = os.environ.get("VAULT_MASTER_KEY", "vault-master-key-change-in-prod")
 PUBLIC_BASE_URL = os.environ.get("PUBLIC_BASE_URL", "https://kritik-billing.preview.emergentagent.com")
+
+STRIPE_SECRET_KEY = os.environ.get("STRIPE_SECRET_KEY", "")
+STRIPE_WEBHOOK_SECRET = os.environ.get("STRIPE_WEBHOOK_SECRET", "")
+STRIPE_PUBLIC_KEY = os.environ.get("STRIPE_PUBLIC_KEY", "")
+STRIPE_MODE = "live" if STRIPE_SECRET_KEY.startswith("sk_") else "stub"

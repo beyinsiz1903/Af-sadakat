@@ -2,12 +2,12 @@ import React from 'react';
 import { Card, CardContent } from '../../../components/ui/card';
 import { Button } from '../../../components/ui/button';
 import { Badge } from '../../../components/ui/badge';
-import { ChevronRight, Star, Megaphone } from 'lucide-react';
+import { ChevronRight, Star, Megaphone, LogOut, BedDouble, ClipboardCheck } from 'lucide-react';
 import { statusColors } from '../../../lib/utils';
 import { categoryConfig } from '../constants';
 import { useGuest } from '../GuestContext';
 
-export default function HomeTab({ requests, activeServices, announcements, onOpenService, onSetTab, onShowSurvey }) {
+export default function HomeTab({ requests, activeServices, announcements, onOpenService, onSetTab, onShowSurvey, onShowCheckout, onShowReservation, onShowCheckin }) {
   const { lang, t } = useGuest();
 
   const activeKeys = activeServices.length > 0
@@ -94,6 +94,21 @@ export default function HomeTab({ requests, activeServices, announcements, onOpe
           </CardContent>
         </Card>
       )}
+
+      <div className="grid grid-cols-3 gap-2">
+        <button onClick={onShowCheckin} className="p-3 rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--secondary))] hover:scale-105 transition-all text-center">
+          <ClipboardCheck className="w-5 h-5 mx-auto mb-1 text-blue-400" />
+          <span className="text-[10px] font-medium">{t('Check-in', 'Check-in')}</span>
+        </button>
+        <button onClick={onShowReservation} className="p-3 rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--secondary))] hover:scale-105 transition-all text-center">
+          <BedDouble className="w-5 h-5 mx-auto mb-1 text-purple-400" />
+          <span className="text-[10px] font-medium">{t('Book Room', 'Oda Ayirt')}</span>
+        </button>
+        <button onClick={onShowCheckout} className="p-3 rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--secondary))] hover:scale-105 transition-all text-center">
+          <LogOut className="w-5 h-5 mx-auto mb-1 text-orange-400" />
+          <span className="text-[10px] font-medium">{t('Check-out', 'Cikis')}</span>
+        </button>
+      </div>
 
       <Button variant="outline" className="w-full text-sm" onClick={onShowSurvey}>
         <Star className="w-4 h-4 mr-2" /> {t('Rate Your Stay', 'Konaklamanizi Degerlendirin')}

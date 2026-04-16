@@ -1,7 +1,7 @@
 import {
   Hotel, Sparkles, Wrench, UtensilsCrossed, BellRing, HelpCircle,
   Shirt, Heart, Car, AlarmClock, KeyRound, Coffee, LogOut, AlertCircle,
-  Luggage, CalendarDays, ClipboardList, MessageCircle, Receipt
+  Luggage, CalendarDays, ClipboardList, MessageCircle, Receipt, Crown
 } from 'lucide-react';
 
 export const TABS = [
@@ -9,6 +9,7 @@ export const TABS = [
   { id: 'services', label: 'Services', labelTr: 'Servisler', icon: ClipboardList },
   { id: 'dining', label: 'Dining', labelTr: 'Yemek', icon: UtensilsCrossed },
   { id: 'folio', label: 'Folio', labelTr: 'Folyo', icon: Receipt },
+  { id: 'loyalty', label: 'Loyalty', labelTr: 'Sadakat', icon: Crown },
   { id: 'requests', label: 'My Requests', labelTr: 'Taleplerim', icon: MessageCircle },
 ];
 

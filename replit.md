@@ -56,8 +56,15 @@ This starts:
 - **Property Scoping**: Multiple properties under one tenant via `X-Property-Id` header
 - **AI Sales Engine**: Automated guest inquiry handling and upsell suggestions
 - **Unified Inbox**: Meta (WhatsApp/Facebook) and other channel integrations
-- **Loyalty Program**: Points, tiers, gamification
+- **Loyalty Program**: Points, tiers, gamification (LoyaltyTab with OTP-based join)
 - **Real-time**: WebSocket updates per tenant channel
+- **Digital Check-in**: Pre-arrival form with ID upload
+- **Express Check-out**: Folio review + confirmation + rating
+- **Room Reservation**: Guest portal availability check + booking
+- **i18n**: 8 languages (EN/TR/AR/DE/RU/FR/ES/ZH) via `frontend/src/lib/i18n.js`
+- **Payments**: Dual-mode Stripe (real when STRIPE_SECRET_KEY set, stub otherwise)
+- **PMS Integration**: Adapter pattern for Opera/Mews/Cloudbeds (`routers/pms_integration.py`)
+- **File Storage**: Dual-mode S3/local (`routers/storage.py`)
 - **Guest Portal**: QR-code-based room/table access for guests
 - **Personalized Welcome**: Room-specific guest greeting ("Welcome, Ahmed!") based on current occupant
 - **Room Folio**: Guests can view all in-stay charges (room service, minibar, spa, laundry, transport) via QR panel
