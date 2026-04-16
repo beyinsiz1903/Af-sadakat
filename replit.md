@@ -16,12 +16,13 @@ A comprehensive multi-tenant SaaS platform for the hospitality and service indus
 ├── frontend/          # React SPA (CRACO-based)
 │   ├── src/
 │   │   ├── pages/     # Feature pages (Dashboard, Inbox, AI Sales, etc.)
+│   │   │   └── guest/ # Guest portal (GuestRoomPanel + components/ + dialogs/ + GuestContext + constants)
 │   │   ├── components/ # UI components (Shadcn/Radix UI)
 │   │   └── lib/       # API client, WebSocket, Zustand store
 │   └── plugins/       # Custom webpack plugins (visual-edits, health-check)
 ├── backend/           # FastAPI backend
-│   ├── server.py      # Main entry point (~3800 lines)
-│   ├── routers/       # V2 modular API routers
+│   ├── server.py      # Main entry point (~3300 lines, rooms/orders/contacts/analytics/demo/websocket)
+│   ├── routers/       # Modular API routers (auth, tenants, billing, system, hotel, restaurant, inbox, etc.)
 │   ├── services/      # Business logic + external provider integrations
 │   ├── connectors/    # Third-party platform connectors
 │   └── core/          # Config, middleware, tenant guards
