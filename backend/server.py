@@ -127,43 +127,13 @@ async def get_optional_user(credentials: HTTPAuthorizationCredentials = Depends(
     except:
         return None
 
-# ============ WEBSOCKET MANAGER ============
-class ConnectionManager:
-    def __init__(self):
-        self.connections: Dict[str, List[WebSocket]] = defaultdict(list)
-    
-    async def connect(self, websocket: WebSocket, channel: str):
-        await websocket.accept()
-        self.connections[channel].append(websocket)
-        logger.info(f"WS connected: {channel} (total: {len(self.connections[channel])})")
-    
-    def disconnect(self, websocket: WebSocket, channel: str):
-        if websocket in self.connections[channel]:
-            self.connections[channel].remove(websocket)
-    
-    async def broadcast(self, channel: str, message: dict):
-        dead = []
-        for ws in self.connections.get(channel, []):
-            try:
-                await ws.send_json(message)
-            except Exception:
-                dead.append(ws)
-        for ws in dead:
-            self.disconnect(ws, channel)
-    
-    async def broadcast_tenant(self, tenant_id: str, event_type: str, entity: str, action: str, payload: dict):
-        channel = f"tenant:{tenant_id}"
-        message = {
-            "type": event_type,
-            "tenant_id": tenant_id,
-            "entity": entity,
-            "action": action,
-            "payload": payload,
-            "ts": now_utc().isoformat()
-        }
-        await self.broadcast(channel, message)
-
-ws_manager = ConnectionManager()
+# ============ WEBSOCKET MANAGER (extracted to core/legacy_helpers) ============
+from core.legacy_helpers import (
+    ws_manager, ConnectionManager,
+    get_tenant_by_slug, get_tenant_by_id,
+    upsert_contact as _upsert_contact,
+    award_loyalty_points as _award_loyalty_points,
+)
 
 # ============ PYDANTIC MODELS ============
 class TenantCreate(BaseModel):
@@ -270,197 +240,13 @@ class LoyaltyRulesUpdate(BaseModel):
     points_per_order: Optional[int] = None
     points_per_currency_unit: Optional[int] = None
 
-# ============ TENANT ISOLATION ============
-async def get_tenant_by_slug(slug: str):
-    tenant = await db.tenants.find_one({"slug": slug})
-    if not tenant:
-        raise HTTPException(status_code=404, detail=f"Tenant not found: {slug}")
-    return serialize_doc(tenant)
-
-async def get_tenant_by_id(tenant_id: str):
-    tenant = await db.tenants.find_one({"id": tenant_id})
-    if not tenant:
-        raise HTTPException(status_code=404, detail=f"Tenant not found")
-    return serialize_doc(tenant)
+# ============ TENANT ISOLATION (imported above from core/legacy_helpers) ============
 
 # ============ ROOT ============
 @api_router.get("/")
 async def root():
     return {"message": "Omni Inbox Hub API", "version": "0.1.0"}
 
-# ============ ROOM ROUTES ============
-@api_router.post("/tenants/{tenant_slug}/rooms")
-async def create_room(tenant_slug: str, data: RoomCreate):
-    tenant = await get_tenant_by_slug(tenant_slug)
-    usage = tenant.get("usage_counters", {})
-    limits = tenant.get("plan_limits", {})
-    if usage.get("rooms", 0) >= limits.get("max_rooms", 20):
-        raise HTTPException(status_code=403, detail="Room limit reached")
-    
-    room_code = f"R{data.room_number}"
-    room = {
-        "id": new_id(),
-        "tenant_id": tenant["id"],
-        "room_number": data.room_number,
-        "room_code": room_code,
-        "room_type": data.room_type,
-        "floor": data.floor,
-        "qr_link": f"/g/{tenant_slug}/room/{room_code}",
-        "status": "available",
-        "created_at": now_utc().isoformat()
-    }
-    await db.rooms.insert_one(room)
-    await db.tenants.update_one({"id": tenant["id"]}, {"$inc": {"usage_counters.rooms": 1}})
-    
-    # Auto QR generation
-    public_url = os.environ.get("PUBLIC_BASE_URL", "")
-    qr_url = f"{public_url}/g/{tenant_slug}/room/{room_code}"
-    try:
-        qr_bytes = generate_qr_png(qr_url)
-        qr_filename = f"qr_room_{room['id']}.png"
-        qr_path = ROOT_DIR / "uploads" / qr_filename
-        qr_path.parent.mkdir(exist_ok=True)
-        with open(qr_path, "wb") as f:
-            f.write(qr_bytes)
-        await db.rooms.update_one({"id": room["id"]}, {"$set": {"qr_image": qr_filename, "qr_url": qr_url}})
-        room["qr_image"] = qr_filename
-        room["qr_url"] = qr_url
-    except Exception as e:
-        logger.warning(f"QR auto-generation for room {room_code}: {e}")
-    
-    return serialize_doc(room)
-
-@api_router.get("/tenants/{tenant_slug}/rooms")
-async def list_rooms(tenant_slug: str):
-    tenant = await get_tenant_by_slug(tenant_slug)
-    rooms = await db.rooms.find({"tenant_id": tenant["id"]}, {"_id": 0}).to_list(200)
-    return [serialize_doc(r) for r in rooms]
-
-@api_router.delete("/tenants/{tenant_slug}/rooms/{room_id}")
-async def delete_room(tenant_slug: str, room_id: str):
-    tenant = await get_tenant_by_slug(tenant_slug)
-    result = await db.rooms.delete_one({"id": room_id, "tenant_id": tenant["id"]})
-    if result.deleted_count == 0:
-        raise HTTPException(status_code=404, detail="Room not found")
-    await db.tenants.update_one({"id": tenant["id"]}, {"$inc": {"usage_counters.rooms": -1}})
-    return {"deleted": True}
-
-# ============ GUEST REQUEST ROUTES ============
-@api_router.post("/g/{tenant_slug}/room/{room_code}/requests")
-async def create_guest_request(tenant_slug: str, room_code: str, data: GuestRequestCreate):
-    tenant = await get_tenant_by_slug(tenant_slug)
-    room = await db.rooms.find_one({"tenant_id": tenant["id"], "room_code": room_code})
-    if not room:
-        raise HTTPException(status_code=404, detail="Room not found")
-    
-    category_dept_map = {
-        "housekeeping": "HK",
-        "maintenance": "TECH",
-        "room_service": "FB",
-        "reception": "FRONTDESK",
-        "other": "FRONTDESK"
-    }
-    dept_code = category_dept_map.get(data.category, "FRONTDESK")
-    
-    request_doc = {
-        "id": new_id(),
-        "tenant_id": tenant["id"],
-        "room_id": serialize_doc(room)["id"],
-        "room_code": room_code,
-        "room_number": serialize_doc(room)["room_number"],
-        "category": data.category,
-        "department_code": dept_code,
-        "description": data.description,
-        "priority": data.priority,
-        "status": "OPEN",
-        "guest_name": data.guest_name,
-        "guest_phone": data.guest_phone,
-        "guest_email": data.guest_email,
-        "assigned_to": None,
-        "notes": "",
-        "first_response_at": None,
-        "resolved_at": None,
-        "rating": None,
-        "rating_comment": None,
-        "created_at": now_utc().isoformat(),
-        "updated_at": now_utc().isoformat()
-    }
-    await db.guest_requests.insert_one(request_doc)
-    
-    if data.guest_phone or data.guest_email:
-        await _upsert_contact(tenant["id"], data.guest_name, data.guest_phone, data.guest_email)
-    
-    result = serialize_doc(request_doc)
-    await ws_manager.broadcast_tenant(tenant["id"], "request", "guest_request", "created", result)
-    return result
-
-@api_router.get("/g/{tenant_slug}/room/{room_code}/requests")
-async def list_guest_requests_by_room(tenant_slug: str, room_code: str):
-    tenant = await get_tenant_by_slug(tenant_slug)
-    requests_list = await db.guest_requests.find(
-        {"tenant_id": tenant["id"], "room_code": room_code}, {"_id": 0}
-    ).sort("created_at", -1).to_list(100)
-    return [serialize_doc(r) for r in requests_list]
-
-@api_router.get("/tenants/{tenant_slug}/requests")
-async def list_all_requests(tenant_slug: str, department: Optional[str] = None, status: Optional[str] = None, page: int = 1, limit: int = 50):
-    tenant = await get_tenant_by_slug(tenant_slug)
-    query = {"tenant_id": tenant["id"]}
-    if department:
-        query["department_code"] = department.upper()
-    if status:
-        query["status"] = status.upper()
-    skip = (page - 1) * limit
-    requests_list = await db.guest_requests.find(query, {"_id": 0}).sort("created_at", -1).skip(skip).limit(limit).to_list(limit)
-    total = await db.guest_requests.count_documents(query)
-    return {"data": [serialize_doc(r) for r in requests_list], "total": total, "page": page}
-
-@api_router.patch("/tenants/{tenant_slug}/requests/{request_id}")
-async def update_guest_request(tenant_slug: str, request_id: str, data: GuestRequestUpdate, user=Depends(get_optional_user)):
-    tenant = await get_tenant_by_slug(tenant_slug)
-    req = await db.guest_requests.find_one({"id": request_id, "tenant_id": tenant["id"]})
-    if not req:
-        raise HTTPException(status_code=404, detail="Request not found")
-    
-    update_data = {}
-    if data.status:
-        update_data["status"] = data.status.upper()
-        if data.status.upper() == "IN_PROGRESS" and not req.get("first_response_at"):
-            update_data["first_response_at"] = now_utc().isoformat()
-        if data.status.upper() in ["DONE", "CLOSED"]:
-            update_data["resolved_at"] = now_utc().isoformat()
-            if data.status.upper() == "DONE":
-                await _award_loyalty_points(tenant, "request", req)
-    if data.assigned_to is not None:
-        update_data["assigned_to"] = data.assigned_to
-    if data.notes is not None:
-        update_data["notes"] = data.notes
-    
-    # Pilot Fix 1: Track who made the update
-    update_data["last_updated_by"] = user.get("name", "System") if user else "System"
-    update_data["last_updated_by_id"] = user.get("id", "") if user else ""
-    update_data["updated_at"] = now_utc().isoformat()
-    await db.guest_requests.update_one({"id": request_id}, {"$set": update_data})
-    
-    updated = await db.guest_requests.find_one({"id": request_id}, {"_id": 0})
-    result = serialize_doc(updated)
-    await ws_manager.broadcast_tenant(tenant["id"], "request", "guest_request", "updated", result)
-    return result
-
-@api_router.post("/tenants/{tenant_slug}/requests/{request_id}/rate")
-async def rate_request(tenant_slug: str, request_id: str, data: RequestRatingCreate):
-    tenant = await get_tenant_by_slug(tenant_slug)
-    req = await db.guest_requests.find_one({"id": request_id, "tenant_id": tenant["id"]})
-    if not req:
-        raise HTTPException(status_code=404, detail="Request not found")
-    if data.rating < 1 or data.rating > 5:
-        raise HTTPException(status_code=400, detail="Rating must be 1-5")
-    
-    await db.guest_requests.update_one({"id": request_id}, {"$set": {
-        "rating": data.rating, "rating_comment": data.comment, "updated_at": now_utc().isoformat()
-    }})
-    updated = await db.guest_requests.find_one({"id": request_id}, {"_id": 0})
-    return serialize_doc(updated)
 
 # ============ TABLE ROUTES ============
 @api_router.post("/tenants/{tenant_slug}/tables")
@@ -569,183 +355,7 @@ async def delete_menu_item(tenant_slug: str, item_id: str):
     await db.menu_items.delete_one({"id": item_id, "tenant_id": tenant["id"]})
     return {"deleted": True}
 
-# ============ ORDER ROUTES ============
-@api_router.post("/g/{tenant_slug}/table/{table_code}/orders")
-async def create_order(tenant_slug: str, table_code: str, data: OrderCreate):
-    tenant = await get_tenant_by_slug(tenant_slug)
-    table = await db.tables.find_one({"tenant_id": tenant["id"], "table_code": table_code})
-    if not table:
-        raise HTTPException(status_code=404, detail="Table not found")
-    
-    total = sum(item.price * item.quantity for item in data.items)
-    
-    order = {
-        "id": new_id(),
-        "tenant_id": tenant["id"],
-        "table_id": serialize_doc(table)["id"],
-        "table_code": table_code,
-        "table_number": serialize_doc(table)["table_number"],
-        "items": [item.model_dump() for item in data.items],
-        "total": total,
-        "status": "RECEIVED",
-        "order_type": data.order_type,
-        "guest_name": data.guest_name,
-        "guest_phone": data.guest_phone,
-        "guest_email": data.guest_email,
-        "notes": data.notes,
-        "created_at": now_utc().isoformat(),
-        "updated_at": now_utc().isoformat()
-    }
-    await db.orders.insert_one(order)
-    
-    if data.guest_phone or data.guest_email:
-        await _upsert_contact(tenant["id"], data.guest_name, data.guest_phone, data.guest_email)
-    
-    result = serialize_doc(order)
-    await ws_manager.broadcast_tenant(tenant["id"], "order", "order", "created", result)
-    return result
 
-@api_router.get("/g/{tenant_slug}/table/{table_code}/orders")
-async def list_orders_by_table(tenant_slug: str, table_code: str):
-    tenant = await get_tenant_by_slug(tenant_slug)
-    orders = await db.orders.find(
-        {"tenant_id": tenant["id"], "table_code": table_code}, {"_id": 0}
-    ).sort("created_at", -1).to_list(100)
-    return [serialize_doc(o) for o in orders]
-
-@api_router.get("/tenants/{tenant_slug}/orders")
-async def list_all_orders(tenant_slug: str, status: Optional[str] = None, page: int = 1, limit: int = 50):
-    tenant = await get_tenant_by_slug(tenant_slug)
-    query = {"tenant_id": tenant["id"]}
-    if status:
-        query["status"] = status.upper()
-    skip = (page - 1) * limit
-    orders = await db.orders.find(query, {"_id": 0}).sort("created_at", -1).skip(skip).limit(limit).to_list(limit)
-    total = await db.orders.count_documents(query)
-    return {"data": [serialize_doc(o) for o in orders], "total": total, "page": page}
-
-@api_router.patch("/tenants/{tenant_slug}/orders/{order_id}")
-async def update_order_status(tenant_slug: str, order_id: str, data: OrderStatusUpdate):
-    tenant = await get_tenant_by_slug(tenant_slug)
-    order = await db.orders.find_one({"id": order_id, "tenant_id": tenant["id"]})
-    if not order:
-        raise HTTPException(status_code=404, detail="Order not found")
-    
-    update = {"status": data.status.upper(), "updated_at": now_utc().isoformat()}
-    await db.orders.update_one({"id": order_id}, {"$set": update})
-    
-    if data.status.upper() == "SERVED":
-        await _award_loyalty_points(tenant, "order", serialize_doc(order))
-    
-    updated = await db.orders.find_one({"id": order_id}, {"_id": 0})
-    result = serialize_doc(updated)
-    await ws_manager.broadcast_tenant(tenant["id"], "order", "order", "updated", result)
-    return result
-
-# ============ CONTACT / CRM ROUTES ============
-async def _upsert_contact(tenant_id: str, name: str = "", phone: str = "", email: str = ""):
-    if not phone and not email:
-        return None
-    query = {"tenant_id": tenant_id}
-    if phone:
-        query["phone"] = phone
-    elif email:
-        query["email"] = email
-    
-    existing = await db.contacts.find_one(query)
-    if existing:
-        update = {"updated_at": now_utc().isoformat()}
-        if name and not existing.get("name"):
-            update["name"] = name
-        if email and not existing.get("email"):
-            update["email"] = email
-        await db.contacts.update_one({"id": existing["id"]}, {"$set": update})
-        return serialize_doc(existing)
-    
-    contact = {
-        "id": new_id(),
-        "tenant_id": tenant_id,
-        "name": name or "",
-        "phone": phone or "",
-        "email": email or "",
-        "tags": [],
-        "notes": "",
-        "consent_marketing": False,
-        "consent_data": True,
-        "loyalty_account_id": None,
-        "created_at": now_utc().isoformat(),
-        "updated_at": now_utc().isoformat()
-    }
-    await db.contacts.insert_one(contact)
-    return serialize_doc(contact)
-
-@api_router.get("/tenants/{tenant_slug}/contacts")
-async def list_contacts(tenant_slug: str, page: int = 1, limit: int = 20, search: Optional[str] = None):
-    tenant = await get_tenant_by_slug(tenant_slug)
-    query = {"tenant_id": tenant["id"]}
-    if search:
-        query["$or"] = [
-            {"name": {"$regex": search, "$options": "i"}},
-            {"phone": {"$regex": search, "$options": "i"}},
-            {"email": {"$regex": search, "$options": "i"}}
-        ]
-    skip = (page - 1) * limit
-    contacts = await db.contacts.find(query, {"_id": 0}).sort("updated_at", -1).skip(skip).limit(limit).to_list(limit)
-    total = await db.contacts.count_documents(query)
-    return {"data": [serialize_doc(c) for c in contacts], "total": total, "page": page, "limit": limit}
-
-@api_router.get("/tenants/{tenant_slug}/contacts/{contact_id}")
-async def get_contact(tenant_slug: str, contact_id: str):
-    tenant = await get_tenant_by_slug(tenant_slug)
-    contact = await db.contacts.find_one({"id": contact_id, "tenant_id": tenant["id"]}, {"_id": 0})
-    if not contact:
-        raise HTTPException(status_code=404, detail="Contact not found")
-    return serialize_doc(contact)
-
-@api_router.patch("/tenants/{tenant_slug}/contacts/{contact_id}")
-async def update_contact(tenant_slug: str, contact_id: str, data: dict):
-    tenant = await get_tenant_by_slug(tenant_slug)
-    allowed = ["name", "tags", "notes", "consent_marketing", "consent_data"]
-    update_data = {k: v for k, v in data.items() if k in allowed}
-    update_data["updated_at"] = now_utc().isoformat()
-    await db.contacts.update_one({"id": contact_id, "tenant_id": tenant["id"]}, {"$set": update_data})
-    updated = await db.contacts.find_one({"id": contact_id}, {"_id": 0})
-    return serialize_doc(updated)
-
-@api_router.get("/tenants/{tenant_slug}/contacts/{contact_id}/timeline")
-async def get_contact_timeline(tenant_slug: str, contact_id: str):
-    tenant = await get_tenant_by_slug(tenant_slug)
-    contact = await db.contacts.find_one({"id": contact_id, "tenant_id": tenant["id"]}, {"_id": 0})
-    if not contact:
-        raise HTTPException(status_code=404, detail="Contact not found")
-    
-    timeline = []
-    phone = contact.get("phone", "")
-    email = contact.get("email", "")
-    
-    if phone:
-        reqs = await db.guest_requests.find({"tenant_id": tenant["id"], "guest_phone": phone}, {"_id": 0}).to_list(100)
-        for r in reqs:
-            timeline.append({"type": "request", "data": serialize_doc(r), "timestamp": r.get("created_at", "")})
-        
-        ords = await db.orders.find({"tenant_id": tenant["id"], "guest_phone": phone}, {"_id": 0}).to_list(100)
-        for o in ords:
-            timeline.append({"type": "order", "data": serialize_doc(o), "timestamp": o.get("created_at", "")})
-    
-    if email:
-        reqs = await db.guest_requests.find({"tenant_id": tenant["id"], "guest_email": email}, {"_id": 0}).to_list(100)
-        for r in reqs:
-            if not any(t["data"].get("id") == r.get("id") for t in timeline):
-                timeline.append({"type": "request", "data": serialize_doc(r), "timestamp": r.get("created_at", "")})
-    
-    # Loyalty ledger
-    if contact.get("loyalty_account_id"):
-        ledger = await db.loyalty_ledger.find({"account_id": contact["loyalty_account_id"]}, {"_id": 0}).to_list(100)
-        for l in ledger:
-            timeline.append({"type": "loyalty", "data": serialize_doc(l), "timestamp": l.get("created_at", "")})
-    
-    timeline.sort(key=lambda x: x["timestamp"], reverse=True)
-    return timeline
 
 # ============ WEBCHAT / CONVERSATION ROUTES ============
 @api_router.post("/g/{tenant_slug}/chat/start")
@@ -1014,44 +624,6 @@ async def get_loyalty_ledger(tenant_slug: str, account_id: str):
     ).sort("created_at", -1).to_list(200)
     return [serialize_doc(e) for e in entries]
 
-async def _award_loyalty_points(tenant: dict, event_type: str, event_data: dict):
-    """Award loyalty points when request resolved or order served"""
-    rules = tenant.get("loyalty_rules", {})
-    if not rules.get("enabled", False):
-        return
-    
-    phone = event_data.get("guest_phone", "")
-    if not phone:
-        return
-    
-    contact = await db.contacts.find_one({"tenant_id": tenant["id"], "phone": phone})
-    if not contact or not contact.get("loyalty_account_id"):
-        return
-    
-    points = 0
-    if event_type == "request":
-        points = rules.get("points_per_request", 10)
-    elif event_type == "order":
-        points = rules.get("points_per_order", 5)
-        total = event_data.get("total", 0)
-        points += int(total * rules.get("points_per_currency_unit", 1) / 100)
-    
-    if points > 0:
-        entry = {
-            "id": new_id(),
-            "tenant_id": tenant["id"],
-            "account_id": contact["loyalty_account_id"],
-            "points": points,
-            "type": "earn",
-            "source": event_type,
-            "description": f"Earned from {event_type}",
-            "created_at": now_utc().isoformat()
-        }
-        await db.loyalty_ledger.insert_one(entry)
-        await db.loyalty_accounts.update_one(
-            {"id": contact["loyalty_account_id"]},
-            {"$inc": {"points": points}, "$set": {"updated_at": now_utc().isoformat()}}
-        )
 
 # ============ DASHBOARD STATS ============
 @api_router.get("/tenants/{tenant_slug}/stats")
@@ -3205,6 +2777,16 @@ async def websocket_endpoint_final(websocket: WebSocket, tenant_id: str):
     except Exception as e:
         logger.error(f"WebSocket error: {e}")
         ws_manager.disconnect(websocket, channel)
+# Mount legacy router groups (extracted from server.py for maintainability)
+try:
+    from routers import legacy_rooms, legacy_orders, legacy_contacts
+    api_router.include_router(legacy_rooms.router)
+    api_router.include_router(legacy_orders.router)
+    api_router.include_router(legacy_contacts.router)
+    logger.info("Legacy routers mounted: rooms, orders, contacts")
+except Exception as e:
+    logger.error(f"Failed to mount legacy routers: {e}")
+
 app.include_router(api_router)
 
 # V2 modular routers (refactored architecture)
