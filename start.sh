@@ -1,8 +1,6 @@
 #!/bin/bash
 
-# Start MongoDB
-mkdir -p /home/runner/workspace/data/db
-mongod --dbpath /home/runner/workspace/data/db --logpath /tmp/mongod.log --fork --quiet 2>/dev/null || true
+# MongoDB: using MongoDB Atlas (cloud) via MONGO_URL env var — no local mongod needed.
 
 # Start backend on port 8000 (background)
 cd /home/runner/workspace/backend
