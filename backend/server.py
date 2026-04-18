@@ -2888,6 +2888,13 @@ try:
 except Exception as e:
     logger.warning(f"V2 WhatsApp templates router not loaded: {e}")
 
+try:
+    from routers.syroce_integration import router as syroce_router
+    app.include_router(syroce_router)
+    logger.info("Syroce integration router loaded")
+except Exception as e:
+    logger.warning(f"Syroce integration router not loaded: {e}")
+
 # Sprint 9: New feature routers
 for router_name, router_module, router_attr in [
     ("guest_services", "routers.guest_services", "router"),

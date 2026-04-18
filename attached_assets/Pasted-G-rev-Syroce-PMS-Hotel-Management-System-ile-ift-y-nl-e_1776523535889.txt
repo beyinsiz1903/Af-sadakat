@@ -1,0 +1,98 @@
+Görev: Syroce PMS (Hotel Management System) ile çift yönlü entegrasyonu Af-sadakat tarafından tamamla. Karşı taraf hazır — tüm endpoint'ler ve şemalar aşağıda. Mevcut pms_integration.py adapter pattern'ine SyroceAdapter ekleyeceksin.
+
+1) Provisioning endpoint (ZORUNLU)
+Yeni endpoint oluştur:
+
+POST /api/admin/integrations/syroce/provision
+Authorization: Bearer ${AFSADAKAT_ADMIN_TOKEN}
+Body: {
+  "external_tenant_id": "uuid",   // Syroce tenant_id — primary key
+  "name": "Otel Adı",
+  "email": "...",
+  "phone": "...",
+  "hotel_id": 100001,             // Syroce hotel_id (login için)
+  "pms_callback_url": "https://syroce-pms.replit.app",  // outbound base
+  "pms_api_key": "secret_token"   // Syroce'a outbound çağrılarda Bearer
+}
+Response 200: { "ok": true, "ext_tenant_id": "af-sadakat-uuid", "tenant_id": "..." }
+
+Davranış: idempotent. external_tenant_id ile mevcut tenant varsa onun kayıtlarını güncelle ve aynı ext_tenant_id'yi döndür; yoksa yeni tenant oluştur. pms_api_key ve pms_callback_url'i bu tenant'ın pms_integration ayarlarına yaz (Syroce'a outbound için kullanacaksın).
+
+2) SSO endpoint (ZORUNLU)
+GET /sso/syroce?token=<JWT>
+
+JWT doğrulaması:
+
+Algoritma: HS256, secret = SYROCE_JWT_SECRET env (Syroce'un JWT_SECRET'ı ile aynı olmalı)
+Doğrula: iss=="syroce-pms", aud=="afsadakat", exp geçerli (TTL 120 sn — leeway=10 kullan)
+Claim'ler: sub (Syroce tenant_id), user_id, username, name, email, role
+İşlem akışı:
+
+Token'dan sub (tenant_id) ile Af-sadakat tenant'ını bul (yoksa 404 — provisioning eksik demektir)
+user_id'yi external_user_id olarak kullanıp Af-sadakat user'ını upsert et (rol map: admin→admin, manager→manager, diğer→staff)
+Bu user için session/cookie oluştur
+/dashboard'a (veya rolüne uygun landing'e) redirect et
+3) Syroce'tan veri çekme (Outbound Adapter)
+pms_integration.py dosyasında mevcut adapter pattern'ine yeni sınıf ekle:
+
+class SyroceAdapter(BasePMSAdapter):
+    def __init__(self, base_url, api_key):
+        self.base = base_url.rstrip("/")
+        self.headers = {"Authorization": f"Bearer {api_key}"}
+    async def list_rooms(self):
+        # GET {base}/api/pms-outbound/rooms
+        # response: {"count": int, "rooms": [{id, room_number, room_type, floor, capacity, status}]}
+    async def list_reservations(self, status=None, from_date=None, to_date=None, limit=200):
+        # GET {base}/api/pms-outbound/reservations?status=&from=&to=&limit=
+        # response: {"count": int, "reservations": [...]}
+    async def get_reservation(self, reservation_id):
+        # GET {base}/api/pms-outbound/reservations/{id}
+    async def list_guests(self, limit=200):
+        # GET {base}/api/pms-outbound/guests?limit=
+    async def get_guest(self, guest_id):
+        # GET {base}/api/pms-outbound/guests/{id}
+    async def post_folio_charge(self, reservation_id, description, amount, external_ref):
+        # POST {base}/api/pms-outbound/folio/charge
+        # body: {reservation_id, description, amount, external_ref}
+        # external_ref idempotency key — aynı ref ile çağırırsan 200 + duplicated:true döner
+
+Hata yönetimi: HTTP 403 dönerse "Syroce aboneliği iptal edilmiş, entegrasyon askıda" diye banner göster ve scheduled job'ları durdur. 401 dönerse "API key geçersiz, yeniden provision gerekli" göster.
+
+4) Syroce'a webhook gönderme (Inbound)
+Şu olaylar tetiklendiğinde Syroce'a POST at:
+
+POST {pms_callback_url}/api/integrations/afsadakat/webhook
+Authorization: Bearer {pms_api_key}
+Content-Type: application/json
+Body: { "event": "<event_type>", "data": { ... } }
+
+Gönderilecek event tipleri (örnek):
+
+loyalty.points_awarded — {guest_id, reservation_id?, points, reason}
+loyalty.tier_changed — {guest_id, old_tier, new_tier}
+review.received — {guest_id?, source, rating, text, sentiment}
+message.received — {guest_id, channel (whatsapp|instagram|...), text, timestamp}
+guest_request.opened / guest_request.resolved — {guest_id, request_type, status}
+Hata olursa exponential backoff ile 5 kez retry et (1s, 4s, 16s, 64s, 256s). 5. retry başarısız olursa webhook_failed event log'a yaz ve admin'e bildir.
+
+5) Folio Charge entegrasyonu
+Misafir spa/oda servisi vs. talep edip ödemesi otele yansıtılacaksa:
+
+Af-sadakat tarafında order oluştur, durumu pending
+SyroceAdapter.post_folio_charge(reservation_id, description, amount, external_ref=order_id) çağır
+200 → durumu posted_to_folio; 409 veya başka hata → failed ve retry kuyruğuna at
+external_ref=order_id kullandığın için retry'lar duplicate charge yaratmaz (Syroce idempotent)
+6) Env vars (Af-sadakat tarafında ekle)
+SYROCE_JWT_SECRET=<Syroce'un JWT_SECRET'ıyla AYNI olmalı>
+AFSADAKAT_ADMIN_TOKEN=<rastgele uzun token, Syroce env'ine de aynısı>
+SYROCE_INTEGRATION_ENABLED=true
+
+7) Test Akışı
+Bu repo'yu deploy et, public URL'yi al (örn https://afsadakat.replit.app)
+Syroce env'lerine ekle: AFSADAKAT_BASE_URL=https://afsadakat.replit.app ve AFSADAKAT_ADMIN_TOKEN=<aynı>
+Syroce'tan bir otel "14 Gün Ücretsiz Dene"ye basınca /api/admin/integrations/syroce/provision çağrısı buraya düşmeli — log'la doğrula
+Otel "Aç"a bastığında /sso/syroce?token=... çağrısı gelmeli, token doğrulanıp dashboard'a redirect olmalı
+Dashboard açıldığında SyroceAdapter.list_rooms() çağırıp 30 oda görmelisin
+Test loyalty event'i tetikleyip Syroce'a webhook ulaştığını doğrula
+NOT: Adapter abstract base class'ında list_rooms, list_reservations, list_guests, post_folio_charge metotları yoksa önce base'e ekle, sonra mevcut diğer adapter'larda da NotImplementedError veya stub bırak.
+

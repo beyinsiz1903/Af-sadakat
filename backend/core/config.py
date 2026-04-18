@@ -24,3 +24,8 @@ STRIPE_SECRET_KEY = os.environ.get("STRIPE_SECRET_KEY", "")
 STRIPE_WEBHOOK_SECRET = os.environ.get("STRIPE_WEBHOOK_SECRET", "")
 STRIPE_PUBLIC_KEY = os.environ.get("STRIPE_PUBLIC_KEY", "")
 STRIPE_MODE = "live" if STRIPE_SECRET_KEY.startswith("sk_") else "stub"
+
+# Syroce PMS bi-directional integration
+SYROCE_JWT_SECRET = os.environ.get("SYROCE_JWT_SECRET", "")
+AFSADAKAT_ADMIN_TOKEN = os.environ.get("AFSADAKAT_ADMIN_TOKEN", "")
+SYROCE_INTEGRATION_ENABLED = os.environ.get("SYROCE_INTEGRATION_ENABLED", "true").lower() == "true"

@@ -1,8 +1,11 @@
-"""PMS Integration Router: Abstract interface for Opera/Mews/Cloudbeds.
+"""PMS Integration Router: Abstract interface for Opera/Mews/Cloudbeds/Syroce.
 Provides adapter pattern for multiple PMS systems.
 """
 from fastapi import APIRouter, HTTPException
 import logging
+from typing import Optional
+
+import httpx
 
 from core.config import db
 from core.tenant_guard import (
@@ -21,6 +24,17 @@ class PMSAdapter:
     async def sync_guests(self, tenant_id, config): raise NotImplementedError
     async def sync_reservations(self, tenant_id, config): raise NotImplementedError
     async def push_charge(self, tenant_id, config, room_code, charge): raise NotImplementedError
+
+    # Extended interface used by Syroce; default = NotImplementedError so legacy
+    # adapters (Opera/Mews/Cloudbeds) keep working without changes.
+    async def list_rooms(self): raise NotImplementedError
+    async def list_reservations(self, status=None, from_date=None, to_date=None, limit=200):
+        raise NotImplementedError
+    async def get_reservation(self, reservation_id): raise NotImplementedError
+    async def list_guests(self, limit=200): raise NotImplementedError
+    async def get_guest(self, guest_id): raise NotImplementedError
+    async def post_folio_charge(self, reservation_id, description, amount, external_ref):
+        raise NotImplementedError
 
 
 class OperaAdapter(PMSAdapter):
@@ -65,10 +79,119 @@ class CloudbedsAdapter(PMSAdapter):
         return {"status": "stub", "provider": "cloudbeds", "charge": charge}
 
 
+class SyroceAdapter(PMSAdapter):
+    """Adapter for Syroce PMS (Hotel Management System).
+
+    Authenticated outbound calls use Bearer token over HTTPS to the tenant's
+    Syroce callback base URL (stored as `api_url` + `api_key` in pms_configs).
+    """
+    PROVIDER = "syroce"
+
+    def __init__(self, base_url: str = "", api_key: str = ""):
+        self.base = (base_url or "").rstrip("/")
+        self.api_key = api_key or ""
+
+    @classmethod
+    def from_config(cls, config: dict) -> "SyroceAdapter":
+        return cls(base_url=config.get("api_url", ""), api_key=config.get("api_key", ""))
+
+    @property
+    def headers(self) -> dict:
+        return {"Authorization": f"Bearer {self.api_key}",
+                "Content-Type": "application/json"}
+
+    async def _get(self, path: str, params: Optional[dict] = None) -> dict:
+        if not self.base or not self.api_key:
+            raise HTTPException(status_code=400, detail="Syroce integration not configured")
+        url = f"{self.base}{path}"
+        async with httpx.AsyncClient(timeout=20.0) as client:
+            r = await client.get(url, headers=self.headers, params=params)
+            self._raise_for_status(r)
+            return r.json()
+
+    async def _post(self, path: str, payload: dict) -> dict:
+        if not self.base or not self.api_key:
+            raise HTTPException(status_code=400, detail="Syroce integration not configured")
+        url = f"{self.base}{path}"
+        async with httpx.AsyncClient(timeout=20.0) as client:
+            r = await client.post(url, headers=self.headers, json=payload)
+            self._raise_for_status(r)
+            return r.json()
+
+    @staticmethod
+    def _raise_for_status(r: httpx.Response):
+        if r.status_code == 200:
+            return
+        if r.status_code == 401:
+            raise HTTPException(status_code=502, detail="SYROCE_AUTH_INVALID")
+        if r.status_code == 403:
+            raise HTTPException(status_code=502, detail="SYROCE_SUBSCRIPTION_SUSPENDED")
+        if r.status_code == 409:
+            return  # idempotency / duplicate accepted by caller
+        raise HTTPException(status_code=502, detail=f"SYROCE_HTTP_{r.status_code}")
+
+    # ---- Discovery (outbound reads) ----
+    async def list_rooms(self):
+        return await self._get("/api/pms-outbound/rooms")
+
+    async def list_reservations(self, status=None, from_date=None, to_date=None, limit=200):
+        params = {"limit": int(limit)}
+        if status:
+            params["status"] = status
+        if from_date:
+            params["from"] = from_date
+        if to_date:
+            params["to"] = to_date
+        return await self._get("/api/pms-outbound/reservations", params=params)
+
+    async def get_reservation(self, reservation_id):
+        return await self._get(f"/api/pms-outbound/reservations/{reservation_id}")
+
+    async def list_guests(self, limit=200):
+        return await self._get("/api/pms-outbound/guests", params={"limit": int(limit)})
+
+    async def get_guest(self, guest_id):
+        return await self._get(f"/api/pms-outbound/guests/{guest_id}")
+
+    async def post_folio_charge(self, reservation_id, description, amount, external_ref):
+        return await self._post("/api/pms-outbound/folio/charge", {
+            "reservation_id": reservation_id,
+            "description": description,
+            "amount": float(amount),
+            "external_ref": external_ref,
+        })
+
+    # ---- Sync wrappers (used by /sync/{entity}) ----
+    async def sync_rooms(self, tenant_id, config):
+        a = self.from_config(config)
+        data = await a.list_rooms()
+        return {"status": "ok", "provider": "syroce", "count": data.get("count", 0)}
+
+    async def sync_guests(self, tenant_id, config):
+        a = self.from_config(config)
+        data = await a.list_guests(limit=500)
+        return {"status": "ok", "provider": "syroce", "count": data.get("count", 0)}
+
+    async def sync_reservations(self, tenant_id, config):
+        a = self.from_config(config)
+        data = await a.list_reservations(limit=500)
+        return {"status": "ok", "provider": "syroce", "count": data.get("count", 0)}
+
+    async def push_charge(self, tenant_id, config, room_code, charge):
+        a = self.from_config(config)
+        return await a.post_folio_charge(
+            reservation_id=charge.get("reservation_id") or room_code,
+            description=charge.get("description", ""),
+            amount=charge.get("amount", 0),
+            external_ref=charge.get("external_ref") or new_id(),
+        )
+
+
 PMS_ADAPTERS = {
     "opera": OperaAdapter(),
     "mews": MewsAdapter(),
     "cloudbeds": CloudbedsAdapter(),
+    "syroce": SyroceAdapter(),
 }
 
 
@@ -86,6 +209,7 @@ async def list_pms_providers():
             {"id": "opera", "name": "Oracle Opera (OHIP)", "status": "available", "description": "Oracle Hospitality Integration Platform"},
             {"id": "mews", "name": "Mews", "status": "available", "description": "Mews Connector API"},
             {"id": "cloudbeds", "name": "Cloudbeds", "status": "available", "description": "Cloudbeds Open API"},
+            {"id": "syroce", "name": "Syroce PMS", "status": "available", "description": "Syroce hotel management system (bi-directional)"},
         ]
     }
 

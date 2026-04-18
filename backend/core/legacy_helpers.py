@@ -170,6 +170,17 @@ async def award_loyalty_points(tenant: dict, event_type: str, event_data: dict):
             {"id": contact["loyalty_account_id"]},
             {"$inc": {"points": points}, "$set": {"updated_at": now_utc().isoformat()}},
         )
+        # Outbound: notify Syroce PMS if integrated for this tenant
+        try:
+            from routers.syroce_integration import fire_syroce_event
+            await fire_syroce_event(tenant["id"], "loyalty.points_awarded", {
+                "guest_id": contact.get("id"),
+                "guest_phone": phone,
+                "points": points,
+                "reason": event_type,
+            })
+        except Exception:
+            pass
 
 
 # ============ Pydantic models used by legacy routers ============
