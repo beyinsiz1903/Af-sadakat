@@ -174,6 +174,18 @@ async def _create_linked_request(tid, room, category, dept_code, description, gu
         "updated_at": now_utc().isoformat(),
     }
     await _db.guest_requests.insert_one(req)
+    try:
+        from routers.syroce_integration import fire_syroce_event
+        await fire_syroce_event(tid, "service.request.created", {
+            "id": req["id"], "category": req.get("category"),
+            "description": req.get("description"),
+            "room_code": req.get("room_code"),
+            "guest_name": req.get("guest_name"),
+            "priority": req.get("priority"),
+            "created_at": req.get("created_at"),
+        })
+    except Exception:
+        pass
     return req
 
 # ============ HOTEL INFO (Public - Guest facing) ============
@@ -1473,6 +1485,25 @@ async def guest_create_reservation(tenant_slug: str, data: dict):
     await log_audit(tid, "RESERVATION_CREATED", "reservation", reservation["id"], "guest",
                     {"confirmation_code": confirmation_code, "source": "GUEST_PORTAL"})
 
+    try:
+        from routers.syroce_integration import fire_syroce_event
+        await fire_syroce_event(tid, "reservation.created", {
+            "id": reservation["id"],
+            "confirmation_code": confirmation_code,
+            "guest_name": reservation.get("guest_name"),
+            "guest_phone": reservation.get("guest_phone"),
+            "guest_email": reservation.get("guest_email"),
+            "room_code": reservation.get("room_code"),
+            "check_in": reservation.get("check_in"),
+            "check_out": reservation.get("check_out"),
+            "nights": reservation.get("nights"),
+            "price_total": reservation.get("price_total"),
+            "currency": reservation.get("currency"),
+            "source": "GUEST_PORTAL",
+        })
+    except Exception:
+        pass
+
     return {
         "reservation": serialize_doc(reservation),
         "confirmation_code": confirmation_code,
@@ -1517,6 +1548,21 @@ async def express_checkout(tenant_slug: str, room_code: str, data: dict):
         "created_at": now_utc().isoformat(),
         "updated_at": now_utc().isoformat(),
     })
+
+    try:
+        from routers.syroce_integration import fire_syroce_event
+        await fire_syroce_event(tid, "guest.checkout_requested", {
+            "checkout_id": checkout_request["id"],
+            "room_code": room_code,
+            "guest_name": checkout_request.get("guest_name"),
+            "folio_total": checkout_request.get("folio_total"),
+            "currency": folio.get("currency", "TRY"),
+            "payment_method": checkout_request.get("payment_method"),
+            "rating": checkout_request.get("rating"),
+            "feedback": checkout_request.get("feedback"),
+        })
+    except Exception:
+        pass
 
     return {
         "checkout_id": checkout_request["id"],

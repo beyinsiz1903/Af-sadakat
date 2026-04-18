@@ -2282,6 +2282,7 @@ for _name, _import_path in [
     ("dashboard_stats", "routers.dashboard_stats"),
     ("analytics", "routers.analytics"),
     ("compliance_growth", "routers.compliance_growth"),
+    ("syroce_webhooks", "routers.syroce_webhooks"),
 ]:
     try:
         _mod = __import__(_import_path, fromlist=["router"])
