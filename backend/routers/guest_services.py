@@ -1572,6 +1572,20 @@ async def digital_checkin(tenant_slug: str, room_code: str, data: dict):
     if not room:
         raise HTTPException(status_code=404, detail="Room not found")
 
+    # Required field validation
+    required_missing = []
+    for field in ("guest_name", "guest_phone", "id_number"):
+        if not (data.get(field) or "").strip():
+            required_missing.append(field)
+    if required_missing:
+        raise HTTPException(status_code=400,
+                            detail=f"Missing required fields: {', '.join(required_missing)}")
+    if not data.get("terms_accepted"):
+        raise HTTPException(status_code=400, detail="Terms must be accepted to complete check-in")
+    id_type = data.get("id_type", "passport")
+    if id_type not in ("passport", "national_id", "driver_license"):
+        raise HTTPException(status_code=400, detail="Invalid id_type")
+
     checkin_record = {
         "id": new_id(), "tenant_id": tid,
         "room_code": room_code,

@@ -617,23 +617,25 @@ async def resolve_device(tenant_slug: str, data: dict):
 @api_router.post("/g/{tenant_slug}/loyalty/join")
 async def join_loyalty(tenant_slug: str, data: dict):
     tenant = await get_tenant_by_slug(tenant_slug)
-    phone = data.get("phone", "")
-    email = data.get("email", "")
+    phone = _phone_normalize(data.get("phone", ""))
+    email = (data.get("email") or "").strip().lower()
     name = data.get("name", data.get("guest_name", ""))
     room_code = data.get("room_code", "")
-    
+
     if not phone and not email:
         raise HTTPException(status_code=400, detail="Phone or email required")
-    
+
+    # Enforce OTP verification for phone-based enrollment
     otp_verified = False
     if phone:
         otp_record = await db.otp_codes.find_one({
             "tenant_id": tenant["id"], "phone": phone, "verified": True
         })
-        if otp_record:
-            otp_verified = True
-            await db.otp_codes.delete_many({"tenant_id": tenant["id"], "phone": phone})
-    
+        if not otp_record:
+            raise HTTPException(status_code=403, detail="Phone not verified. Please verify OTP first.")
+        otp_verified = True
+        await db.otp_codes.delete_many({"tenant_id": tenant["id"], "phone": phone})
+
     contact = await _upsert_contact(tenant["id"], name, phone, email)
     
     existing = await db.loyalty_accounts.find_one({"tenant_id": tenant["id"], "contact_id": contact["id"]})

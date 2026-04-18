@@ -95,7 +95,16 @@ async def get_tenant_by_id(tenant_id: str):
     return serialize_doc(tenant)
 
 
+def normalize_phone(p: str) -> str:
+    p = (p or "").strip().replace(" ", "").replace("-", "")
+    if p.startswith("00"):
+        p = "+" + p[2:]
+    return p
+
+
 async def upsert_contact(tenant_id: str, name: str = "", phone: str = "", email: str = ""):
+    phone = normalize_phone(phone)
+    email = (email or "").strip().lower()
     if not phone and not email:
         return None
     query = {"tenant_id": tenant_id}

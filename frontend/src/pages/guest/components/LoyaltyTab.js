@@ -37,15 +37,34 @@ export default function LoyaltyTab() {
   const [digitalCard, setDigitalCard] = useState(null);
 
   useEffect(() => {
-    const stored = localStorage.getItem(`loyalty_${tenantSlug}_${roomCode}`);
-    if (stored) {
-      try {
-        const parsed = JSON.parse(stored);
-        setContactId(parsed.contact_id);
-        setJoined(true);
-      } catch (e) {}
-    }
-    setLoading(false);
+    (async () => {
+      const stored = localStorage.getItem(`loyalty_${tenantSlug}_${roomCode}`);
+      if (stored) {
+        try {
+          const parsed = JSON.parse(stored);
+          setContactId(parsed.contact_id);
+          setJoined(true);
+          setLoading(false);
+          return;
+        } catch (e) {}
+      }
+      // Auto-recognize returning guest by device_token (cross-room)
+      const devToken = localStorage.getItem(`omnihub_device_${tenantSlug}`);
+      if (devToken) {
+        try {
+          const res = await guestAPI.resolveDevice(tenantSlug, { device_token: devToken });
+          if (res.data?.contact_id) {
+            setContactId(res.data.contact_id);
+            setJoined(true);
+            localStorage.setItem(`loyalty_${tenantSlug}_${roomCode}`,
+              JSON.stringify({ contact_id: res.data.contact_id }));
+          }
+        } catch (e) {
+          if (e.response?.status === 410) localStorage.removeItem(`omnihub_device_${tenantSlug}`);
+        }
+      }
+      setLoading(false);
+    })();
   }, [tenantSlug, roomCode]);
 
   useEffect(() => {
@@ -85,7 +104,10 @@ export default function LoyaltyTab() {
     if (!otpCode.trim() || !joinForm.name.trim()) return;
     setJoining(true);
     try {
-      await guestAPI.verifyOtp(tenantSlug, { phone: joinForm.phone, code: otpCode });
+      const verifyRes = await guestAPI.verifyOtp(tenantSlug, { phone: joinForm.phone, code: otpCode });
+      if (verifyRes.data?.device_token) {
+        localStorage.setItem(`omnihub_device_${tenantSlug}`, verifyRes.data.device_token);
+      }
       const res = await guestAPI.joinLoyalty(tenantSlug, {
         guest_name: joinForm.name, phone: joinForm.phone, email: joinForm.email, room_code: roomCode
       });

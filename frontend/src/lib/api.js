@@ -151,6 +151,7 @@ export const guestAPI = {
   sendMessage: (slug, convId, data) => api.post(`/g/${slug}/chat/${convId}/messages`, data),
   sendOtp: (slug, data) => api.post(`/g/${slug}/loyalty/send-otp`, data),
   verifyOtp: (slug, data) => api.post(`/g/${slug}/loyalty/verify-otp`, data),
+  resolveDevice: (slug, data) => api.post(`/g/${slug}/loyalty/resolve-device`, data),
   joinLoyalty: (slug, data) => api.post(`/g/${slug}/loyalty/join`, data),
   checkAvailability: (slug, params) => api.get(`/g/${slug}/rooms/availability`, { params }),
   createGuestReservation: (slug, data) => api.post(`/g/${slug}/rooms/reserve`, data),

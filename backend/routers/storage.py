@@ -141,3 +141,27 @@ async def remove_file(tenant_slug: str, file_id: str, user=Depends(get_current_u
     if not ok:
         raise HTTPException(status_code=404, detail="File not found")
     return {"deleted": True}
+
+
+@router.get("/tenants/{tenant_slug}/files/{file_id}/signed-url")
+async def get_signed_url(tenant_slug: str, file_id: str, expires_in: int = 3600,
+                          user=Depends(get_current_user)):
+    """Generate a presigned URL for private S3 objects (1h default)."""
+    tenant = await resolve_tenant(tenant_slug)
+    tid = tenant["id"]
+    record = await db.file_records.find_one({"id": file_id, "tenant_id": tid})
+    if not record:
+        raise HTTPException(status_code=404, detail="File not found")
+    expires_in = max(60, min(expires_in, 86400))
+    if record.get("storage") == "s3" and s3_client:
+        try:
+            url = s3_client.generate_presigned_url(
+                "get_object",
+                Params={"Bucket": S3_BUCKET, "Key": record["key"]},
+                ExpiresIn=expires_in,
+            )
+            return {"url": url, "expires_in": expires_in, "storage": "s3"}
+        except Exception as e:
+            logger.error(f"presign failed: {e}")
+            raise HTTPException(status_code=500, detail="Failed to sign URL")
+    return {"url": record["url"], "expires_in": 0, "storage": "local"}
