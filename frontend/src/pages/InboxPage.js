@@ -11,7 +11,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/dialog';
 import {
   MessageSquare, Send, Sparkles, AlertTriangle, User, Bot, Loader2, X,
-  Phone, Instagram, Globe, Gift, Link2, Copy, ExternalLink, CheckCircle2
+  Phone, Instagram, Globe, Gift, Link2, Copy, ExternalLink, CheckCircle2,
+  Image as ImageIcon, Mic, Video, Paperclip, FileText, Plus, Trash2
 } from 'lucide-react';
 import { timeAgo, formatCurrency } from '../lib/utils';
 import { toast } from 'sonner';
@@ -47,6 +48,54 @@ export default function InboxPage() {
   const [offerForm, setOfferForm] = useState({
     room_type: 'standard', check_in: '', check_out: '',
     price: '', currency: 'TRY', guests_count: '2', notes: ''
+  });
+
+  // WhatsApp template picker state
+  const [templateModalOpen, setTemplateModalOpen] = useState(false);
+  const [templateMgrOpen, setTemplateMgrOpen] = useState(false);
+  const [selectedTemplate, setSelectedTemplate] = useState(null);
+  const [templateParams, setTemplateParams] = useState([]);
+  const [newTpl, setNewTpl] = useState({ name: '', language: 'en', category: 'UTILITY', body_preview: '', param_count: 0 });
+
+  // Templates list
+  const { data: templatesData, refetch: refetchTemplates } = useQuery({
+    queryKey: ['wa-templates', tenant?.slug],
+    queryFn: () => api.get(`/v2/whatsapp/tenants/${tenant?.slug}/templates`).then(r => r.data),
+    enabled: !!tenant?.slug,
+  });
+  const templates = templatesData || [];
+
+  const createTemplateMutation = useMutation({
+    mutationFn: (payload) => api.post(`/v2/whatsapp/tenants/${tenant?.slug}/templates`, payload),
+    onSuccess: () => {
+      toast.success('Şablon eklendi');
+      setNewTpl({ name: '', language: 'en', category: 'UTILITY', body_preview: '', param_count: 0 });
+      refetchTemplates();
+    },
+    onError: () => toast.error('Şablon eklenemedi'),
+  });
+  const deleteTemplateMutation = useMutation({
+    mutationFn: (id) => api.delete(`/v2/whatsapp/tenants/${tenant?.slug}/templates/${id}`),
+    onSuccess: () => { toast.success('Silindi'); refetchTemplates(); },
+  });
+  const sendTemplateMutation = useMutation({
+    mutationFn: () => api.post(
+      `/v2/whatsapp/tenants/${tenant?.slug}/conversations/${selectedConv?.id}/send-template`,
+      {
+        template_name: selectedTemplate?.name,
+        language: selectedTemplate?.language || 'en',
+        parameters: templateParams,
+      }
+    ),
+    onSuccess: () => {
+      toast.success('Şablon gönderildi');
+      setTemplateModalOpen(false);
+      setSelectedTemplate(null);
+      setTemplateParams([]);
+      refetchDetail();
+      refetchConvs();
+    },
+    onError: (e) => toast.error(e.response?.data?.detail || 'Şablon gönderilemedi'),
   });
 
   // V2 API: list conversations
@@ -94,7 +143,15 @@ export default function InboxPage() {
       refetchDetail();
       refetchConvs();
     },
-    onError: () => toast.error('Failed to send'),
+    onError: (err) => {
+      const detail = err.response?.data?.detail;
+      if (detail?.code === 'TEMPLATE_REQUIRED') {
+        toast.warning('24 saatlik pencere doldu. Şablon mesajı gönderin.');
+        setTemplateModalOpen(true);
+      } else {
+        toast.error('Mesaj gönderilemedi');
+      }
+    },
   });
 
   // Close/Reopen
@@ -396,9 +453,40 @@ export default function InboxPage() {
                           ? 'bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]'
                           : 'bg-[hsl(var(--secondary))]'
                       }`}>
-                        <p className="text-sm">{msg.body}</p>
+                        {/* Media attachments (inbound) */}
+                        {Array.isArray(msg.meta?.media) && msg.meta.media.length > 0 && (
+                          <div className="space-y-2 mb-2">
+                            {msg.meta.media.map((m, idx) => {
+                              const t = (m.type || '').toLowerCase();
+                              const rawUrl = typeof m.url === 'string' ? m.url : '';
+                              const safeUrl = (rawUrl.startsWith('http://') || rawUrl.startsWith('https://') || rawUrl.startsWith('/api/')) ? rawUrl : '';
+                              if (t === 'image' && safeUrl) {
+                                return <img key={idx} src={safeUrl} alt="" className="rounded-lg max-w-full max-h-60 object-cover" />;
+                              }
+                              if (t === 'video' && safeUrl) {
+                                return <video key={idx} src={safeUrl} controls className="rounded-lg max-w-full max-h-60" />;
+                              }
+                              if (t === 'audio' && safeUrl) {
+                                return <audio key={idx} src={safeUrl} controls className="w-full" />;
+                              }
+                              const Icon = t === 'image' ? ImageIcon : t === 'video' ? Video : t === 'audio' ? Mic : t === 'document' || t === 'file' ? FileText : Paperclip;
+                              return (
+                                <div key={idx} className="flex items-center gap-2 text-xs opacity-80">
+                                  <Icon className="w-3.5 h-3.5" />
+                                  {safeUrl ? (
+                                    <a href={safeUrl} target="_blank" rel="noreferrer" className="underline">{m.filename || t || 'attachment'}</a>
+                                  ) : (
+                                    <span>{m.filename || `[${t}]`}{m.mime_type ? ` (${m.mime_type})` : ''}</span>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                        {msg.body && <p className="text-sm whitespace-pre-wrap">{msg.body}</p>}
                         <div className={`flex items-center gap-2 mt-1 ${msg.direction === 'OUT' ? 'text-white/50' : 'text-[hsl(var(--muted-foreground))]'}`}>
                           <span className="text-[10px]">{timeAgo(msg.created_at)}</span>
+                          {msg.meta?.kind === 'template' && <span className="text-[10px]">• template</span>}
                           {msg.last_updated_by && <span className="text-[10px]">by {msg.last_updated_by}</span>}
                         </div>
                       </div>
@@ -435,13 +523,18 @@ export default function InboxPage() {
 
               {/* Compose */}
               <div className="flex gap-2 pt-2">
-                <Button variant="outline" size="icon" className="h-10 w-10 flex-shrink-0" onClick={() => suggestMutation.mutate()} disabled={suggestMutation.isPending} data-testid="ai-suggest-btn">
+                <Button variant="outline" size="icon" className="h-10 w-10 flex-shrink-0" onClick={() => suggestMutation.mutate()} disabled={suggestMutation.isPending} data-testid="ai-suggest-btn" title="AI önerisi">
                   <Sparkles className="w-4 h-4" />
                 </Button>
+                {selectedConv?.channel_type === 'WHATSAPP' && (
+                  <Button variant="outline" size="icon" className="h-10 w-10 flex-shrink-0" onClick={() => setTemplateModalOpen(true)} data-testid="wa-template-btn" title="WhatsApp şablonu gönder">
+                    <FileText className="w-4 h-4" />
+                  </Button>
+                )}
                 <Input
                   value={newMessage}
                   onChange={(e) => setNewMessage(e.target.value)}
-                  placeholder="Type a message..."
+                  placeholder="Mesaj yazın..."
                   className="bg-[hsl(var(--secondary))]"
                   onKeyDown={(e) => e.key === 'Enter' && handleSend()}
                   data-testid="chat-compose-input"
@@ -462,6 +555,123 @@ export default function InboxPage() {
           )}
         </div>
       </div>
+
+      {/* WhatsApp Template Picker Dialog */}
+      <Dialog open={templateModalOpen} onOpenChange={setTemplateModalOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center justify-between gap-3">
+              <span>WhatsApp Şablonu Gönder</span>
+              <Button size="sm" variant="ghost" className="h-7" onClick={() => { setTemplateModalOpen(false); setTemplateMgrOpen(true); }}>
+                <Plus className="w-3.5 h-3.5 mr-1" /> Yönet
+              </Button>
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <p className="text-xs text-[hsl(var(--muted-foreground))]">
+              24 saatlik konuşma penceresi dışındaki misafirler için Meta tarafından önceden onaylanmış bir şablon seçin.
+            </p>
+            {templates.length === 0 ? (
+              <div className="text-center py-6 text-sm text-[hsl(var(--muted-foreground))]">
+                Henüz şablon eklenmemiş. "Yönet" butonu ile ekleyebilirsiniz.
+              </div>
+            ) : (
+              <div className="space-y-2 max-h-64 overflow-y-auto">
+                {templates.map(t => (
+                  <button
+                    key={t.id}
+                    type="button"
+                    onClick={() => {
+                      setSelectedTemplate(t);
+                      setTemplateParams(Array(t.param_count || 0).fill(''));
+                    }}
+                    className={`w-full text-left rounded-lg border px-3 py-2 ${selectedTemplate?.id === t.id ? 'border-[hsl(var(--primary))] bg-[hsl(var(--primary)/0.08)]' : 'border-[hsl(var(--border))]'}`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="font-medium text-sm">{t.name}</span>
+                      <Badge variant="secondary" className="text-[10px]">{t.language} • {t.category}</Badge>
+                    </div>
+                    {t.body_preview && <p className="text-xs text-[hsl(var(--muted-foreground))] mt-1">{t.body_preview}</p>}
+                  </button>
+                ))}
+              </div>
+            )}
+            {selectedTemplate && (selectedTemplate.param_count || 0) > 0 && (
+              <div className="space-y-2 pt-2 border-t">
+                <p className="text-xs font-medium">Parametreler ({selectedTemplate.param_count})</p>
+                {templateParams.map((v, i) => (
+                  <Input
+                    key={i}
+                    value={v}
+                    onChange={(e) => {
+                      const next = [...templateParams]; next[i] = e.target.value; setTemplateParams(next);
+                    }}
+                    placeholder={`{{${i + 1}}}`}
+                  />
+                ))}
+              </div>
+            )}
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="outline" onClick={() => setTemplateModalOpen(false)}>İptal</Button>
+              <Button
+                onClick={() => sendTemplateMutation.mutate()}
+                disabled={!selectedTemplate || sendTemplateMutation.isPending || templateParams.some(p => !p?.trim())}
+              >
+                {sendTemplateMutation.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Send className="w-4 h-4 mr-2" />}
+                Gönder
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Template Manager Dialog */}
+      <Dialog open={templateMgrOpen} onOpenChange={setTemplateMgrOpen}>
+        <DialogContent className="max-w-xl">
+          <DialogHeader><DialogTitle>WhatsApp Şablonları</DialogTitle></DialogHeader>
+          <div className="space-y-4">
+            <div className="rounded-lg border p-3 space-y-2">
+              <p className="text-xs font-medium">Yeni Şablon Ekle</p>
+              <p className="text-[11px] text-[hsl(var(--muted-foreground))]">
+                Şablonu önce Meta Business Manager'da oluşturup onaylatın, sonra burada ad/dil bilgileriyle kayıt ekleyin.
+              </p>
+              <div className="grid grid-cols-2 gap-2">
+                <Input placeholder="Şablon adı (örn. welcome_v1)" value={newTpl.name} onChange={(e) => setNewTpl({ ...newTpl, name: e.target.value })} />
+                <Input placeholder="Dil (en, tr, ar, ...)" value={newTpl.language} onChange={(e) => setNewTpl({ ...newTpl, language: e.target.value })} />
+                <Select value={newTpl.category} onValueChange={(v) => setNewTpl({ ...newTpl, category: v })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="UTILITY">UTILITY</SelectItem>
+                    <SelectItem value="MARKETING">MARKETING</SelectItem>
+                    <SelectItem value="AUTHENTICATION">AUTHENTICATION</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Input type="number" min="0" max="10" placeholder="Parametre sayısı" value={newTpl.param_count} onChange={(e) => setNewTpl({ ...newTpl, param_count: parseInt(e.target.value || '0') })} />
+              </div>
+              <Input placeholder="Önizleme (gövde metni)" value={newTpl.body_preview} onChange={(e) => setNewTpl({ ...newTpl, body_preview: e.target.value })} />
+              <Button size="sm" onClick={() => createTemplateMutation.mutate(newTpl)} disabled={!newTpl.name.trim() || createTemplateMutation.isPending}>
+                <Plus className="w-3.5 h-3.5 mr-1" /> Ekle
+              </Button>
+            </div>
+            <div className="space-y-1 max-h-72 overflow-y-auto">
+              {templates.map(t => (
+                <div key={t.id} className="flex items-center justify-between border rounded px-3 py-2">
+                  <div>
+                    <p className="text-sm font-medium">{t.name} <span className="text-xs text-[hsl(var(--muted-foreground))]">({t.language} · {t.category} · {t.param_count} param)</span></p>
+                    {t.body_preview && <p className="text-xs text-[hsl(var(--muted-foreground))]">{t.body_preview}</p>}
+                  </div>
+                  <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => deleteTemplateMutation.mutate(t.id)}>
+                    <Trash2 className="w-3.5 h-3.5 text-red-500" />
+                  </Button>
+                </div>
+              ))}
+              {templates.length === 0 && (
+                <p className="text-center text-xs text-[hsl(var(--muted-foreground))] py-3">Henüz şablon yok.</p>
+              )}
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

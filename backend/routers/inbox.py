@@ -174,8 +174,8 @@ async def send_agent_message(tenant_slug: str, conv_id: str, data: dict, user=De
         except MetaAPIError as e:
             import logging as _log
             _log.getLogger("omnihub.inbox").error(f"Meta send failed: {e}")
-            # Still store message locally even if external send fails
-            meta_send_result = {"error": str(e)}
+            # Store message locally; expose only generic error to clients.
+            meta_send_result = {"error": "PROVIDER_SEND_FAILED"}
         except Exception as e:
             import logging as _log
             _log.getLogger("omnihub.inbox").error(f"Meta send error: {e}")

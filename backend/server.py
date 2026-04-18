@@ -2881,6 +2881,13 @@ try:
 except Exception as e:
     logger.warning(f"V2 Meta webhooks router not loaded: {e}")
 
+try:
+    from routers.whatsapp_templates import router as wa_templates_router
+    app.include_router(wa_templates_router)
+    logger.info("V2 WhatsApp templates router loaded")
+except Exception as e:
+    logger.warning(f"V2 WhatsApp templates router not loaded: {e}")
+
 # Sprint 9: New feature routers
 for router_name, router_module, router_attr in [
     ("guest_services", "routers.guest_services", "router"),

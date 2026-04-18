@@ -273,17 +273,45 @@ async def webhook_event(tenant_slug: str, request: Request):
                         from_number = msg.get("from", "")
                         msg_id = msg.get("id", "")
                         msg_type = msg.get("type", "text")
-                        text = msg.get("text", {}).get("body", "") if msg_type == "text" else f"[{msg_type}]"
+
+                        # Extract text body / media metadata
+                        text = ""
+                        media = []
+                        if msg_type == "text":
+                            text = msg.get("text", {}).get("body", "")
+                        elif msg_type in ("image", "audio", "video", "document", "sticker"):
+                            media_obj = msg.get(msg_type, {}) or {}
+                            caption = media_obj.get("caption", "")
+                            text = caption or f"[{msg_type}]"
+                            wa_media_id = media_obj.get("id", "")
+                            tenant_doc = await db.tenants.find_one({"id": tid}, {"_id": 0, "slug": 1})
+                            tslug = (tenant_doc or {}).get("slug", "")
+                            proxy_url = f"/api/v2/whatsapp/tenants/{tslug}/media/{wa_media_id}" if (tslug and wa_media_id) else ""
+                            media.append({
+                                "type": msg_type,
+                                "wa_media_id": wa_media_id,
+                                "mime_type": media_obj.get("mime_type", ""),
+                                "filename": media_obj.get("filename", ""),
+                                "caption": caption,
+                                "url": proxy_url,
+                            })
+                        elif msg_type == "location":
+                            loc = msg.get("location", {}) or {}
+                            text = f"[location] {loc.get('name', '')} ({loc.get('latitude')}, {loc.get('longitude')})"
+                        else:
+                            text = f"[{msg_type}]"
 
                         conv = await _upsert_conversation(
                             tid, "WHATSAPP", from_number, phone_number_id,
                             contact_name, {"wa_phone_number_id": phone_number_id, "wa_from_number": from_number}
                         )
                         ext_id = _deterministic_id(tid, "whatsapp", msg_id)
+                        meta_info = {"sender_type": "guest", "sender_name": contact_name,
+                                     "wa_msg_id": msg_id, "wa_msg_type": msg_type, "provider": "META"}
+                        if media:
+                            meta_info["media"] = media
                         result = await _insert_message(
-                            tid, conv["id"], ext_id, text, "IN",
-                            {"sender_type": "guest", "sender_name": contact_name,
-                             "wa_msg_id": msg_id, "wa_msg_type": msg_type, "provider": "META"}
+                            tid, conv["id"], ext_id, text, "IN", meta_info
                         )
                         if result:
                             messages_created += 1
@@ -297,9 +325,28 @@ async def webhook_event(tenant_slug: str, request: Request):
                 message_data = messaging_event.get("message", {})
                 msg_id = message_data.get("mid", "")
                 text = message_data.get("text", "")
+                attachments = message_data.get("attachments", []) or []
                 _timestamp_ms = messaging_event.get("timestamp", 0)
 
-                if not text or not sender_id:
+                # Parse media attachments (image/audio/video/file)
+                media = []
+                for att in attachments:
+                    if not isinstance(att, dict):
+                        continue
+                    a_type = att.get("type", "file")
+                    payload_a = att.get("payload", {}) or {}
+                    a_url = payload_a.get("url", "") or ""
+                    if a_url and not (a_url.startswith("http://") or a_url.startswith("https://")):
+                        a_url = ""
+                    media.append({
+                        "type": a_type,
+                        "url": a_url,
+                        "sticker_id": payload_a.get("sticker_id"),
+                    })
+                if not text and media:
+                    text = f"[{media[0]['type']}]"
+
+                if (not text and not media) or not sender_id:
                     continue
 
                 # Determine channel
@@ -313,10 +360,12 @@ async def webhook_event(tenant_slug: str, request: Request):
                     {"psid": sender_id} if channel == "FACEBOOK" else {"ig_thread_id": sender_id}
                 )
                 ext_id = _deterministic_id(tid, channel.lower(), msg_id)
+                meta_info = {"sender_type": "guest", "sender_id": sender_id,
+                             "mid": msg_id, "provider": "META", "channel": channel}
+                if media:
+                    meta_info["media"] = media
                 result = await _insert_message(
-                    tid, conv["id"], ext_id, text, "IN",
-                    {"sender_type": "guest", "sender_id": sender_id,
-                     "mid": msg_id, "provider": "META", "channel": channel}
+                    tid, conv["id"], ext_id, text, "IN", meta_info
                 )
                 if result:
                     messages_created += 1
