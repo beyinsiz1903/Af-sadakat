@@ -357,204 +357,13 @@ async def delete_menu_item(tenant_slug: str, item_id: str):
 
 
 
-# ============ WEBCHAT / CONVERSATION ROUTES ============
-@api_router.post("/g/{tenant_slug}/chat/start")
-async def start_chat(tenant_slug: str):
-    tenant = await get_tenant_by_slug(tenant_slug)
-    conversation = {
-        "id": new_id(),
-        "tenant_id": tenant["id"],
-        "channel": "webchat",
-        "status": "open",
-        "guest_name": "",
-        "assigned_agent": None,
-        "needs_attention": False,
-        "last_message": "",
-        "created_at": now_utc().isoformat(),
-        "updated_at": now_utc().isoformat()
-    }
-    await db.conversations.insert_one(conversation)
-    result = serialize_doc(conversation)
-    await ws_manager.broadcast_tenant(tenant["id"], "conversation", "conversation", "created", result)
-    return result
+# ============ WEBCHAT/CONVERSATION + AI SUGGEST — extracted to routers/guest_chat.py ============
 
-@api_router.post("/g/{tenant_slug}/chat/{conversation_id}/messages")
-async def send_chat_message(tenant_slug: str, conversation_id: str, message: dict):
-    tenant = await get_tenant_by_slug(tenant_slug)
-    conv = await db.conversations.find_one({"id": conversation_id, "tenant_id": tenant["id"]})
-    if not conv:
-        raise HTTPException(status_code=404, detail="Conversation not found")
-    
-    content = message.get("content", "")
-    msg = {
-        "id": new_id(),
-        "tenant_id": tenant["id"],
-        "conversation_id": conversation_id,
-        "sender_type": message.get("sender_type", "guest"),
-        "sender_name": message.get("sender_name", "Guest"),
-        "content": content,
-        "created_at": now_utc().isoformat()
-    }
-    await db.messages.insert_one(msg)
-    
-    # Update conversation
-    update = {"updated_at": now_utc().isoformat(), "last_message": content[:100]}
-    
-    # Check for escalation
-    urgent_keywords = ["urgent", "emergency", "broken", "complaint", "terrible", "acil", "sorun", "korkunç"]
-    if any(kw in content.lower() for kw in urgent_keywords):
-        update["needs_attention"] = True
-    
-    if message.get("sender_name"):
-        update["guest_name"] = message["sender_name"]
-    
-    await db.conversations.update_one({"id": conversation_id}, {"$set": update})
-    
-    result = serialize_doc(msg)
-    await ws_manager.broadcast_tenant(tenant["id"], "message", "message", "created", result)
-    return result
-
-@api_router.get("/g/{tenant_slug}/chat/{conversation_id}/messages")
-async def get_chat_messages(tenant_slug: str, conversation_id: str):
-    tenant = await get_tenant_by_slug(tenant_slug)
-    messages = await db.messages.find(
-        {"tenant_id": tenant["id"], "conversation_id": conversation_id}, {"_id": 0}
-    ).sort("created_at", 1).to_list(500)
-    return [serialize_doc(m) for m in messages]
-
-@api_router.get("/tenants/{tenant_slug}/conversations")
-async def list_conversations(tenant_slug: str, status: Optional[str] = None):
-    tenant = await get_tenant_by_slug(tenant_slug)
-    query = {"tenant_id": tenant["id"]}
-    if status:
-        query["status"] = status
-    convs = await db.conversations.find(query, {"_id": 0}).sort("updated_at", -1).to_list(100)
-    return [serialize_doc(c) for c in convs]
-
-@api_router.patch("/tenants/{tenant_slug}/conversations/{conv_id}")
-async def update_conversation(tenant_slug: str, conv_id: str, data: dict):
-    tenant = await get_tenant_by_slug(tenant_slug)
-    allowed = ["status", "assigned_agent", "needs_attention"]
-    update_data = {k: v for k, v in data.items() if k in allowed}
-    update_data["updated_at"] = now_utc().isoformat()
-    await db.conversations.update_one({"id": conv_id, "tenant_id": tenant["id"]}, {"$set": update_data})
-    updated = await db.conversations.find_one({"id": conv_id}, {"_id": 0})
-    return serialize_doc(updated)
-
-# ============ AI MOCK PROVIDER ============
-@api_router.post("/tenants/{tenant_slug}/ai/suggest-reply")
-async def ai_suggest_reply(tenant_slug: str, context: dict):
-    tenant = await get_tenant_by_slug(tenant_slug)
-    
-    message_text = context.get("message", "")
-    language = context.get("language", "en")
-    sector = context.get("sector", tenant.get("business_type", "hotel"))
-    
-    turkish_words = ["merhaba", "teşekkür", "lütfen", "rica", "oda", "yardım", "sipariş", "garson", "hesap"]
-    if any(w in message_text.lower() for w in turkish_words):
-        language = "tr"
-    
-    templates = {
-        "hotel": {
-            "en": {
-                "greeting": "Welcome! Thank you for reaching out. How can we assist you during your stay?",
-                "request": "We've received your request and our team is working on it. Is there anything else you need?",
-                "complaint": "We sincerely apologize for the inconvenience. Our team has been notified and will address this immediately.",
-                "checkout": "Thank you for staying with us! We hope you had a wonderful experience. Safe travels!",
-                "default": "Thank you for your message. Our team will get back to you shortly."
-            },
-            "tr": {
-                "greeting": "Hos geldiniz! Bize ulastiginiz icin tesekkur ederiz. Konaklamaniz suresince size nasil yardimci olabiliriz?",
-                "request": "Talebinizi aldik ve ekibimiz uzerinde calisiyor. Baska bir ihtiyaciniz var mi?",
-                "complaint": "Yasadiginiz rahatsizlik icin ictenlikle ozur dileriz. Ekibimiz bilgilendirildi.",
-                "checkout": "Bizde kaldiginiz icin tesekkur ederiz! Harika bir deneyim yasamis olmanizi umuyoruz.",
-                "default": "Mesajiniz icin tesekkur ederiz. Ekibimiz en kisa surede size donus yapacaktir."
-            }
-        },
-        "restaurant": {
-            "en": {
-                "greeting": "Welcome! Thank you for dining with us. How can we help?",
-                "order": "Your order has been received and is being prepared. We'll update you when it's ready!",
-                "complaint": "We're sorry about that. We'll make it right. A team member will be with you shortly.",
-                "bill": "Your bill is being prepared. Thank you for dining with us!",
-                "default": "Thank you for your message. How can we help you today?"
-            },
-            "tr": {
-                "greeting": "Hos geldiniz! Bizi tercih ettiginiz icin tesekkur ederiz.",
-                "order": "Siparisinis alindi ve hazirlaniyor. Hazir oldugunda sizi bilgilendireceğiz!",
-                "complaint": "Bunun icin uzgunuz. Hemen duzelteceğiz.",
-                "bill": "Hesabiniz hazirlaniyor. Bizi tercih ettiginiz icin tesekkur ederiz!",
-                "default": "Mesajiniz icin tesekkurler. Bugün size nasil yardimci olabiliriz?"
-            }
-        }
-    }
-    
-    intent = "default"
-    lower = message_text.lower()
-    if any(w in lower for w in ["hello", "hi", "merhaba", "selam"]):
-        intent = "greeting"
-    elif any(w in lower for w in ["order", "sipariş", "menu"]):
-        intent = "order"
-    elif any(w in lower for w in ["request", "need", "talep", "istiyorum"]):
-        intent = "request"
-    elif any(w in lower for w in ["complaint", "problem", "issue", "şikayet", "sorun"]):
-        intent = "complaint"
-    elif any(w in lower for w in ["bill", "check", "hesap", "ödeme"]):
-        intent = "bill"
-    elif any(w in lower for w in ["checkout", "leaving", "çıkış"]):
-        intent = "checkout"
-    
-    sector_templates = templates.get(sector, templates["hotel"])
-    lang_templates = sector_templates.get(language, sector_templates["en"])
-    reply = lang_templates.get(intent, lang_templates["default"])
-    
-    await db.tenants.update_one({"id": tenant["id"]}, {"$inc": {"usage_counters.ai_replies_this_month": 1}})
-    
-    return {"suggestion": reply, "intent": intent, "language": language, "sector": sector, "provider": "mock_template_v1"}
 
 # ============ LOYALTY ROUTES — extracted to routers/guest_loyalty.py ============
 
-# ============ DASHBOARD STATS ============
-@api_router.get("/tenants/{tenant_slug}/stats")
-async def get_dashboard_stats(tenant_slug: str):
-    tenant = await get_tenant_by_slug(tenant_slug)
-    tid = tenant["id"]
-    
-    total_requests = await db.guest_requests.count_documents({"tenant_id": tid})
-    open_requests = await db.guest_requests.count_documents({"tenant_id": tid, "status": "OPEN"})
-    in_progress_requests = await db.guest_requests.count_documents({"tenant_id": tid, "status": "IN_PROGRESS"})
-    done_requests = await db.guest_requests.count_documents({"tenant_id": tid, "status": {"$in": ["DONE", "CLOSED"]}})
-    
-    total_orders = await db.orders.count_documents({"tenant_id": tid})
-    active_orders = await db.orders.count_documents({"tenant_id": tid, "status": {"$in": ["RECEIVED", "PREPARING"]}})
-    
-    total_contacts = await db.contacts.count_documents({"tenant_id": tid})
-    total_conversations = await db.conversations.count_documents({"tenant_id": tid})
-    
-    rooms_count = await db.rooms.count_documents({"tenant_id": tid})
-    tables_count = await db.tables.count_documents({"tenant_id": tid})
-    
-    # Average rating
-    pipeline = [
-        {"$match": {"tenant_id": tid, "rating": {"$ne": None}}},
-        {"$group": {"_id": None, "avg_rating": {"$avg": "$rating"}, "count": {"$sum": 1}}}
-    ]
-    rating_result = await db.guest_requests.aggregate(pipeline).to_list(1)
-    avg_rating = round(rating_result[0]["avg_rating"], 1) if rating_result else 0
-    rating_count = rating_result[0]["count"] if rating_result else 0
-    
-    return {
-        "requests": {"total": total_requests, "open": open_requests, "in_progress": in_progress_requests, "done": done_requests},
-        "orders": {"total": total_orders, "active": active_orders},
-        "contacts": total_contacts,
-        "conversations": total_conversations,
-        "rooms": rooms_count,
-        "tables": tables_count,
-        "avg_rating": avg_rating,
-        "rating_count": rating_count,
-        "usage": tenant.get("usage_counters", {}),
-        "limits": tenant.get("plan_limits", {})
-    }
+# ============ DASHBOARD STATS — extracted to routers/dashboard_stats.py ============
+
 
 # ============ GUEST INFO ROUTES ============
 @api_router.get("/g/{tenant_slug}/room/{room_code}/info")
@@ -1477,229 +1286,8 @@ async def seed_data():
         }
     }
 
-# ============ PHASE 5: ANALYTICS ============
-@api_router.get("/tenants/{tenant_slug}/analytics")
-async def get_analytics(tenant_slug: str):
-    tenant = await get_tenant_by_slug(tenant_slug)
-    return await compute_analytics(db, tenant["id"])
+# ============ ANALYTICS / COMPLIANCE / GROWTH — extracted to routers/{analytics,compliance_growth}.py ============
 
-# ============ PHASE 5: GUEST INTELLIGENCE v2 ============
-@api_router.get("/tenants/{tenant_slug}/contacts/{contact_id}/intelligence-v2")
-async def get_intelligence_v2(tenant_slug: str, contact_id: str):
-    tenant = await get_tenant_by_slug(tenant_slug)
-    contact = await db.contacts.find_one({"id": contact_id, "tenant_id": tenant["id"]}, {"_id": 0})
-    if not contact:
-        raise HTTPException(status_code=404, detail="Contact not found")
-    
-    phone = contact.get("phone", "")
-    
-    # Requests
-    reqs = await db.guest_requests.find({"tenant_id": tenant["id"], "guest_phone": phone}, {"_id": 0}).to_list(500) if phone else []
-    orders = await db.orders.find({"tenant_id": tenant["id"], "guest_phone": phone}, {"_id": 0}).to_list(500) if phone else []
-    
-    # Lifetime value
-    order_total = sum(o.get("total", 0) for o in orders)
-    res_list = await db.reservations.find({"tenant_id": tenant["id"], "guest_phone": phone}, {"_id": 0}).to_list(100) if phone else []
-    res_total = sum(r.get("price", 0) for r in res_list)
-    lifetime_value = order_total + res_total
-    
-    # Avg response time
-    response_times = []
-    for r in reqs:
-        if r.get("first_response_at") and r.get("created_at"):
-            try:
-                created = datetime.fromisoformat(r["created_at"].replace('Z', '+00:00'))
-                responded = datetime.fromisoformat(r["first_response_at"].replace('Z', '+00:00'))
-                diff = (responded - created).total_seconds() / 60
-                response_times.append(diff)
-            except:
-                pass
-    avg_response_time = round(sum(response_times) / len(response_times), 1) if response_times else 0
-    
-    # Ratings
-    ratings = [r["rating"] for r in reqs if r.get("rating")]
-    avg_rating = round(sum(ratings) / len(ratings), 1) if ratings else 0
-    
-    # Satisfaction trend
-    recent_ratings = ratings[-5:] if ratings else []
-    older_ratings = ratings[:-5] if len(ratings) > 5 else []
-    if recent_ratings and older_ratings:
-        trend = "improving" if sum(recent_ratings)/len(recent_ratings) > sum(older_ratings)/len(older_ratings) else "declining"
-    elif recent_ratings:
-        trend = "stable"
-    else:
-        trend = "unknown"
-    
-    # Churn risk
-    days_since_last = 999
-    all_dates = [r.get("created_at", "") for r in reqs + orders]
-    if all_dates:
-        try:
-            latest = max(all_dates)
-            last_dt = datetime.fromisoformat(latest.replace('Z', '+00:00'))
-            days_since_last = (now_utc() - last_dt).days
-        except:
-            pass
-    
-    if days_since_last > 90:
-        churn_risk = "high"
-    elif days_since_last > 30:
-        churn_risk = "medium"
-    else:
-        churn_risk = "low"
-    
-    # Complaint analysis
-    complaints = [r for r in reqs if r.get("priority") in ["high", "urgent"] or analyze_sentiment(r.get("description", "")) == "negative"]
-    complaint_ratio = round(len(complaints) / max(len(reqs), 1), 2)
-    
-    # Service preferences
-    categories = {}
-    for r in reqs:
-        cat = r.get("category", "other")
-        categories[cat] = categories.get(cat, 0) + 1
-    
-    # Favorite items
-    item_counts = {}
-    for o in orders:
-        for item in o.get("items", []):
-            name = item.get("menu_item_name", "")
-            item_counts[name] = item_counts.get(name, 0) + item.get("quantity", 1)
-    
-    # Loyalty
-    loyalty_info = None
-    if contact.get("loyalty_account_id"):
-        account = await db.loyalty_accounts.find_one({"id": contact["loyalty_account_id"]}, {"_id": 0})
-        if account:
-            tier = compute_tier(account.get("points", 0))
-            loyalty_info = {
-                "points": account.get("points", 0),
-                "tier": tier,
-                "tier_info": LOYALTY_TIERS.get(tier, {}),
-                "next_tier": next_tier_info(tier, account.get("points", 0))
-            }
-    
-    # Alerts
-    alerts = []
-    if churn_risk == "high":
-        alerts.append({"type": "danger", "message": "High churn risk - no activity in 90+ days"})
-    if complaint_ratio > 0.3:
-        alerts.append({"type": "warning", "message": f"High complaint ratio ({int(complaint_ratio*100)}%)"})
-    if avg_rating > 0 and avg_rating < 3:
-        alerts.append({"type": "warning", "message": f"Low satisfaction: {avg_rating}/5"})
-    if lifetime_value > 5000:
-        alerts.append({"type": "success", "message": f"High-value guest: {lifetime_value} TRY"})
-    for r in complaints[-2:]:
-        alerts.append({"type": "danger", "message": f"Complaint: {r.get('description', '')[:60]}"})
-    
-    return {
-        "lifetime_value": lifetime_value,
-        "avg_response_time_min": avg_response_time,
-        "avg_rating": avg_rating,
-        "satisfaction_trend": trend,
-        "predicted_churn_risk": churn_risk,
-        "complaint_ratio": complaint_ratio,
-        "total_requests": len(reqs),
-        "total_orders": len(orders),
-        "total_reservations": len(res_list),
-        "service_preferences": categories,
-        "favorite_items": sorted(item_counts.items(), key=lambda x: -x[1])[:5],
-        "loyalty": loyalty_info,
-        "alerts": alerts,
-        "days_since_last_activity": days_since_last
-    }
-
-# ============ PHASE 5: COMPLIANCE ============
-@api_router.post("/tenants/{tenant_slug}/compliance/export/{contact_id}")
-async def export_contact_data(tenant_slug: str, contact_id: str):
-    tenant = await get_tenant_by_slug(tenant_slug)
-    bundle = await export_guest_data(db, tenant["id"], contact_id)
-    if not bundle:
-        raise HTTPException(status_code=404, detail="Contact not found")
-    await _log_audit(tenant["id"], "data_export", "contact", contact_id)
-    return bundle
-
-@api_router.post("/tenants/{tenant_slug}/compliance/forget/{contact_id}")
-async def forget_contact(tenant_slug: str, contact_id: str):
-    tenant = await get_tenant_by_slug(tenant_slug)
-    result = await forget_guest(db, tenant["id"], contact_id)
-    if not result:
-        raise HTTPException(status_code=404, detail="Contact not found")
-    await _log_audit(tenant["id"], "data_forget", "contact", contact_id)
-    return result
-
-@api_router.get("/tenants/{tenant_slug}/compliance/consent-logs")
-async def list_consent_logs(tenant_slug: str, page: int = 1, limit: int = 50):
-    tenant = await get_tenant_by_slug(tenant_slug)
-    skip = (page - 1) * limit
-    logs = await db.consent_logs.find({"tenant_id": tenant["id"]}, {"_id": 0}).sort("created_at", -1).skip(skip).limit(limit).to_list(limit)
-    total = await db.consent_logs.count_documents({"tenant_id": tenant["id"]})
-    return {"data": [serialize_doc(l) for l in logs], "total": total}
-
-@api_router.get("/tenants/{tenant_slug}/compliance/retention")
-async def get_retention_policy(tenant_slug: str):
-    tenant = await get_tenant_by_slug(tenant_slug)
-    policy = await db.retention_policies.find_one({"tenant_id": tenant["id"]}, {"_id": 0})
-    if not policy:
-        policy = {
-            "id": new_id(), "tenant_id": tenant["id"],
-            "retention_months": 24, "auto_purge": False,
-            "created_at": now_utc().isoformat()
-        }
-        await db.retention_policies.insert_one(policy)
-    return serialize_doc(policy)
-
-@api_router.patch("/tenants/{tenant_slug}/compliance/retention")
-async def update_retention_policy(tenant_slug: str, data: dict):
-    tenant = await get_tenant_by_slug(tenant_slug)
-    update = {}
-    if "retention_months" in data:
-        update["retention_months"] = data["retention_months"]
-    if "auto_purge" in data:
-        update["auto_purge"] = data["auto_purge"]
-    update["updated_at"] = now_utc().isoformat()
-    await db.retention_policies.update_one({"tenant_id": tenant["id"]}, {"$set": update}, upsert=True)
-    return await get_retention_policy(tenant_slug)
-
-# ============ PHASE 5: GROWTH & REFERRAL ============
-@api_router.get("/tenants/{tenant_slug}/growth/referral")
-async def get_referral(tenant_slug: str):
-    tenant = await get_tenant_by_slug(tenant_slug)
-    referral = await get_or_create_referral(db, tenant["id"], tenant_slug)
-    return serialize_doc(referral)
-
-@api_router.get("/r/{referral_code}")
-async def referral_landing(referral_code: str):
-    """Public referral landing page data"""
-    data = await get_referral_landing_data(db, referral_code)
-    if not data:
-        raise HTTPException(status_code=404, detail="Referral not found")
-    return data
-
-@api_router.get("/tenants/{tenant_slug}/growth/stats")
-async def get_growth_stats(tenant_slug: str):
-    tenant = await get_tenant_by_slug(tenant_slug)
-    referral = await get_or_create_referral(db, tenant["id"], tenant_slug)
-    events = await db.referral_events.find({"referrer_tenant_id": tenant["id"]}, {"_id": 0}).to_list(100)
-    return {
-        "referral": serialize_doc(referral),
-        "events": [serialize_doc(e) for e in events],
-        "total_clicks": referral.get("clicks", 0),
-        "total_signups": referral.get("signups", 0),
-        "total_rewards": referral.get("rewards_earned", 0)
-    }
-
-
-@api_router.get("/tenants/{tenant_slug}/analytics/revenue")
-async def revenue_analytics(tenant_slug: str, period: int = 30):
-    """Revenue analytics v2 - gelir, upsell donusum, tekrar misafir, AI verimlilik KPI"""
-    tenant = await get_tenant_by_slug(tenant_slug)
-    return await compute_revenue_analytics(db, tenant["id"], period)
-
-@api_router.get("/tenants/{tenant_slug}/analytics/staff-performance")
-async def staff_performance(tenant_slug: str, period: int = 30):
-    """Staff performance dashboard - personel bazli verimlilik metrikleri"""
-    tenant = await get_tenant_by_slug(tenant_slug)
-    return await compute_staff_performance(db, tenant["id"], period)
 
 # ============ PHASE 5: DEMO MODE ============
 @api_router.post("/demo/reset")
@@ -2524,106 +2112,8 @@ async def list_audit_logs(tenant_slug: str, page: int = 1, limit: int = 50):
     total = await db.audit_logs.count_documents({"tenant_id": tenant["id"]})
     return {"data": [serialize_doc(l) for l in logs], "total": total, "page": page}
 
-# ============ ENHANCED DASHBOARD STATS ============
-@api_router.get("/tenants/{tenant_slug}/stats/enhanced")
-async def get_enhanced_stats(tenant_slug: str):
-    tenant = await get_tenant_by_slug(tenant_slug)
-    tid = tenant["id"]
-    
-    # Basic stats
-    total_requests = await db.guest_requests.count_documents({"tenant_id": tid})
-    open_requests = await db.guest_requests.count_documents({"tenant_id": tid, "status": "OPEN"})
-    in_progress = await db.guest_requests.count_documents({"tenant_id": tid, "status": "IN_PROGRESS"})
-    done = await db.guest_requests.count_documents({"tenant_id": tid, "status": {"$in": ["DONE", "CLOSED"]}})
-    
-    total_orders = await db.orders.count_documents({"tenant_id": tid})
-    active_orders = await db.orders.count_documents({"tenant_id": tid, "status": {"$in": ["RECEIVED", "PREPARING"]}})
-    
-    total_contacts = await db.contacts.count_documents({"tenant_id": tid})
-    total_conversations = await db.conversations.count_documents({"tenant_id": tid})
-    rooms_count = await db.rooms.count_documents({"tenant_id": tid})
-    tables_count = await db.tables.count_documents({"tenant_id": tid})
-    
-    # Revenue (from orders)
-    revenue_pipeline = [
-        {"$match": {"tenant_id": tid, "order_type": "dine_in"}},
-        {"$group": {"_id": None, "total_revenue": {"$sum": "$total"}, "order_count": {"$sum": 1}}}
-    ]
-    rev_result = await db.orders.aggregate(revenue_pipeline).to_list(1)
-    total_revenue = rev_result[0]["total_revenue"] if rev_result else 0
-    
-    # Avg rating
-    rating_pipeline = [
-        {"$match": {"tenant_id": tid, "rating": {"$ne": None}}},
-        {"$group": {"_id": None, "avg_rating": {"$avg": "$rating"}, "count": {"$sum": 1}}}
-    ]
-    rating_result = await db.guest_requests.aggregate(rating_pipeline).to_list(1)
-    avg_rating = round(rating_result[0]["avg_rating"], 1) if rating_result else 0
-    rating_count = rating_result[0]["count"] if rating_result else 0
-    
-    # Reviews stats
-    total_reviews = await db.reviews.count_documents({"tenant_id": tid})
-    review_sentiment = {
-        "positive": await db.reviews.count_documents({"tenant_id": tid, "sentiment": "positive"}),
-        "neutral": await db.reviews.count_documents({"tenant_id": tid, "sentiment": "neutral"}),
-        "negative": await db.reviews.count_documents({"tenant_id": tid, "sentiment": "negative"}),
-    }
-    
-    # Loyalty stats
-    loyalty_members = await db.loyalty_accounts.count_documents({"tenant_id": tid})
-    points_pipeline = [
-        {"$match": {"tenant_id": tid, "type": "earn"}},
-        {"$group": {"_id": None, "total_points": {"$sum": "$points"}}}
-    ]
-    points_result = await db.loyalty_ledger.aggregate(points_pipeline).to_list(1)
-    total_points = points_result[0]["total_points"] if points_result else 0
-    
-    # Offers/Reservations
-    total_offers = await db.offers.count_documents({"tenant_id": tid})
-    total_reservations = await db.reservations.count_documents({"tenant_id": tid})
-    
-    return {
-        "requests": {"total": total_requests, "open": open_requests, "in_progress": in_progress, "done": done},
-        "orders": {"total": total_orders, "active": active_orders},
-        "contacts": total_contacts,
-        "conversations": total_conversations,
-        "rooms": rooms_count,
-        "tables": tables_count,
-        "avg_rating": avg_rating,
-        "rating_count": rating_count,
-        "revenue": {"total": total_revenue, "currency": "TRY"},
-        "reviews": {"total": total_reviews, "sentiment": review_sentiment},
-        "loyalty": {"members": loyalty_members, "total_points_issued": total_points},
-        "offers": total_offers,
-        "reservations": total_reservations,
-        "usage": tenant.get("usage_counters", {}),
-        "limits": tenant.get("plan_limits", {}),
-        # Sprint 9 additions
-        "spa_bookings": {
-            "total": await db.spa_bookings.count_documents({"tenant_id": tid}),
-            "pending": await db.spa_bookings.count_documents({"tenant_id": tid, "status": "PENDING"}),
-        },
-        "restaurant_reservations": {
-            "total": await db.restaurant_reservations.count_documents({"tenant_id": tid}),
-            "pending": await db.restaurant_reservations.count_documents({"tenant_id": tid, "status": "pending"}),
-            "confirmed": await db.restaurant_reservations.count_documents({"tenant_id": tid, "status": "confirmed"}),
-        },
-        "transport_requests": {
-            "total": await db.transport_requests.count_documents({"tenant_id": tid}),
-            "pending": await db.transport_requests.count_documents({"tenant_id": tid, "status": "PENDING"}),
-        },
-        "laundry_requests": {
-            "total": await db.laundry_requests.count_documents({"tenant_id": tid}),
-            "pending": await db.laundry_requests.count_documents({"tenant_id": tid, "status": "PENDING"}),
-        },
-        "notifications_unread": await db.notifications.count_documents({"tenant_id": tid, "read": False}),
-        "surveys": {
-            "total": await db.guest_surveys.count_documents({"tenant_id": tid}),
-        },
-        "lost_found": {
-            "stored": await db.lost_found.count_documents({"tenant_id": tid, "status": "stored"}),
-        },
-    }
+# ============ ENHANCED DASHBOARD STATS — extracted to routers/dashboard_stats.py ============
+
 
 # ============ WEBSOCKET ENDPOINT (with 15-min auth revalidation) ============
 @app.websocket("/ws/{tenant_id}")
@@ -2780,12 +2270,26 @@ except Exception as e:
 try:
     from routers.syroce_integration import router as syroce_router
     app.include_router(syroce_router)
-
-    from routers.guest_loyalty import router as guest_loyalty_router
-    app.include_router(guest_loyalty_router)
     logger.info("Syroce integration router loaded")
 except Exception as e:
     logger.warning(f"Syroce integration router not loaded: {e}")
+
+# Core extracted routers — must mount independently so an optional
+# integration import failure cannot take down primary endpoints.
+for _name, _import_path in [
+    ("guest_loyalty", "routers.guest_loyalty"),
+    ("guest_chat", "routers.guest_chat"),
+    ("dashboard_stats", "routers.dashboard_stats"),
+    ("analytics", "routers.analytics"),
+    ("compliance_growth", "routers.compliance_growth"),
+]:
+    try:
+        _mod = __import__(_import_path, fromlist=["router"])
+        app.include_router(_mod.router)
+        logger.info(f"Router loaded: {_name}")
+    except Exception as _e:
+        logger.error(f"FAILED to load required router {_name}: {_e}")
+        raise
 
 # Sprint 9: New feature routers
 for router_name, router_module, router_attr in [
