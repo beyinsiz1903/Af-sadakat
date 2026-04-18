@@ -515,57 +515,104 @@ async def ai_suggest_reply(tenant_slug: str, context: dict):
 # ============ LOYALTY ROUTES ============
 import random as _random
 
+def _phone_normalize(p: str) -> str:
+    p = (p or "").strip().replace(" ", "").replace("-", "")
+    if p.startswith("00"):
+        p = "+" + p[2:]
+    return p
+
 @api_router.post("/g/{tenant_slug}/loyalty/send-otp")
 async def send_loyalty_otp(tenant_slug: str, data: dict):
     tenant = await get_tenant_by_slug(tenant_slug)
-    phone = data.get("phone", "")
-    if not phone:
-        raise HTTPException(status_code=400, detail="Phone required")
-    
-    otp_code = str(_random.randint(100000, 999999))
-    expires_at = now_utc()
+    phone = _phone_normalize(data.get("phone", ""))
+    if not phone or len(phone) < 7:
+        raise HTTPException(status_code=400, detail="Valid phone required")
+
     from datetime import timedelta
+    # Rate limit: 60s between sends per phone+tenant
+    last = await db.otp_codes.find_one({"phone": phone, "tenant_id": tenant["id"]}, sort=[("created_at", -1)])
+    if last and (now_utc() - datetime.fromisoformat(last["created_at"].replace("Z", "+00:00"))).total_seconds() < 60:
+        raise HTTPException(status_code=429, detail="Please wait before requesting another code")
+
+    otp_code = str(_random.randint(100000, 999999))
     expires_at = (now_utc() + timedelta(minutes=5)).isoformat()
-    
+
     await db.otp_codes.delete_many({"phone": phone, "tenant_id": tenant["id"]})
     await db.otp_codes.insert_one({
         "id": new_id(), "tenant_id": tenant["id"], "phone": phone,
-        "code": otp_code, "verified": False,
+        "code": otp_code, "verified": False, "attempts": 0,
         "created_at": now_utc().isoformat(), "expires_at": expires_at
     })
-    
+
+    sms_sent = False
     try:
         from services.notification_engine import send_sms
         sms_sent = await send_sms(phone, f"OmniHub dogrulama kodunuz: {otp_code}")
-        if sms_sent:
-            return {"sent": True, "message": "OTP sent via SMS"}
     except Exception as e:
         logger.warning(f"SMS send failed: {e}")
-    
+
+    if sms_sent:
+        return {"sent": True, "message": "OTP sent via SMS"}
+
+    # Stub fallback only allowed in non-production
+    if os.environ.get("ENV", "development").lower() == "production" and os.environ.get("ALLOW_OTP_STUB", "false").lower() != "true":
+        raise HTTPException(status_code=503, detail="SMS service unavailable")
     return {"sent": True, "otp_stub": otp_code, "message": "OTP sent (stub - SMS not configured)"}
 
 @api_router.post("/g/{tenant_slug}/loyalty/verify-otp")
 async def verify_loyalty_otp(tenant_slug: str, data: dict):
     tenant = await get_tenant_by_slug(tenant_slug)
-    phone = data.get("phone", "")
-    code = data.get("code", "")
+    phone = _phone_normalize(data.get("phone", ""))
+    code = (data.get("code") or "").strip()
     if not phone or not code:
         raise HTTPException(status_code=400, detail="Phone and code required")
-    
+
     record = await db.otp_codes.find_one({
         "tenant_id": tenant["id"], "phone": phone, "verified": False
     })
     if not record:
         raise HTTPException(status_code=400, detail="No OTP found. Please request a new one.")
-    
-    if record["code"] != code:
-        raise HTTPException(status_code=400, detail="Invalid OTP code")
-    
+
+    if record.get("attempts", 0) >= 5:
+        await db.otp_codes.delete_many({"id": record["id"]})
+        raise HTTPException(status_code=429, detail="Too many attempts. Please request a new code.")
+
     if record.get("expires_at") and record["expires_at"] < now_utc().isoformat():
         raise HTTPException(status_code=400, detail="OTP expired. Please request a new one.")
-    
+
+    if record["code"] != code:
+        await db.otp_codes.update_one({"id": record["id"]}, {"$inc": {"attempts": 1}})
+        raise HTTPException(status_code=400, detail="Invalid OTP code")
+
+    # Issue device token (90 days) for auto-recognition
+    import secrets as _secrets
+    device_token = _secrets.token_urlsafe(32)
+    await db.guest_devices.insert_one({
+        "id": new_id(), "tenant_id": tenant["id"], "phone": phone,
+        "device_token": device_token,
+        "created_at": now_utc().isoformat(),
+        "expires_at": (now_utc() + timedelta(days=90)).isoformat(),
+        "user_agent": data.get("user_agent", ""),
+    })
     await db.otp_codes.update_one({"id": record["id"]}, {"$set": {"verified": True}})
-    return {"verified": True, "message": "Phone verified successfully"}
+    return {"verified": True, "device_token": device_token, "message": "Phone verified successfully"}
+
+@api_router.post("/g/{tenant_slug}/loyalty/resolve-device")
+async def resolve_device(tenant_slug: str, data: dict):
+    """Auto-recognize a returning guest by their stored device_token."""
+    tenant = await get_tenant_by_slug(tenant_slug)
+    token = (data.get("device_token") or "").strip()
+    if not token:
+        raise HTTPException(status_code=400, detail="device_token required")
+    rec = await db.guest_devices.find_one({"tenant_id": tenant["id"], "device_token": token})
+    if not rec:
+        raise HTTPException(status_code=404, detail="Device not recognized")
+    if rec.get("expires_at") and rec["expires_at"] < now_utc().isoformat():
+        raise HTTPException(status_code=410, detail="Device token expired")
+    contact = await db.contacts.find_one({"tenant_id": tenant["id"], "phone": rec["phone"]})
+    if not contact:
+        raise HTTPException(status_code=404, detail="No matching guest profile")
+    return {"contact_id": contact["id"], "name": contact.get("name"), "phone": contact.get("phone"), "loyalty_account_id": contact.get("loyalty_account_id")}
 
 @api_router.post("/g/{tenant_slug}/loyalty/join")
 async def join_loyalty(tenant_slug: str, data: dict):
