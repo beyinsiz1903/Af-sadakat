@@ -325,6 +325,147 @@ async def webhook_mock_succeed(data: dict, request: Request):
     }
 
 
+@router.post("/iyzico/pay/{payment_link_id}/init")
+async def iyzico_init(payment_link_id: str, data: dict, request: Request):
+    """Initialize an iyzico 3DS payment. Returns provider htmlContent for redirect.
+    Only active when iyzico provider is configured; otherwise 503.
+    """
+    if not (iyzico_provider and iyzico_provider.is_configured()):
+        raise HTTPException(status_code=503, detail="iyzico provider not configured")
+    rate_limit_ip(request, 30, 60)
+
+    pl = await db.payment_links.find_one({"id": payment_link_id}, {"_id": 0})
+    if not pl:
+        raise HTTPException(status_code=404, detail="Payment link not found")
+    pl = serialize_doc(pl)
+    if pl.get("status") == "SUCCEEDED":
+        return {"status": "ALREADY_PAID"}
+
+    offer = await db.offers.find_one({"id": pl.get("offer_id"), "tenant_id": pl["tenant_id"]}, {"_id": 0})
+    if not offer:
+        raise HTTPException(status_code=404, detail="Offer not found")
+
+    conv_id = new_id()
+    base_url = str(request.base_url).rstrip("/")
+    callback_url = f"{base_url}/api/v2/payments/iyzico/callback"
+
+    buyer = data.get("buyer") or {
+        "id": offer.get("contact_id", "guest"),
+        "name": offer.get("guest_name", "Guest"),
+        "surname": "-",
+        "gsmNumber": offer.get("guest_phone", "+905555555555"),
+        "email": offer.get("guest_email", "guest@example.com"),
+        "identityNumber": "11111111111",
+        "registrationAddress": "-",
+        "city": "Istanbul",
+        "country": "Turkey",
+        "ip": request.client.host if request.client else "127.0.0.1",
+    }
+    address = data.get("address") or {
+        "contactName": buyer.get("name", "Guest"),
+        "city": "Istanbul",
+        "country": "Turkey",
+        "address": "-",
+    }
+    items = [{
+        "id": offer.get("id", "item-1"),
+        "name": offer.get("room_type", "Reservation"),
+        "category1": "Hospitality",
+        "itemType": "VIRTUAL",
+        "price": f"{float(pl.get('amount', 0)):.2f}",
+    }]
+    card = data.get("card")
+    if not card:
+        raise HTTPException(status_code=400, detail="card payload required")
+
+    try:
+        result = await iyzico_provider.create_3ds_payment(
+            conversation_id=conv_id,
+            price=float(pl.get("amount", 0)),
+            paid_price=float(pl.get("amount", 0)),
+            currency=pl.get("currency", "TRY"),
+            callback_url=callback_url,
+            buyer=buyer, address=address, items=items, card=card,
+        )
+    except Exception as e:
+        logger.error("iyzico init failed: %s", e)
+        raise HTTPException(status_code=502, detail="iyzico init failed")
+
+    # Persist init payment record
+    await db.payments.insert_one({
+        "id": new_id(),
+        "tenant_id": pl["tenant_id"],
+        "offer_id": pl.get("offer_id"),
+        "payment_link_id": payment_link_id,
+        "provider": "IYZICO",
+        "amount": pl.get("amount", 0),
+        "currency": pl.get("currency", "TRY"),
+        "status": "INITIATED",
+        "provider_payment_id": result.get("paymentId", conv_id),
+        "conversation_id": conv_id,
+        "created_at": now_utc().isoformat(),
+        "updated_at": now_utc().isoformat(),
+    })
+    return {"status": result.get("status"), "htmlContent": result.get("threeDSHtmlContent"),
+            "conversationId": conv_id}
+
+
+@router.post("/iyzico/callback")
+async def iyzico_callback(request: Request):
+    """3DS callback from iyzico. Completes the auth and marks payment."""
+    if not (iyzico_provider and iyzico_provider.is_configured()):
+        raise HTTPException(status_code=503, detail="iyzico provider not configured")
+    rate_limit_ip(request, 30, 60)
+    form = await request.form()
+    conv_id = form.get("conversationId", "")
+    payment_id = form.get("paymentId", "")
+    conv_data = form.get("conversationData", "")
+    if not (conv_id and payment_id):
+        raise HTTPException(status_code=400, detail="conversationId and paymentId required")
+    try:
+        result = await iyzico_provider.complete_3ds_payment(
+            conversation_id=conv_id, payment_id=payment_id, conversation_data=conv_data,
+        )
+    except Exception as e:
+        logger.error("iyzico complete failed: %s", e)
+        raise HTTPException(status_code=502, detail="iyzico complete failed")
+    return {"status": result.get("status"), "paymentStatus": result.get("paymentStatus")}
+
+
+@router.post("/webhook/iyzico")
+async def webhook_iyzico(request: Request):
+    """iyzico webhook with HMAC signature verification (x-iyz-signature-v3)."""
+    if not (iyzico_provider and iyzico_provider.is_configured()):
+        raise HTTPException(status_code=503, detail="iyzico provider not configured")
+    raw = await request.body()
+    sig = request.headers.get("x-iyz-signature-v3", "") or request.headers.get("X-Iyz-Signature-V3", "")
+    if not iyzico_provider.verify_webhook_signature(raw, sig):
+        logger.warning("iyzico webhook signature mismatch")
+        raise HTTPException(status_code=401, detail="Invalid signature")
+    try:
+        import json as _json
+        data = _json.loads(raw.decode("utf-8") or "{}")
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid JSON")
+
+    conv_id = data.get("conversationId") or data.get("iyziEventType", "")
+    status = (data.get("status") or data.get("paymentStatus") or "").upper()
+
+    payment = await db.payments.find_one({"conversation_id": conv_id}, {"_id": 0}) if conv_id else None
+    if not payment:
+        return {"received": True, "matched": False}
+
+    new_status = "SUCCEEDED" if status in ("SUCCESS", "SUCCEEDED") else "FAILED"
+    await db.payments.update_one(
+        {"id": payment["id"]},
+        {"$set": {"status": new_status, "updated_at": now_utc().isoformat()}},
+    )
+    await log_audit(payment["tenant_id"], f"PAYMENT_{new_status}", "payment",
+                    payment.get("payment_link_id", ""), "iyzico_webhook",
+                    {"conversation_id": conv_id})
+    return {"received": True, "matched": True, "status": new_status}
+
+
 @router.post("/webhook/mock/fail")
 async def webhook_mock_fail(data: dict, request: Request):
     """Mock payment failure webhook. DISABLED in live mode."""

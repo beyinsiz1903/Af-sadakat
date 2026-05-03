@@ -98,8 +98,7 @@ async def setex(key: str, ttl: int, value: Any) -> None:
             await _redis.setex(_k(key), ttl, payload)
             return
         except Exception as e:
-            logger.warning("redis setex failed key=%s err=%s", key, e)
-            return
+            logger.warning("redis setex failed key=%s err=%s — degrading to memory", key, e)
     _store[key] = (time.monotonic() + ttl, payload)
 
 
@@ -108,8 +107,7 @@ async def delete(*keys: str) -> int:
         try:
             return await _redis.delete(*[_k(k) for k in keys])
         except Exception as e:
-            logger.warning("redis delete failed err=%s", e)
-            return 0
+            logger.warning("redis delete failed err=%s — degrading to memory", e)
     removed = 0
     for k in keys:
         if _store.pop(k, None) is not None:
@@ -128,8 +126,7 @@ async def delete_prefix(prefix: str) -> int:
                 removed += 1
             return removed
         except Exception as e:
-            logger.warning("redis delete_prefix failed prefix=%s err=%s", prefix, e)
-            return 0
+            logger.warning("redis delete_prefix failed prefix=%s err=%s — degrading to memory", prefix, e)
     targets = [k for k in list(_store.keys()) if k.startswith(prefix)]
     for k in targets:
         _store.pop(k, None)
@@ -144,8 +141,7 @@ async def clear() -> None:
                 await _redis.delete(k)
             return
         except Exception as e:
-            logger.warning("redis clear failed err=%s", e)
-            return
+            logger.warning("redis clear failed err=%s — degrading to memory", e)
     _store.clear()
 
 
