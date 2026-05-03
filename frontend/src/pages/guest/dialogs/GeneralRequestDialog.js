@@ -30,7 +30,7 @@ export default function GeneralRequestDialog({
                 <button key={key} type="button" onClick={() => setForm({...form, category: key})}
                   className={`p-2 rounded-lg border text-center transition-all ${form.category === key ? 'border-[hsl(var(--primary))] bg-[hsl(var(--primary)/0.1)]' : 'border-[hsl(var(--border))]'}`}>
                   <Icon className={`w-4 h-4 mx-auto mb-0.5 ${cfg.color}`} />
-                  <span className="text-[9px] font-medium">{lang === 'tr' ? cfg.labelTr : cfg.label}</span>
+                  <span className="text-[9px] font-medium">{t(cfg.label, cfg.labelTr)}</span>
                 </button>
               );
             })}

@@ -21,7 +21,7 @@ export default function ServicesTab({ activeServices, onOpenService }) {
               <Icon className={`w-5 h-5 ${cfg.color}`} />
             </div>
             <div className="flex-1 text-left">
-              <p className="text-sm font-medium">{lang === 'tr' ? cfg.labelTr : cfg.label}</p>
+              <p className="text-sm font-medium">{t(cfg.label, cfg.labelTr)}</p>
             </div>
             <ChevronRight className="w-4 h-4 text-[hsl(var(--muted-foreground))]" />
           </button>

@@ -27,7 +27,7 @@ export default function HomeTab({ requests, activeServices, announcements, onOpe
         return (
           <button key={key} onClick={() => onOpenService(key)} className={`p-2.5 rounded-xl border border-[hsl(var(--border))] ${cfg.bg} hover:scale-105 transition-all text-center`}>
             <Icon className={`w-5 h-5 mx-auto mb-1 ${cfg.color}`} />
-            <span className="text-[10px] font-medium leading-tight block">{lang === 'tr' ? cfg.labelTr : cfg.label}</span>
+            <span className="text-[10px] font-medium leading-tight block">{t(cfg.label, cfg.labelTr)}</span>
           </button>
         );
       })}
@@ -44,8 +44,8 @@ export default function HomeTab({ requests, activeServices, announcements, onOpe
             <div key={ann.id} className="flex items-start gap-2 bg-[hsl(var(--primary)/0.1)] border border-[hsl(var(--primary)/0.2)] rounded-lg px-3 py-2 mb-2">
               <Megaphone className="w-4 h-4 text-[hsl(var(--primary))] flex-shrink-0 mt-0.5" />
               <div>
-                <p className="text-xs font-semibold">{lang === 'tr' && ann.title_tr ? ann.title_tr : ann.title}</p>
-                <p className="text-xs text-[hsl(var(--muted-foreground))]">{lang === 'tr' && ann.body_tr ? ann.body_tr : ann.body}</p>
+                <p className="text-xs font-semibold">{lang === 'tr' && ann.title_tr ? ann.title_tr : (ann.title || '')}</p>
+                <p className="text-xs text-[hsl(var(--muted-foreground))]">{lang === 'tr' && ann.body_tr ? ann.body_tr : (ann.body || '')}</p>
               </div>
             </div>
           ))}

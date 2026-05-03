@@ -4,10 +4,10 @@ import { guestAPI, guestServicesAPI, uploadAPI } from '../../lib/api';
 import { Card, CardContent } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
 import { Hotel, Wifi, Bell, Loader2, Globe } from 'lucide-react';
+import { SUPPORTED_LANGUAGES, translate, isRtl } from '../../lib/i18n';
 import { toast } from 'sonner';
 import { TABS } from './constants';
 import { GuestProvider } from './GuestContext';
-import { SUPPORTED_LANGUAGES } from '../../lib/i18n';
 import HomeTab from './components/HomeTab';
 import ServicesTab from './components/ServicesTab';
 import DiningTab from './components/DiningTab';
@@ -40,7 +40,18 @@ export default function GuestRoomPanel() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [activeTab, setActiveTab] = useState('home');
-  const [lang, setLang] = useState('en');
+  const [lang, setLang] = useState(() => {
+    try { return localStorage.getItem('omnihub.guest.lang') || 'en'; }
+    catch { return 'en'; }
+  });
+
+  useEffect(() => {
+    try { localStorage.setItem('omnihub.guest.lang', lang); } catch {}
+    if (typeof document !== 'undefined') {
+      document.documentElement.lang = lang;
+      document.documentElement.dir = isRtl(lang) ? 'rtl' : 'ltr';
+    }
+  }, [lang]);
   const [guestName, setGuestName] = useState('');
   const [guestPhone, setGuestPhone] = useState('');
   const [activeServices, setActiveServices] = useState([]);
@@ -87,7 +98,17 @@ export default function GuestRoomPanel() {
     laundry: true, spa: true, transport: true, wakeup: true, reception: true,
   });
 
-  const t = (en, tr) => lang === 'tr' ? tr : en;
+  // Smart translation:
+  // - English source: returns the English string when lang === 'en'
+  // - Turkish: prefers the second argument (legacy hardcoded TR) when provided, else dictionary lookup
+  // - Other languages: dictionary lookup keyed by the English source string
+  const t = (en, tr) => {
+    if (lang === 'en') return en;
+    if (lang === 'tr') return tr || translate(en, 'tr', en);
+    // For other languages, look up by English key. Fall back to English (NOT Turkish)
+    // when the key is missing from the target dictionary, to avoid TR leakage.
+    return translate(en, lang, en);
+  };
 
   const ctxValue = { tenantSlug, roomCode, roomInfo, hotelInfo, lang, guestName, guestPhone, t };
 
@@ -439,7 +460,7 @@ export default function GuestRoomPanel() {
                 <button key={tab.id} onClick={() => setActiveTab(tab.id)}
                   className={`flex-1 flex flex-col items-center py-2.5 ${activeTab === tab.id ? 'text-[hsl(var(--primary))]' : 'text-[hsl(var(--muted-foreground))]'}`}>
                   <Icon className="w-5 h-5" />
-                  <span className="text-[10px] mt-0.5 font-medium">{lang === 'tr' && tab.labelTr ? tab.labelTr : tab.label}</span>
+                  <span className="text-[10px] mt-0.5 font-medium">{t(tab.label, tab.labelTr)}</span>
                 </button>
               );
             })}
