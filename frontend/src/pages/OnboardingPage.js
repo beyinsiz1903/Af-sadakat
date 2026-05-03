@@ -39,6 +39,7 @@ export default function OnboardingPage() {
 
   useEffect(() => {
     loadOnboarding();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tenant?.slug]);
 
   const loadOnboarding = async () => {

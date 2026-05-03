@@ -69,6 +69,7 @@ export default function LoyaltyTab() {
 
   useEffect(() => {
     if (joined && contactId) loadProfile();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [joined, contactId]);
 
   const loadProfile = async () => {

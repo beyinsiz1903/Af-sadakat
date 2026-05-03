@@ -145,6 +145,7 @@ export default function GuestRoomPanel() {
         checkPushSubscription();
       }).catch(e => console.error('SW registration failed:', e));
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -152,6 +153,7 @@ export default function GuestRoomPanel() {
     const interval = setInterval(loadRequests, 8000);
     const notifInterval = setInterval(loadUnreadCount, 15000);
     return () => { clearInterval(interval); clearInterval(notifInterval); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tenantSlug, roomCode]);
 
   useEffect(() => {

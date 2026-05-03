@@ -22,6 +22,7 @@ export default function ReferralLandingPage() {
 
   useEffect(() => {
     loadReferral();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [referralCode]);
 
   const loadReferral = async () => {

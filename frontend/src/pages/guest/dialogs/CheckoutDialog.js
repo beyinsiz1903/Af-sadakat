@@ -25,6 +25,7 @@ export default function CheckoutDialog({ open, onOpenChange }) {
         .catch(() => setFolio({ items: [], total: 0 }))
         .finally(() => setLoading(false));
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
   const handleCheckout = async () => {

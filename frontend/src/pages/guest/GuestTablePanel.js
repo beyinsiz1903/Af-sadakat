@@ -27,6 +27,7 @@ export default function GuestTablePanel() {
     loadData();
     const interval = setInterval(loadOrders, 8000);
     return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tenantSlug, tableCode]);
 
   const loadData = async () => {
