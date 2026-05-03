@@ -16,61 +16,72 @@ router = APIRouter(prefix="/api/v2/reports", tags=["reports"])
 @router.get("/tenants/{tenant_slug}/department-performance")
 async def department_performance(tenant_slug: str, days: int = 30,
                                   user=Depends(get_current_user)):
-    """Department performance report"""
+    """Department performance report.
+    Optimized: single aggregation pipeline replaces N+1 (was 4 queries per department)."""
     tenant = await resolve_tenant(tenant_slug)
     tid = tenant["id"]
     since = (now_utc() - timedelta(days=days)).isoformat()
-    
+
     departments = await find_many_scoped("departments", tid)
+    if not departments:
+        return []
+
+    # Single aggregation: group all requests by department_code in one pass.
+    # Pre-parse dates (NULL on parse error) so denominator only counts valid pairs.
+    pipeline = [
+        {"$match": {"tenant_id": tid, "created_at": {"$gte": since}}},
+        {"$addFields": {
+            "_created_dt": {"$dateFromString": {"dateString": "$created_at", "onError": None}},
+            "_resolved_dt": {"$dateFromString": {"dateString": {"$ifNull": ["$resolved_at", ""]}, "onError": None}},
+        }},
+        {"$addFields": {
+            "_has_valid_pair": {"$and": [
+                {"$ne": ["$_created_dt", None]},
+                {"$ne": ["$_resolved_dt", None]},
+            ]},
+        }},
+        {"$group": {
+            "_id": "$department_code",
+            "total": {"$sum": 1},
+            "resolved": {"$sum": {"$cond": [{"$in": ["$status", ["DONE", "CLOSED"]]}, 1, 0]}},
+            "open": {"$sum": {"$cond": [{"$eq": ["$status", "OPEN"]}, 1, 0]}},
+            "rating_sum": {"$sum": {"$ifNull": ["$rating", 0]}},
+            "rating_count": {"$sum": {"$cond": [{"$ne": ["$rating", None]}, 1, 0]}},
+            "resolution_minutes_sum": {"$sum": {
+                "$cond": [
+                    "$_has_valid_pair",
+                    {"$divide": [{"$subtract": ["$_resolved_dt", "$_created_dt"]}, 60000]},
+                    0,
+                ]
+            }},
+            "resolved_with_time_count": {"$sum": {"$cond": ["$_has_valid_pair", 1, 0]}},
+        }},
+    ]
+    agg = {doc["_id"]: doc async for doc in db.guest_requests.aggregate(pipeline)}
+
     dept_stats = []
-    
     for dept in departments:
         code = dept.get("code", "")
-        total = await count_scoped("guest_requests", tid, {"department_code": code, "created_at": {"$gte": since}})
-        resolved = await count_scoped("guest_requests", tid, {
-            "department_code": code, "created_at": {"$gte": since},
-            "status": {"$in": ["DONE", "CLOSED"]}
-        })
-        open_count = await count_scoped("guest_requests", tid, {
-            "department_code": code, "created_at": {"$gte": since},
-            "status": "OPEN"
-        })
-        
-        # Average resolution time
-        resolved_reqs = await find_many_scoped("guest_requests", tid, {
-            "department_code": code, "resolved_at": {"$ne": None}
-        }, limit=200)
-        
-        resolution_times = []
-        ratings = []
-        for r in resolved_reqs:
-            if r.get("resolved_at") and r.get("created_at"):
-                try:
-                    created = datetime.fromisoformat(r["created_at"].replace("Z", "+00:00"))
-                    resolved_dt = datetime.fromisoformat(r["resolved_at"].replace("Z", "+00:00"))
-                    diff_min = (resolved_dt - created).total_seconds() / 60
-                    resolution_times.append(diff_min)
-                except:
-                    pass
-            if r.get("rating"):
-                ratings.append(r["rating"])
-        
-        avg_resolution = round(sum(resolution_times) / len(resolution_times), 1) if resolution_times else 0
-        avg_rating = round(sum(ratings) / len(ratings), 1) if ratings else 0
-        resolution_rate = round(resolved / max(total, 1) * 100, 1)
-        
+        d = agg.get(code, {})
+        total = d.get("total", 0)
+        resolved = d.get("resolved", 0)
+        rating_count = d.get("rating_count", 0)
+        rt_count = d.get("resolved_with_time_count", 0)
+        avg_rating = round(d.get("rating_sum", 0) / rating_count, 1) if rating_count else 0
+        avg_resolution = round(d.get("resolution_minutes_sum", 0) / rt_count, 1) if rt_count else 0
+
         dept_stats.append({
             "department": dept.get("name", code),
             "code": code,
             "total_requests": total,
             "resolved": resolved,
-            "open": open_count,
-            "resolution_rate": resolution_rate,
+            "open": d.get("open", 0),
+            "resolution_rate": round(resolved / max(total, 1) * 100, 1),
             "avg_resolution_minutes": avg_resolution,
             "avg_rating": avg_rating,
-            "total_ratings": len(ratings),
+            "total_ratings": rating_count,
         })
-    
+
     return dept_stats
 
 @router.get("/tenants/{tenant_slug}/guest-satisfaction")

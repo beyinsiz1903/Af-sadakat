@@ -48,7 +48,7 @@ export default function GuestTablePanel() {
     try {
       const { data } = await guestAPI.tableOrders(tenantSlug, tableCode);
       setOrders(data);
-    } catch (e) {}
+    } catch (e) { console.error('table panel load failed', e); }
   };
 
   const addToCart = (item) => {

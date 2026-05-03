@@ -52,7 +52,7 @@ export default function OnboardingPage() {
       for (let i = 1; i <= 7; i++) {
         if (!steps[String(i)]?.completed) { setCurrentStep(i); break; }
       }
-    } catch (e) {} finally { setLoading(false); }
+    } catch (e) { console.error('onboarding load failed', e); } finally { setLoading(false); }
   };
 
   const addDepartment = async () => {

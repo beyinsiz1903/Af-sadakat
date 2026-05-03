@@ -1,6 +1,7 @@
 """Loyalty Analytics V3: RFM, CLV, Churn, Cohort, Segmentation, ROI
 AI-powered member segmentation and loyalty program analytics.
 """
+import asyncio
 from fastapi import APIRouter, Depends
 from typing import Optional
 from datetime import datetime, timedelta
@@ -39,40 +40,45 @@ async def rfm_analysis(tenant_slug: str, user=Depends(get_current_user)):
     tenant = await resolve_tenant(tenant_slug)
     tid = tenant["id"]
 
-    members = await db.loyalty_accounts.find({"tenant_id": tid}).to_list(5000)
     now = now_utc()
-    rfm_data = []
 
+    # Single aggregation: per-contact recency + frequency + monetary in one pass.
+    ledger_pipeline = [
+        {"$match": {"tenant_id": tid}},
+        {"$group": {
+            "_id": "$contact_id",
+            "last_at": {"$max": "$created_at"},
+            "frequency": {"$sum": 1},
+            "monetary": {"$sum": {"$cond": [{"$eq": ["$direction", "EARN"]}, "$points", 0]}},
+        }},
+    ]
+
+    members, ledger_docs, contacts = await asyncio.gather(
+        db.loyalty_accounts.find({"tenant_id": tid}).to_list(5000),
+        db.loyalty_ledger.aggregate(ledger_pipeline).to_list(None),
+        db.contacts.find({"tenant_id": tid}, {"id": 1, "name": 1}).to_list(None),
+    )
+    ledger_by_contact = {d["_id"]: d for d in ledger_docs}
+    contact_by_id = {c["id"]: c for c in contacts}
+
+    rfm_data = []
     for member in members:
         contact_id = member.get("contact_id", "")
-        contact = await find_one_scoped("contacts", tid, {"id": contact_id})
+        contact = contact_by_id.get(contact_id)
+        led = ledger_by_contact.get(contact_id, {})
 
-        # Recency: days since last activity
-        last_entry = await db.loyalty_ledger.find_one(
-            {"tenant_id": tid, "contact_id": contact_id},
-            sort=[("created_at", -1)]
-        )
-        if last_entry and last_entry.get("created_at"):
+        last_at = led.get("last_at")
+        if last_at:
             try:
-                last_date = datetime.fromisoformat(last_entry["created_at"].replace("Z", "+00:00"))
+                last_date = datetime.fromisoformat(last_at.replace("Z", "+00:00"))
                 recency_days = (now - last_date).days
             except Exception:
                 recency_days = 365
         else:
             recency_days = 365
 
-        # Frequency: total transactions
-        frequency = await db.loyalty_ledger.count_documents(
-            {"tenant_id": tid, "contact_id": contact_id}
-        )
-
-        # Monetary: total points earned (proxy for spending)
-        monetary = 0
-        async for doc in db.loyalty_ledger.aggregate([
-            {"$match": {"tenant_id": tid, "contact_id": contact_id, "direction": "EARN"}},
-            {"$group": {"_id": None, "total": {"$sum": "$points"}}}
-        ]):
-            monetary = doc.get("total", 0)
+        frequency = led.get("frequency", 0)
+        monetary = led.get("monetary", 0)
 
         # Score R, F, M (1-5 each)
         r_score = 5 - min(4, recency_days // 30)  # 5=recent, 1=old
@@ -340,40 +346,52 @@ async def cohort_analysis(tenant_slug: str, months: int = 6, user=Depends(get_cu
     tid = tenant["id"]
     now = now_utc()
 
-    cohorts = []
+    if months <= 0:
+        return {"data": [], "months": months}
+
+    # Build month boundaries once
+    boundaries = []
     for i in range(months):
         month_start = (now - timedelta(days=30 * (months - i - 1))).replace(day=1, hour=0, minute=0, second=0)
         if i < months - 1:
             month_end = (now - timedelta(days=30 * (months - i - 2))).replace(day=1, hour=0, minute=0, second=0)
         else:
             month_end = now
+        boundaries.append((month_start, month_end, month_start.strftime("%Y-%m")))
 
-        month_label = month_start.strftime("%Y-%m")
+    earliest = boundaries[0][0].isoformat()
+    latest = boundaries[-1][1].isoformat()
 
-        # Members enrolled in this month
-        enrolled = await db.loyalty_accounts.count_documents({
-            "tenant_id": tid,
-            "enrolled_at": {"$gte": month_start.isoformat(), "$lt": month_end.isoformat()}
-        })
+    # Run both aggregations in parallel — replaces N*3 sequential queries.
+    enrolled_pipeline = [
+        {"$match": {"tenant_id": tid, "enrolled_at": {"$gte": earliest, "$lt": latest}}},
+        {"$project": {"contact_id": 1, "month": {"$substr": ["$enrolled_at", 0, 7]}}},
+        {"$group": {"_id": "$month", "count": {"$sum": 1}, "contact_ids": {"$addToSet": "$contact_id"}}},
+    ]
+    active_pipeline = [
+        {"$match": {"tenant_id": tid, "created_at": {"$gte": earliest, "$lt": latest}}},
+        {"$project": {"contact_id": 1, "month": {"$substr": ["$created_at", 0, 7]}}},
+        {"$group": {"_id": {"month": "$month", "contact_id": "$contact_id"}}},
+        {"$group": {"_id": "$_id.month", "contact_ids": {"$addToSet": "$_id.contact_id"}}},
+    ]
 
-        # Active members in this month (had ledger entries)
-        active = await db.loyalty_ledger.distinct("contact_id", {
-            "tenant_id": tid,
-            "created_at": {"$gte": month_start.isoformat(), "$lt": month_end.isoformat()}
-        })
+    enrolled_docs, active_docs = await asyncio.gather(
+        db.loyalty_accounts.aggregate(enrolled_pipeline).to_list(None),
+        db.loyalty_ledger.aggregate(active_pipeline).to_list(None),
+    )
+    enrolled_by_month = {d["_id"]: d for d in enrolled_docs}
+    active_by_month = {d["_id"]: set(d.get("contact_ids", [])) for d in active_docs}
 
-        # Returning (active but not new)
-        new_this_month = await db.loyalty_accounts.distinct("contact_id", {
-            "tenant_id": tid,
-            "enrolled_at": {"$gte": month_start.isoformat(), "$lt": month_end.isoformat()}
-        })
-
-        returning = len(set(active) - set(new_this_month))
-        total_active = len(active)
-
+    cohorts = []
+    for _, _, label in boundaries:
+        e = enrolled_by_month.get(label, {})
+        new_set = set(e.get("contact_ids", []))
+        active_set = active_by_month.get(label, set())
+        returning = len(active_set - new_set)
+        total_active = len(active_set)
         cohorts.append({
-            "month": month_label,
-            "new_members": enrolled,
+            "month": label,
+            "new_members": e.get("count", 0),
             "active_members": total_active,
             "returning_members": returning,
             "retention_rate": round(returning / max(total_active, 1) * 100, 1)

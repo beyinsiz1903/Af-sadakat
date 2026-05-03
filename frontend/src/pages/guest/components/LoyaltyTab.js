@@ -46,7 +46,7 @@ export default function LoyaltyTab() {
           setJoined(true);
           setLoading(false);
           return;
-        } catch (e) {}
+        } catch (e) { console.error('loyalty tab load failed', e); }
       }
       // Auto-recognize returning guest by device_token (cross-room)
       const devToken = localStorage.getItem(`omnihub_device_${tenantSlug}`);

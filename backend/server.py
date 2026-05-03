@@ -306,6 +306,19 @@ async def create_indexes():
         await db.reservations.create_index([("tenant_id", 1), ("confirmation_code", 1)], unique=True, sparse=True)
         await db.reservations.create_index([("tenant_id", 1), ("property_id", 1), ("created_at", -1)])
 
+        # Performance: stats/enhanced + reports + cohort indexes
+        await db.guest_requests.create_index([("tenant_id", 1), ("created_at", -1)])
+        await db.guest_requests.create_index([("tenant_id", 1), ("department_code", 1), ("created_at", -1)])
+        await db.guest_requests.create_index([("tenant_id", 1), ("rating", 1)], sparse=True)
+        await db.loyalty_accounts.create_index([("tenant_id", 1), ("enrolled_at", -1)])
+        await db.spa_bookings.create_index([("tenant_id", 1), ("status", 1)])
+        await db.restaurant_reservations.create_index([("tenant_id", 1), ("status", 1)])
+        await db.transport_requests.create_index([("tenant_id", 1), ("status", 1)])
+        await db.laundry_requests.create_index([("tenant_id", 1), ("status", 1)])
+        await db.notifications.create_index([("tenant_id", 1), ("read", 1)])
+        await db.lost_found.create_index([("tenant_id", 1), ("status", 1)])
+        await db.guest_surveys.create_index([("tenant_id", 1), ("created_at", -1)])
+
         # Sprint 7: AI Sales indexes
         await db.room_rates.create_index([("tenant_id", 1), ("property_id", 1), ("room_type_code", 1)], unique=True)
         await db.discount_rules.create_index([("tenant_id", 1), ("property_id", 1)], unique=True)

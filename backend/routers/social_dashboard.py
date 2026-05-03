@@ -1,6 +1,8 @@
 """Social Dashboard Router - Unified social media management
 Aggregated view of all social channels, analytics, moderation
+Optimized: N+1 count loops replaced with grouped aggregation pipelines.
 """
+import asyncio
 from fastapi import APIRouter, HTTPException, Depends
 from typing import Optional
 from datetime import datetime, timezone, timedelta
@@ -14,61 +16,83 @@ from core.tenant_guard import (
 
 router = APIRouter(prefix="/api/v2/social", tags=["social-dashboard"])
 
+
 @router.get("/tenants/{tenant_slug}/dashboard")
 async def get_social_dashboard(tenant_slug: str, user=Depends(get_current_user)):
-    """Unified social media dashboard"""
+    """Unified social media dashboard.
+    Optimized: was 13+ sequential queries, now 6 parallel aggregations."""
     tenant = await resolve_tenant(tenant_slug)
     tid = tenant["id"]
-    
-    # Get conversations by channel
+
+    yesterday = (now_utc() - timedelta(hours=24)).isoformat()
+
+    conv_pipeline = [
+        {"$match": {"tenant_id": tid}},
+        {"$group": {
+            "_id": "$channel",
+            "total": {"$sum": 1},
+            "open": {"$sum": {"$cond": [{"$eq": ["$status", "open"]}, 1, 0]}},
+        }},
+    ]
+    review_source_pipeline = [
+        {"$match": {"tenant_id": tid}},
+        {"$group": {"_id": "$source", "count": {"$sum": 1}}},
+    ]
+    sentiment_pipeline = [
+        {"$match": {"tenant_id": tid}},
+        {"$group": {
+            "_id": None,
+            "total": {"$sum": 1},
+            "pos": {"$sum": {"$cond": [{"$eq": ["$sentiment", "POS"]}, 1, 0]}},
+            "neg": {"$sum": {"$cond": [{"$eq": ["$sentiment", "NEG"]}, 1, 0]}},
+            "neu": {"$sum": {"$cond": [{"$eq": ["$sentiment", "NEU"]}, 1, 0]}},
+            "rating_sum": {"$sum": {"$ifNull": ["$rating", 0]}},
+            "rating_count": {"$sum": {"$cond": [{"$gt": ["$rating", 0]}, 1, 0]}},
+        }},
+    ]
+
+    conv_docs, review_src_docs, sentiment_docs, recent_messages, meta_cred = await asyncio.gather(
+        db.conversations.aggregate(conv_pipeline).to_list(None),
+        db.reviews.aggregate(review_source_pipeline).to_list(None),
+        db.reviews.aggregate(sentiment_pipeline).to_list(1),
+        db.messages.count_documents({"tenant_id": tid, "created_at": {"$gte": yesterday}}),
+        db.connector_credentials.find_one({"tenant_id": tid, "connector_type": "META"}, {"_id": 0}),
+    )
+
     channels = ["WHATSAPP", "INSTAGRAM", "FACEBOOK", "WEBCHAT"]
+    conv_by_channel = {d["_id"]: d for d in conv_docs}
     channel_stats = {}
     for ch in channels:
-        total = await count_scoped("conversations", tid, {"channel": ch})
-        open_count = await count_scoped("conversations", tid, {"channel": ch, "status": "open"})
-        channel_stats[ch.lower()] = {"total": total, "open": open_count}
-    
-    # Get reviews by source
+        c = conv_by_channel.get(ch, {})
+        channel_stats[ch.lower()] = {"total": c.get("total", 0), "open": c.get("open", 0)}
+
     review_sources = ["FACEBOOK", "INSTAGRAM", "GOOGLE", "TRIPADVISOR", "BOOKING"]
-    review_stats = {}
-    for src in review_sources:
-        total = await count_scoped("reviews", tid, {"source": src})
-        review_stats[src.lower()] = total
-    
-    # Recent messages count (last 24h)
-    yesterday = (now_utc() - timedelta(hours=24)).isoformat()
-    recent_messages = await count_scoped("messages", tid, {"created_at": {"$gte": yesterday}})
-    
-    # Total reviews
-    total_reviews = await count_scoped("reviews", tid)
-    avg_rating = 0
-    reviews = await find_many_scoped("reviews", tid, limit=500)
-    if reviews:
-        ratings = [r.get("rating", 0) for r in reviews if r.get("rating")]
-        avg_rating = round(sum(ratings) / len(ratings), 1) if ratings else 0
-    
-    # Sentiment breakdown
-    pos = await count_scoped("reviews", tid, {"sentiment": "POS"})
-    neg = await count_scoped("reviews", tid, {"sentiment": "NEG"})
-    neu = await count_scoped("reviews", tid, {"sentiment": "NEU"})
-    
-    # Meta integration status
-    meta_cred = await db.connector_credentials.find_one(
-        {"tenant_id": tid, "connector_type": "META"}, {"_id": 0}
-    )
+    rev_by_source = {d["_id"]: d.get("count", 0) for d in review_src_docs}
+    review_stats = {src.lower(): rev_by_source.get(src, 0) for src in review_sources}
+
+    s = sentiment_docs[0] if sentiment_docs else {}
+    total_reviews = s.get("total", 0)
+    rating_count = s.get("rating_count", 0)
+    avg_rating = round(s.get("rating_sum", 0) / rating_count, 1) if rating_count else 0
+
     meta_status = serialize_doc(meta_cred).get("status", "DISCONNECTED") if meta_cred else "DISCONNECTED"
-    
+
     return {
         "channel_stats": channel_stats,
         "review_stats": review_stats,
         "recent_messages_24h": recent_messages,
         "total_reviews": total_reviews,
         "avg_rating": avg_rating,
-        "sentiment": {"positive": pos, "negative": neg, "neutral": neu},
+        "sentiment": {
+            "positive": s.get("pos", 0),
+            "negative": s.get("neg", 0),
+            "neutral": s.get("neu", 0),
+        },
         "meta_status": meta_status,
         "total_conversations": sum(v["total"] for v in channel_stats.values()),
         "open_conversations": sum(v["open"] for v in channel_stats.values()),
     }
+
 
 @router.get("/tenants/{tenant_slug}/unified-inbox")
 async def get_unified_inbox(tenant_slug: str, channel: Optional[str] = None,
@@ -78,19 +102,20 @@ async def get_unified_inbox(tenant_slug: str, channel: Optional[str] = None,
     """All conversations from all social channels in one view"""
     tenant = await resolve_tenant(tenant_slug)
     tid = tenant["id"]
-    
+
     query = {}
     if channel:
         query["channel"] = channel.upper()
     if status:
         query["status"] = status
-    
+
     skip = (page - 1) * limit
-    conversations = await find_many_scoped("conversations", tid, query,
-                                            sort=[("updated_at", -1)], skip=skip, limit=limit)
-    total = await count_scoped("conversations", tid, query)
-    
+    conversations, total = await asyncio.gather(
+        find_many_scoped("conversations", tid, query, sort=[("updated_at", -1)], skip=skip, limit=limit),
+        count_scoped("conversations", tid, query),
+    )
     return {"data": conversations, "total": total, "page": page}
+
 
 @router.get("/tenants/{tenant_slug}/all-reviews")
 async def get_all_reviews(tenant_slug: str, source: Optional[str] = None,
@@ -101,83 +126,79 @@ async def get_all_reviews(tenant_slug: str, source: Optional[str] = None,
     """All reviews from all platforms"""
     tenant = await resolve_tenant(tenant_slug)
     tid = tenant["id"]
-    
+
     query = {}
     if source:
         query["source"] = source.upper()
     if sentiment:
         query["sentiment"] = sentiment.upper()
     if replied is not None:
-        if replied:
-            query["reply"] = {"$ne": None}
-        else:
-            query["reply"] = None
-    
+        query["reply"] = {"$ne": None} if replied else None
+
     skip = (page - 1) * limit
-    reviews = await find_many_scoped("reviews", tid, query,
-                                      sort=[("created_at", -1)], skip=skip, limit=limit)
-    total = await count_scoped("reviews", tid, query)
-    
+    reviews, total = await asyncio.gather(
+        find_many_scoped("reviews", tid, query, sort=[("created_at", -1)], skip=skip, limit=limit),
+        count_scoped("reviews", tid, query),
+    )
     return {"data": reviews, "total": total, "page": page}
 
-# Auto-moderation rules
+
 @router.get("/tenants/{tenant_slug}/moderation-rules")
 async def list_moderation_rules(tenant_slug: str, user=Depends(get_current_user)):
     tenant = await resolve_tenant(tenant_slug)
     return await find_many_scoped("moderation_rules", tenant["id"])
+
 
 @router.post("/tenants/{tenant_slug}/moderation-rules")
 async def create_moderation_rule(tenant_slug: str, data: dict, user=Depends(get_current_user)):
     tenant = await resolve_tenant(tenant_slug)
     return await insert_scoped("moderation_rules", tenant["id"], {
         "name": data.get("name", ""),
-        "trigger_type": data.get("trigger_type", "keyword"),  # keyword, sentiment, spam
+        "trigger_type": data.get("trigger_type", "keyword"),
         "trigger_value": data.get("trigger_value", ""),
-        "action": data.get("action", "flag"),  # flag, hide, auto_reply, escalate
+        "action": data.get("action", "flag"),
         "auto_reply_text": data.get("auto_reply_text", ""),
-        "channels": data.get("channels", []),  # ["FACEBOOK", "INSTAGRAM"]
+        "channels": data.get("channels", []),
         "active": data.get("active", True),
     })
 
-# Social Analytics
+
 @router.get("/tenants/{tenant_slug}/analytics")
 async def get_social_analytics(tenant_slug: str, days: int = 30,
                                 user=Depends(get_current_user)):
-    """Social media analytics"""
+    """Social media analytics.
+    Optimized: 4 parallel queries replace sequential calls."""
     tenant = await resolve_tenant(tenant_slug)
     tid = tenant["id"]
-    
     since = (now_utc() - timedelta(days=days)).isoformat()
-    
-    # Messages per day
-    messages = await find_many_scoped("messages", tid, {"created_at": {"$gte": since}}, limit=5000)
-    
-    # Group by day
-    daily_messages = {}
-    for msg in messages:
-        day = msg.get("created_at", "")[:10]
-        daily_messages[day] = daily_messages.get(day, 0) + 1
-    
-    # Reviews per day
-    reviews = await find_many_scoped("reviews", tid, {"created_at": {"$gte": since}}, limit=1000)
-    daily_reviews = {}
-    for rev in reviews:
-        day = rev.get("created_at", "")[:10]
-        daily_reviews[day] = daily_reviews.get(day, 0) + 1
-    
-    # Response rate
-    total_convs = await count_scoped("conversations", tid, {"created_at": {"$gte": since}})
-    replied_convs = await count_scoped("conversations", tid, {
-        "created_at": {"$gte": since},
-        "last_agent_message_at": {"$ne": None}
-    })
+
+    msgs_pipeline = [
+        {"$match": {"tenant_id": tid, "created_at": {"$gte": since}}},
+        {"$group": {"_id": {"$substr": ["$created_at", 0, 10]}, "count": {"$sum": 1}}},
+    ]
+    revs_pipeline = [
+        {"$match": {"tenant_id": tid, "created_at": {"$gte": since}}},
+        {"$group": {"_id": {"$substr": ["$created_at", 0, 10]}, "count": {"$sum": 1}}},
+    ]
+
+    msg_docs, rev_docs, total_convs, replied_convs = await asyncio.gather(
+        db.messages.aggregate(msgs_pipeline).to_list(None),
+        db.reviews.aggregate(revs_pipeline).to_list(None),
+        count_scoped("conversations", tid, {"created_at": {"$gte": since}}),
+        count_scoped("conversations", tid, {"created_at": {"$gte": since}, "last_agent_message_at": {"$ne": None}}),
+    )
+
+    daily_messages = {d["_id"]: d["count"] for d in msg_docs if d["_id"]}
+    daily_reviews = {d["_id"]: d["count"] for d in rev_docs if d["_id"]}
+    total_messages = sum(daily_messages.values())
+    total_reviews_period = sum(daily_reviews.values())
     response_rate = round(replied_convs / max(total_convs, 1) * 100, 1)
-    
+
     return {
         "daily_messages": daily_messages,
         "daily_reviews": daily_reviews,
-        "total_messages": len(messages),
-        "total_reviews": len(reviews),
+        "total_messages": total_messages,
+        "total_reviews": total_reviews_period,
         "response_rate": response_rate,
         "period_days": days,
     }

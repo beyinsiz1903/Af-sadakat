@@ -218,11 +218,11 @@ export default function GuestRoomPanel() {
   };
 
   const loadRequests = async () => {
-    try { const { data } = await guestAPI.roomRequests(tenantSlug, roomCode); setRequests(data); } catch (e) {}
+    try { const { data } = await guestAPI.roomRequests(tenantSlug, roomCode); setRequests(data); } catch (e) { console.error('roomRequests load failed', e); }
   };
 
   const loadUnreadCount = async () => {
-    try { const res = await guestServicesAPI.getUnreadNotifCount(tenantSlug, roomCode); setUnreadCount(res.data?.count || 0); } catch (e) {}
+    try { const res = await guestServicesAPI.getUnreadNotifCount(tenantSlug, roomCode); setUnreadCount(res.data?.count || 0); } catch (e) { console.error('unread notif count failed', e); }
   };
 
   const handlePushToggle = async () => {

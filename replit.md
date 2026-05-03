@@ -52,6 +52,30 @@ This starts:
 2. FastAPI backend on port 8000
 3. React frontend on port 5000
 
+## Performance Optimizations (May 2026)
+
+Audit-driven N+1 elimination across hot analytics paths. All preserve original semantics; verified by architect review.
+
+| Endpoint | Before | After | Technique |
+|---|---:|---:|---|
+| `/api/tenants/{slug}/stats` | ~1.5s | 1.0s | `asyncio.gather` (11 parallel queries) |
+| `/api/tenants/{slug}/stats/enhanced` | 6.5s | 1.0s | `asyncio.gather` (32 parallel queries) |
+| `/api/v2/reports/.../department-performance` | 7.8s | 0.8s | Single `$group` aggregation w/ pre-parsed dates |
+| `/api/v2/loyalty-analytics/.../cohort` | 5.1s | 0.76s | Two parallel aggregations + `$substr` month grouping |
+| `/api/v2/loyalty-analytics/.../rfm` | 2.8s | 0.76s | Single ledger aggregation + bulk contact fetch |
+| `/api/v2/social/.../dashboard` | 5.5s | 0.76s | 6 parallel grouped aggregations |
+| `/api/v2/social/.../analytics` | ~3.5s | 0.76s | 4 parallel queries with date-bucket pipelines |
+
+**Floor:** ~700ms = MongoDB Atlas RTT (Syroce cluster). Lower requires Redis layer.
+
+**Indexes added** (`backend/server.py:create_indexes`):
+- `guest_requests`: `(tenant_id, created_at)`, `(tenant_id, department_code, created_at)`, `(tenant_id, rating)` sparse
+- `loyalty_accounts`: `(tenant_id, enrolled_at)`
+- `spa_bookings`, `restaurant_reservations`, `transport_requests`, `laundry_requests`, `notifications`, `lost_found`: all `(tenant_id, status)`
+- `guest_surveys`: `(tenant_id, created_at)`
+
+**Frontend fixes:** Silent `try/catch` blocks in `OnboardingPage.js`, `GuestRoomPanel.js` (×2), `GuestTablePanel.js`, `LoyaltyTab.js` now log via `console.error`.
+
 ## Key Features
 
 - **Multi-tenant**: Isolated per tenant via `tenant_id`. **TenantIsolationMiddleware** (`backend/core/middleware.py`) enforces fail-closed cross-tenant guard on all `/api/.../tenants/{slug}/...` routes — JWT `tenant_id` claim must match resolved slug. 60s TTL slug→tenant_id cache with negative caching. Public/guest paths (`/api/g/`, `/api/auth/`, `/api/v2/payments/pay/`, webhooks, etc.) are skipped.
