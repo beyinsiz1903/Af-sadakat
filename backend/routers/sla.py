@@ -90,7 +90,7 @@ async def get_sla_stats(tenant_slug: str, user=Depends(get_current_user)):
                 responded = datetime.fromisoformat(r["first_response_at"].replace("Z", "+00:00"))
                 diff = (responded - created).total_seconds() / 60
                 response_times.append(diff)
-            except:
+            except Exception:
                 pass
         if r.get("resolved_at") and r.get("created_at"):
             try:
@@ -99,7 +99,7 @@ async def get_sla_stats(tenant_slug: str, user=Depends(get_current_user)):
                 resolved_dt = datetime.fromisoformat(r["resolved_at"].replace("Z", "+00:00"))
                 diff = (resolved_dt - created).total_seconds() / 60
                 resolution_times.append(diff)
-            except:
+            except Exception:
                 pass
     
     avg_response = round(sum(response_times) / len(response_times), 1) if response_times else 0

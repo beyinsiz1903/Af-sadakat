@@ -1450,7 +1450,7 @@ async def guest_create_reservation(tenant_slug: str, data: dict):
         d1 = datetime.fromisoformat(data["check_in"])
         d2 = datetime.fromisoformat(data["check_out"])
         nights = max(1, (d2 - d1).days)
-    except:
+    except Exception:
         raise HTTPException(status_code=400, detail="Invalid dates")
 
     base_price = room_rate.get("base_price", room_rate.get("price_per_night", 0))

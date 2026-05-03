@@ -108,7 +108,8 @@ async def get_optional_user(credentials: HTTPAuthorizationCredentials = Depends(
         payload = decode_access_token(credentials.credentials)
         user = await db.users.find_one({"id": payload["user_id"]}, {"_id": 0})
         return serialize_doc(user) if user else None
-    except:
+    except Exception:
+        # Optional auth: any failure returns None (guest endpoints).
         return None
 
 # ---- Tenant resolution (slug -> tenant) ----

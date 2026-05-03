@@ -212,7 +212,7 @@ async def create_order_v2(tenant_slug: str, data: dict):
     try:
         from server import ws_manager
         await ws_manager.broadcast_tenant(tid, "order", "order", "created", order)
-    except:
+    except Exception:
         pass
     
     return order
@@ -268,7 +268,7 @@ async def update_order_status_v2(tenant_slug: str, order_id: str, data: dict, us
     try:
         from server import ws_manager
         await ws_manager.broadcast_tenant(tenant["id"], "order", "order", "updated", updated)
-    except:
+    except Exception:
         pass
     
     try:

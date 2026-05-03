@@ -243,7 +243,7 @@ async def webchat_start(data: dict):
     try:
         from server import ws_manager
         await ws_manager.broadcast_tenant(tenant["id"], "conversation", "conversation", "created", conv)
-    except:
+    except Exception:
         pass
     return {"conversationId": conv["id"], "tenantId": tenant["id"]}
 
@@ -286,7 +286,7 @@ async def webchat_guest_message(conv_id: str, data: dict):
     try:
         from server import ws_manager
         await ws_manager.broadcast_tenant(tid, "message", "message", "created", msg)
-    except:
+    except Exception:
         pass
 
     # === AI Auto-Reply: trigger if AI sales enabled ===
@@ -386,7 +386,7 @@ async def create_offer_from_inbox(tenant_slug: str, conv_id: str, data: dict, us
         await emit_contact_event(tid, contact_id, "OFFER_CREATED",
                                   f"Offer created from inbox: {data.get('room_type', 'standard')}",
                                   ref_type="offer", ref_id=offer["id"])
-    except:
+    except Exception:
         pass
 
     return {"offer": offer, "contact_id": contact_id}

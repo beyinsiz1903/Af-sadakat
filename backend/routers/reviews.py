@@ -125,7 +125,7 @@ async def reply_to_review(tenant_slug: str, review_id: str, data: dict, user=Dep
         from server import ws_manager
         await ws_manager.broadcast_tenant(tenant["id"], "review", "review_reply", "created",
                                            {"review_id": review_id, "reply": reply})
-    except:
+    except Exception:
         pass
 
     return reply

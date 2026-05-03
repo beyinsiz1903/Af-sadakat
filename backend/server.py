@@ -115,7 +115,7 @@ async def get_optional_user(credentials: HTTPAuthorizationCredentials = Depends(
         payload = decode_token(credentials.credentials)
         user = await db.users.find_one({"id": payload["user_id"]}, {"_id": 0})
         return serialize_doc(user) if user else None
-    except:
+    except Exception:
         return None
 
 # ============ WEBSOCKET MANAGER (extracted to core/legacy_helpers) ============
@@ -520,7 +520,7 @@ async def websocket_endpoint_final(websocket: WebSocket, tenant_id: str):
             except asyncio.TimeoutError:
                 try:
                     await websocket.send_text("ping")
-                except:
+                except Exception:
                     break
                 continue
             if data == "ping":
@@ -536,7 +536,7 @@ async def websocket_endpoint_final(websocket: WebSocket, tenant_id: str):
                     else:
                         await websocket.send_json({"type": "auth_invalid", "reason": "user_inactive"})
                         break
-                except:
+                except Exception:
                     await websocket.send_json({"type": "auth_invalid", "reason": "token_expired"})
                     break
             if _time.time() - last_auth_check > AUTH_REVALIDATION_INTERVAL:

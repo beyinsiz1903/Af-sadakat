@@ -270,7 +270,9 @@ export default function GuestRoomPanel() {
     try {
       const res = await guestServicesAPI.getGuestNotifications(tenantSlug, roomCode);
       setNotifications(res.data || []);
-    } catch (e) {}
+    } catch (e) {
+      console.error('[guest] getGuestNotifications failed:', e);
+    }
     if (unreadCount > 0) { await guestServicesAPI.markNotificationsRead(tenantSlug, roomCode); setUnreadCount(0); }
   };
 

@@ -37,7 +37,9 @@ async def system_status_v2():
     try:
         await db.command("ping")
         db_status = "connected"
-    except:
+    except Exception as e:
+        import logging
+        logging.getLogger("omnihub.system").warning("DB ping failed: %s", e)
         db_status = "error"
     return {
         "status": "operational",

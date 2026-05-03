@@ -174,7 +174,7 @@ async def peak_demand(tenant_slug: str, days: int = 30,
             hourly[hour]["requests"] += 1
             day_name = dt.strftime("%a")
             daily[day_name] = daily.get(day_name, 0) + 1
-        except:
+        except Exception:
             pass
     
     for o in orders:
@@ -182,7 +182,7 @@ async def peak_demand(tenant_slug: str, days: int = 30,
             dt = datetime.fromisoformat(o.get("created_at", "").replace("Z", "+00:00"))
             hour = str(dt.hour).zfill(2)
             hourly[hour]["orders"] += 1
-        except:
+        except Exception:
             pass
     
     return {
@@ -221,7 +221,7 @@ async def staff_productivity(tenant_slug: str, days: int = 30,
                 resolved_dt = datetime.fromisoformat(r["resolved_at"].replace("Z", "+00:00"))
                 diff_min = (resolved_dt - created).total_seconds() / 60
                 staff_stats[assigned]["resolution_times"].append(diff_min)
-            except:
+            except Exception:
                 pass
     
     result = []

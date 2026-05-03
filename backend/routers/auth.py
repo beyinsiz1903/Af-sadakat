@@ -203,7 +203,7 @@ async def refresh_token(data: dict):
         }
     except HTTPException:
         raise
-    except:
+    except Exception:
         raise HTTPException(status_code=401, detail="Invalid token")
 
 @router.post("/logout")

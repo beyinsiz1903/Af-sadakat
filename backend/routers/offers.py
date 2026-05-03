@@ -121,7 +121,7 @@ async def create_offer(tenant_slug: str, data: dict, user=Depends(get_current_us
             await emit_contact_event(tid, contact_id, "OFFER_CREATED",
                                       f"Offer created: {room_type} {check_in}-{check_out} {currency} {price_total}",
                                       ref_type="offer", ref_id=offer["id"])
-        except:
+        except Exception:
             pass
 
     return offer
@@ -198,7 +198,7 @@ async def send_offer(tenant_slug: str, offer_id: str, user=Depends(get_current_u
             await emit_contact_event(tid, offer["contact_id"], "OFFER_SENT",
                                       f"Offer sent (expires {expires_at[:10]})",
                                       ref_type="offer", ref_id=offer_id)
-        except:
+        except Exception:
             pass
 
     return updated

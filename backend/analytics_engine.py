@@ -56,7 +56,7 @@ async def compute_analytics(db, tenant_id: str) -> dict:
         resolution = await db.guest_requests.aggregate(resolution_pipeline).to_list(1)
         avg_resolution_ms = resolution[0]["avg_ms"] if resolution else 0
         avg_resolution_min = round(avg_resolution_ms / 60000, 1) if avg_resolution_ms else 0
-    except:
+    except Exception:
         avg_resolution_min = 0
     
     # AI efficiency
@@ -243,7 +243,7 @@ async def compute_staff_performance(db, tenant_id: str, period_days: int = 30) -
         try:
             resp = await db.guest_requests.aggregate(response_pipeline).to_list(1)
             avg_response_min = round(resp[0]["avg_ms"] / 60000, 1) if resp else 0
-        except:
+        except Exception:
             avg_response_min = 0
         
         # Ratings for this staff
@@ -255,7 +255,7 @@ async def compute_staff_performance(db, tenant_id: str, period_days: int = 30) -
             rating_result = await db.guest_requests.aggregate(rating_pipeline).to_list(1)
             avg_rating = round(rating_result[0]["avg"], 1) if rating_result else 0
             rating_count = rating_result[0]["count"] if rating_result else 0
-        except:
+        except Exception:
             avg_rating = 0
             rating_count = 0
         
