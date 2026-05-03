@@ -68,6 +68,12 @@ Audit-driven N+1 elimination across hot analytics paths. All preserve original s
 
 **Floor:** ~700ms = MongoDB Atlas RTT (Syroce cluster). Lower requires Redis layer.
 
+### Frontend perf (May 2026)
+
+- **Lazy loading + code splitting**: 33 admin pages + `AdminLayout` are `React.lazy(...)` in `App.js`. `LoginPage` stays eager for fast unauth first paint.
+- **Persistent shell**: `Suspense` is placed inside `AdminLayout` around `<Outlet />`, so sidebar/topbar do not flash during page transitions.
+- **Tailwind CDN removed**: `cdn.tailwindcss.com` (~6 MB runtime) dropped from `public/index.html`. Lokal PostCSS toolchain (`tailwind.config.js` + `postcss.config.js` + `autoprefixer`) takes over. `corePlugins.preflight = false` carried over to lokal config so existing Shadcn UI styles are unaffected.
+
 **Indexes added** (`backend/server.py:create_indexes`):
 - `guest_requests`: `(tenant_id, created_at)`, `(tenant_id, department_code, created_at)`, `(tenant_id, rating)` sparse
 - `loyalty_accounts`: `(tenant_id, enrolled_at)`
