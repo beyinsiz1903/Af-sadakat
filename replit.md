@@ -6,7 +6,7 @@ A comprehensive multi-tenant SaaS platform for the hospitality and service indus
 
 - **Frontend**: React 19 + Tailwind CSS + Shadcn UI, built with CRACO (Create React App), runs on port 5000
 - **Backend**: FastAPI (Python) with async MongoDB (motor), runs on port 8000
-- **Database**: MongoDB 7.0, runs locally on port 27017
+- **Database**: MongoDB Atlas (cloud, configured via `MONGO_URL`)
 - **AI/ML**: OpenAI, Google Generative AI, LiteLLM for AI replies
 
 ## Project Structure
@@ -21,7 +21,9 @@ A comprehensive multi-tenant SaaS platform for the hospitality and service indus
 │   │   └── lib/       # API client, WebSocket, Zustand store
 │   └── plugins/       # Custom webpack plugins (visual-edits, health-check)
 ├── backend/           # FastAPI backend
-│   ├── server.py      # Main entry point (~1310 lines, websocket + 33 legacy routes; rooms/orders/contacts/analytics/demo-seed/guest-resolve extracted)
+│   ├── server.py      # Main entry point (~730 lines, websocket + auth + tenants + only 1 legacy route remaining; T007 Faz 1+2 complete)
+│   │                  # Extracted modules: rooms, orders, contacts, analytics, demo-seed, guest-resolve,
+│   │                  # legacy_restaurant (tables/menu), legacy_qr, legacy_engagement (reviews/connectors/offers/payments-mock), legacy_misc (comments/kb/reservations/contacts-intel/audit-logs)
 │   ├── routers/       # Modular API routers (auth, tenants, billing, system, hotel, restaurant, inbox, etc.)
 │   ├── services/      # Business logic + external provider integrations
 │   ├── connectors/    # Third-party platform connectors
@@ -33,8 +35,8 @@ A comprehensive multi-tenant SaaS platform for the hospitality and service indus
 
 ## Environment Variables
 
-- `MONGO_URL`: MongoDB connection URL (default: `mongodb://localhost:27017`)
-- `DB_NAME`: MongoDB database name (default: `omni_inbox_hub`)
+- `MONGO_URL`: MongoDB Atlas connection URL (mongodb+srv://...) — **REQUIRED**, no local fallback
+- `DB_NAME`: MongoDB database name (default: `omni_inbox_hub`, currently `syroce-sadakat`)
 - `JWT_SECRET`: JWT signing secret
 - `OPENAI_API_KEY`: Optional - for AI reply features
 - `REACT_APP_BACKEND_URL`: Backend URL for frontend (set to `http://localhost:8000` in dev)

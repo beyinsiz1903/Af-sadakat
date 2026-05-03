@@ -16,19 +16,18 @@ from datetime import datetime, timezone, timedelta
 from collections import defaultdict
 import asyncio
 import jwt
-import random
 import hashlib
 
 # Add backend dir to path for local imports
 sys.path.insert(0, str(Path(__file__).parent))
-from rbac import ROLES, has_permission, get_accessible_modules, LOYALTY_TIERS, compute_tier, next_tier_info, analyze_sentiment, CONNECTOR_TYPES, FAKE_REVIEWS
-from connectors_legacy import get_connector, StripeStubProvider
+from rbac import ROLES, has_permission, get_accessible_modules, LOYALTY_TIERS, compute_tier, next_tier_info
+from connectors_legacy import get_connector
 from security import rate_limiter, brute_force, create_session_doc, encrypt_field, decrypt_field, mask_email, mask_phone, PLAN_LIMITS, get_plan_limits, check_limit, token_family_manager, csrf_protection
 from billing import create_billing_account, create_subscription, create_invoice, generate_mock_invoices, usage_meter, handle_stripe_webhook, UsageMeter, create_payment_method
 from analytics_engine import compute_analytics, compute_revenue_analytics, compute_staff_performance, compute_investor_metrics
 from compliance import export_guest_data, forget_guest, log_consent, retention_auto_cleanup
 from referral import get_or_create_referral, track_referral_click, track_referral_signup, generate_referral_code, get_referral_landing_data
-from guest_system import create_guest_token, decode_guest_token, generate_qr_png, generate_qr_print_pdf, encrypt_credentials, decrypt_credentials, ConnectorPollingTask
+from guest_system import create_guest_token, decode_guest_token, encrypt_credentials, decrypt_credentials, ConnectorPollingTask
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -183,31 +182,6 @@ class RequestRatingCreate(BaseModel):
     rating: int
     comment: Optional[str] = ""
 
-class TableCreate(BaseModel):
-    table_number: str
-    capacity: Optional[int] = 4
-    section: Optional[str] = ""
-
-class MenuCategoryCreate(BaseModel):
-    name: str
-    sort_order: Optional[int] = 0
-
-class MenuItemCreate(BaseModel):
-    name: str
-    description: Optional[str] = ""
-    price: float
-    category_id: str
-    image_url: Optional[str] = ""
-    available: bool = True
-
-class MenuItemUpdate(BaseModel):
-    name: Optional[str] = None
-    description: Optional[str] = None
-    price: Optional[float] = None
-    category_id: Optional[str] = None
-    image_url: Optional[str] = None
-    available: Optional[bool] = None
-
 class OrderItemInput(BaseModel):
     menu_item_id: str
     menu_item_name: str
@@ -241,111 +215,16 @@ async def root():
 
 
 # ============ TABLE ROUTES ============
-@api_router.post("/tenants/{tenant_slug}/tables")
-async def create_table(tenant_slug: str, data: TableCreate):
-    tenant = await get_tenant_by_slug(tenant_slug)
-    usage = tenant.get("usage_counters", {})
-    limits = tenant.get("plan_limits", {})
-    if usage.get("tables", 0) >= limits.get("max_tables", 10):
-        raise HTTPException(status_code=403, detail="Table limit reached")
-    
-    table_code = f"T{data.table_number}"
-    table = {
-        "id": new_id(),
-        "tenant_id": tenant["id"],
-        "table_number": data.table_number,
-        "table_code": table_code,
-        "capacity": data.capacity,
-        "section": data.section,
-        "qr_link": f"/g/{tenant_slug}/table/{table_code}",
-        "created_at": now_utc().isoformat()
-    }
-    await db.tables.insert_one(table)
-    await db.tenants.update_one({"id": tenant["id"]}, {"$inc": {"usage_counters.tables": 1}})
-    return serialize_doc(table)
 
-@api_router.get("/tenants/{tenant_slug}/tables")
-async def list_tables(tenant_slug: str):
-    tenant = await get_tenant_by_slug(tenant_slug)
-    tables = await db.tables.find({"tenant_id": tenant["id"]}, {"_id": 0}).to_list(200)
-    return [serialize_doc(t) for t in tables]
 
-@api_router.delete("/tenants/{tenant_slug}/tables/{table_id}")
-async def delete_table(tenant_slug: str, table_id: str):
-    tenant = await get_tenant_by_slug(tenant_slug)
-    result = await db.tables.delete_one({"id": table_id, "tenant_id": tenant["id"]})
-    if result.deleted_count == 0:
-        raise HTTPException(status_code=404, detail="Table not found")
-    await db.tenants.update_one({"id": tenant["id"]}, {"$inc": {"usage_counters.tables": -1}})
-    return {"deleted": True}
 
 # ============ MENU ROUTES ============
-@api_router.post("/tenants/{tenant_slug}/menu-categories")
-async def create_menu_category(tenant_slug: str, data: MenuCategoryCreate):
-    tenant = await get_tenant_by_slug(tenant_slug)
-    cat = {
-        "id": new_id(),
-        "tenant_id": tenant["id"],
-        "name": data.name,
-        "sort_order": data.sort_order,
-        "created_at": now_utc().isoformat()
-    }
-    await db.menu_categories.insert_one(cat)
-    return serialize_doc(cat)
 
-@api_router.get("/tenants/{tenant_slug}/menu-categories")
-async def list_menu_categories(tenant_slug: str):
-    tenant = await get_tenant_by_slug(tenant_slug)
-    cats = await db.menu_categories.find({"tenant_id": tenant["id"]}, {"_id": 0}).sort("sort_order", 1).to_list(100)
-    return [serialize_doc(c) for c in cats]
 
-@api_router.delete("/tenants/{tenant_slug}/menu-categories/{cat_id}")
-async def delete_menu_category(tenant_slug: str, cat_id: str):
-    tenant = await get_tenant_by_slug(tenant_slug)
-    await db.menu_categories.delete_one({"id": cat_id, "tenant_id": tenant["id"]})
-    return {"deleted": True}
 
-@api_router.post("/tenants/{tenant_slug}/menu-items")
-async def create_menu_item(tenant_slug: str, data: MenuItemCreate):
-    tenant = await get_tenant_by_slug(tenant_slug)
-    item = {
-        "id": new_id(),
-        "tenant_id": tenant["id"],
-        "name": data.name,
-        "description": data.description,
-        "price": data.price,
-        "category_id": data.category_id,
-        "image_url": data.image_url,
-        "available": data.available,
-        "created_at": now_utc().isoformat()
-    }
-    await db.menu_items.insert_one(item)
-    return serialize_doc(item)
 
-@api_router.get("/tenants/{tenant_slug}/menu-items")
-async def list_menu_items(tenant_slug: str, category_id: Optional[str] = None):
-    tenant = await get_tenant_by_slug(tenant_slug)
-    query = {"tenant_id": tenant["id"]}
-    if category_id:
-        query["category_id"] = category_id
-    items = await db.menu_items.find(query, {"_id": 0}).to_list(500)
-    return [serialize_doc(i) for i in items]
 
-@api_router.patch("/tenants/{tenant_slug}/menu-items/{item_id}")
-async def update_menu_item(tenant_slug: str, item_id: str, data: MenuItemUpdate):
-    tenant = await get_tenant_by_slug(tenant_slug)
-    update_data = {k: v for k, v in data.model_dump().items() if v is not None}
-    if not update_data:
-        raise HTTPException(status_code=400, detail="No fields to update")
-    await db.menu_items.update_one({"id": item_id, "tenant_id": tenant["id"]}, {"$set": update_data})
-    updated = await db.menu_items.find_one({"id": item_id}, {"_id": 0})
-    return serialize_doc(updated)
 
-@api_router.delete("/tenants/{tenant_slug}/menu-items/{item_id}")
-async def delete_menu_item(tenant_slug: str, item_id: str):
-    tenant = await get_tenant_by_slug(tenant_slug)
-    await db.menu_items.delete_one({"id": item_id, "tenant_id": tenant["id"]})
-    return {"deleted": True}
 
 
 
@@ -358,38 +237,7 @@ async def delete_menu_item(tenant_slug: str, item_id: str):
 
 
 # ============ GUEST INFO ROUTES ============
-@api_router.get("/g/{tenant_slug}/room/{room_code}/info")
-async def get_room_info(tenant_slug: str, room_code: str):
-    tenant = await get_tenant_by_slug(tenant_slug)
-    room = await db.rooms.find_one({"tenant_id": tenant["id"], "room_code": room_code}, {"_id": 0})
-    if not room:
-        raise HTTPException(status_code=404, detail="Room not found")
-    categories = await db.service_categories.find({"tenant_id": tenant["id"]}, {"_id": 0}).to_list(50)
-    return {
-        "tenant": {"name": tenant["name"], "slug": tenant["slug"]},
-        "room": serialize_doc(room),
-        "service_categories": [serialize_doc(c) for c in categories],
-        "loyalty_enabled": tenant.get("loyalty_rules", {}).get("enabled", False),
-        "current_guest_name": room.get("current_guest_name", ""),
-        "current_guest_check_in": room.get("current_guest_check_in", ""),
-        "current_guest_check_out": room.get("current_guest_check_out", ""),
-    }
 
-@api_router.get("/g/{tenant_slug}/table/{table_code}/info")
-async def get_table_info(tenant_slug: str, table_code: str):
-    tenant = await get_tenant_by_slug(tenant_slug)
-    table = await db.tables.find_one({"tenant_id": tenant["id"], "table_code": table_code}, {"_id": 0})
-    if not table:
-        raise HTTPException(status_code=404, detail="Table not found")
-    categories = await db.menu_categories.find({"tenant_id": tenant["id"]}, {"_id": 0}).sort("sort_order", 1).to_list(50)
-    items = await db.menu_items.find({"tenant_id": tenant["id"], "available": True}, {"_id": 0}).to_list(500)
-    return {
-        "tenant": {"name": tenant["name"], "slug": tenant["slug"]},
-        "table": serialize_doc(table),
-        "menu_categories": [serialize_doc(c) for c in categories],
-        "menu_items": [serialize_doc(i) for i in items],
-        "loyalty_enabled": tenant.get("loyalty_rules", {}).get("enabled", False)
-    }
 
 # ============ SEED DATA ============
 
@@ -397,133 +245,15 @@ async def get_table_info(tenant_slug: str, table_code: str):
 
 
 # ============ QR CODE ENDPOINTS ============
-@api_router.get("/admin/rooms/{room_id}/qr.png")
-async def get_room_qr_png(room_id: str):
-    """Generate QR PNG for a room"""
-    room = await db.rooms.find_one({"id": room_id}, {"_id": 0})
-    if not room:
-        raise HTTPException(status_code=404, detail="Room not found")
-    
-    tenant = await db.tenants.find_one({"id": room["tenant_id"]}, {"_id": 0})
-    if not tenant:
-        raise HTTPException(status_code=404, detail="Tenant not found")
-    
-    public_url = os.environ.get("PUBLIC_BASE_URL", "https://kritik-billing.preview.emergentagent.com")
-    qr_url = f"{public_url}/g/{tenant['slug']}/room/{room['room_code']}"
-    png_bytes = generate_qr_png(qr_url)
-    
-    return Response(content=png_bytes, media_type="image/png", 
-                    headers={"Content-Disposition": f"inline; filename=room-{room['room_number']}-qr.png"})
 
-@api_router.get("/admin/rooms/print.pdf")
-async def get_rooms_print_pdf(ids: str = ""):
-    """Generate printable PDF with QR codes for multiple rooms"""
-    room_ids = [rid.strip() for rid in ids.split(",") if rid.strip()]
-    if not room_ids:
-        raise HTTPException(status_code=400, detail="No room IDs provided")
-    
-    rooms = await db.rooms.find({"id": {"$in": room_ids}}, {"_id": 0}).to_list(100)
-    if not rooms:
-        raise HTTPException(status_code=404, detail="No rooms found")
-    
-    tenant = await db.tenants.find_one({"id": rooms[0]["tenant_id"]}, {"_id": 0})
-    public_url = os.environ.get("PUBLIC_BASE_URL", "https://kritik-billing.preview.emergentagent.com")
-    
-    items = [{
-        "label": f"Room {r['room_number']}",
-        "url": f"{public_url}/g/{tenant['slug']}/room/{r['room_code']}"
-    } for r in rooms]
-    
-    pdf_bytes = generate_qr_print_pdf(items, title=f"{tenant['name']} - Room QR Codes")
-    return Response(content=pdf_bytes, media_type="application/pdf",
-                    headers={"Content-Disposition": "attachment; filename=room-qr-codes.pdf"})
 
-@api_router.get("/admin/tables/{table_id}/qr.png")
-async def get_table_qr_png(table_id: str):
-    """Generate QR PNG for a table"""
-    table = await db.tables.find_one({"id": table_id}, {"_id": 0})
-    if not table:
-        raise HTTPException(status_code=404, detail="Table not found")
-    
-    tenant = await db.tenants.find_one({"id": table["tenant_id"]}, {"_id": 0})
-    public_url = os.environ.get("PUBLIC_BASE_URL", "https://kritik-billing.preview.emergentagent.com")
-    qr_url = f"{public_url}/g/{tenant['slug']}/table/{table['table_code']}"
-    png_bytes = generate_qr_png(qr_url)
-    
-    return Response(content=png_bytes, media_type="image/png",
-                    headers={"Content-Disposition": f"inline; filename=table-{table['table_number']}-qr.png"})
 
-@api_router.get("/admin/tables/print.pdf")
-async def get_tables_print_pdf(ids: str = ""):
-    """Generate printable PDF with QR codes for multiple tables"""
-    table_ids = [tid.strip() for tid in ids.split(",") if tid.strip()]
-    if not table_ids:
-        raise HTTPException(status_code=400, detail="No table IDs provided")
-    
-    tables = await db.tables.find({"id": {"$in": table_ids}}, {"_id": 0}).to_list(100)
-    if not tables:
-        raise HTTPException(status_code=404, detail="No tables found")
-    
-    tenant = await db.tenants.find_one({"id": tables[0]["tenant_id"]}, {"_id": 0})
-    public_url = os.environ.get("PUBLIC_BASE_URL", "https://kritik-billing.preview.emergentagent.com")
-    
-    items = [{
-        "label": f"Table {t['table_number']}",
-        "url": f"{public_url}/g/{tenant['slug']}/table/{t['table_code']}"
-    } for t in tables]
-    
-    pdf_bytes = generate_qr_print_pdf(items, title=f"{tenant['name']} - Table QR Codes")
-    return Response(content=pdf_bytes, media_type="application/pdf",
-                    headers={"Content-Disposition": "attachment; filename=table-qr-codes.pdf"})
 
 # ============ REQUEST COMMENTS ============
-@api_router.post("/tenants/{tenant_slug}/requests/{request_id}/comments")
-async def add_request_comment(tenant_slug: str, request_id: str, data: dict):
-    tenant = await get_tenant_by_slug(tenant_slug)
-    req = await db.guest_requests.find_one({"id": request_id, "tenant_id": tenant["id"]})
-    if not req:
-        raise HTTPException(status_code=404, detail="Request not found")
-    
-    comment = {
-        "id": new_id(),
-        "tenant_id": tenant["id"],
-        "request_id": request_id,
-        "body": data.get("body", ""),
-        "created_by_user_id": data.get("user_id", ""),
-        "created_by_name": data.get("user_name", ""),
-        "created_at": now_utc().isoformat()
-    }
-    await db.request_comments.insert_one(comment)
-    return serialize_doc(comment)
 
-@api_router.get("/tenants/{tenant_slug}/requests/{request_id}/comments")
-async def list_request_comments(tenant_slug: str, request_id: str):
-    tenant = await get_tenant_by_slug(tenant_slug)
-    comments = await db.request_comments.find(
-        {"tenant_id": tenant["id"], "request_id": request_id}, {"_id": 0}
-    ).sort("created_at", 1).to_list(100)
-    return [serialize_doc(c) for c in comments]
 
 # ============ KB ARTICLES ============
-@api_router.get("/tenants/{tenant_slug}/kb-articles")
-async def list_kb_articles(tenant_slug: str):
-    tenant = await get_tenant_by_slug(tenant_slug)
-    articles = await db.kb_articles.find({"tenant_id": tenant["id"]}, {"_id": 0}).to_list(100)
-    return [serialize_doc(a) for a in articles]
 
-@api_router.post("/tenants/{tenant_slug}/kb-articles")
-async def create_kb_article(tenant_slug: str, data: dict):
-    tenant = await get_tenant_by_slug(tenant_slug)
-    article = {
-        "id": new_id(),
-        "tenant_id": tenant["id"],
-        "title": data.get("title", ""),
-        "content": data.get("content", ""),
-        "tags": data.get("tags", []),
-        "created_at": now_utc().isoformat()
-    }
-    await db.kb_articles.insert_one(article)
-    return serialize_doc(article)
 
 
 # ============ PHASE 5: DB INDEXES ============
@@ -744,334 +474,21 @@ async def start_retention_cleanup_task():
 
 # (WebSocket endpoint moved below to websocket_endpoint_final with auth revalidation)
 
-@api_router.get("/tenants/{tenant_slug}/reviews")
-async def list_reviews(tenant_slug: str, source: Optional[str] = None, page: int = 1, limit: int = 20):
-    tenant = await get_tenant_by_slug(tenant_slug)
-    query = {"tenant_id": tenant["id"]}
-    if source:
-        query["source"] = source.upper()
-    skip = (page - 1) * limit
-    reviews = await db.reviews.find(query, {"_id": 0}).sort("created_at", -1).skip(skip).limit(limit).to_list(limit)
-    total = await db.reviews.count_documents(query)
-    return {"data": [serialize_doc(r) for r in reviews], "total": total, "page": page}
 
-@api_router.post("/tenants/{tenant_slug}/reviews/{review_id}/reply")
-async def reply_to_review(tenant_slug: str, review_id: str, data: dict):
-    tenant = await get_tenant_by_slug(tenant_slug)
-    review = await db.reviews.find_one({"id": review_id, "tenant_id": tenant["id"]})
-    if not review:
-        raise HTTPException(status_code=404, detail="Review not found")
-    
-    reply = {
-        "id": new_id(),
-        "tenant_id": tenant["id"],
-        "review_id": review_id,
-        "content": data.get("content", ""),
-        "author": data.get("author", "Management"),
-        "status": "draft",  # draft, published (stub)
-        "created_at": now_utc().isoformat()
-    }
-    await db.review_replies.insert_one(reply)
-    await db.reviews.update_one({"id": review_id}, {"$set": {"replied": True, "reply_id": reply["id"], "updated_at": now_utc().isoformat()}})
-    return serialize_doc(reply)
 
-@api_router.post("/tenants/{tenant_slug}/reviews/seed-stubs")
-async def seed_stub_reviews(tenant_slug: str):
-    """Seed fake reviews from connector stubs"""
-    tenant = await get_tenant_by_slug(tenant_slug)
-    existing = await db.reviews.count_documents({"tenant_id": tenant["id"]})
-    if existing > 0:
-        return {"message": "Reviews already exist", "count": existing}
-    
-    reviews = []
-    for i, fr in enumerate(FAKE_REVIEWS):
-        reviews.append({
-            "id": new_id(),
-            "tenant_id": tenant["id"],
-            "source": fr["source"],
-            "author": fr["author"],
-            "rating": fr["rating"],
-            "text": fr["text"],
-            "language": fr["language"],
-            "sentiment": analyze_sentiment(fr["text"]),
-            "replied": False,
-            "reply_id": None,
-            "created_at": (now_utc() - timedelta(days=random.randint(1, 30))).isoformat(),
-            "updated_at": now_utc().isoformat()
-        })
-    await db.reviews.insert_many(reviews)
-    return {"message": f"Seeded {len(reviews)} reviews", "count": len(reviews)}
 
 # ============ CONNECTOR FRAMEWORK ============
-@api_router.get("/tenants/{tenant_slug}/connectors")
-async def list_connectors(tenant_slug: str):
-    tenant = await get_tenant_by_slug(tenant_slug)
-    # Get configured connectors
-    credentials = await db.connector_credentials.find({"tenant_id": tenant["id"]}, {"_id": 0}).to_list(20)
-    cred_map = {c["connector_type"]: c for c in credentials}
-    
-    result = []
-    for ct in CONNECTOR_TYPES:
-        cred = cred_map.get(ct["type"])
-        result.append({
-            **ct,
-            "configured": cred is not None,
-            "enabled": cred.get("enabled", False) if cred else False,
-            "credential_id": cred.get("id") if cred else None,
-        })
-    return result
 
-@api_router.post("/tenants/{tenant_slug}/connectors")
-async def configure_connector(tenant_slug: str, data: dict):
-    tenant = await get_tenant_by_slug(tenant_slug)
-    connector_type = data.get("connector_type", "").upper()
-    
-    existing = await db.connector_credentials.find_one({
-        "tenant_id": tenant["id"], "connector_type": connector_type
-    })
-    
-    if existing:
-        await db.connector_credentials.update_one(
-            {"id": existing["id"]},
-            {"$set": {"credentials_json": data.get("credentials", {}), "enabled": data.get("enabled", True), "updated_at": now_utc().isoformat()}}
-        )
-        updated = await db.connector_credentials.find_one({"id": existing["id"]}, {"_id": 0})
-        return serialize_doc(updated)
-    
-    cred = {
-        "id": new_id(),
-        "tenant_id": tenant["id"],
-        "connector_type": connector_type,
-        "credentials_json": data.get("credentials", {}),
-        "enabled": data.get("enabled", True),
-        "created_at": now_utc().isoformat(),
-        "updated_at": now_utc().isoformat()
-    }
-    await db.connector_credentials.insert_one(cred)
-    return serialize_doc(cred)
 
 # ============ OFFERS + MOCK PAYMENTS ============
-@api_router.post("/tenants/{tenant_slug}/offers")
-async def create_offer(tenant_slug: str, data: dict):
-    tenant = await get_tenant_by_slug(tenant_slug)
-    
-    offer = {
-        "id": new_id(),
-        "tenant_id": tenant["id"],
-        "guest_name": data.get("guest_name", ""),
-        "guest_email": data.get("guest_email", ""),
-        "guest_phone": data.get("guest_phone", ""),
-        "room_type": data.get("room_type", "standard"),
-        "check_in": data.get("check_in", ""),
-        "check_out": data.get("check_out", ""),
-        "price": data.get("price", 0),
-        "currency": data.get("currency", "TRY"),
-        "inclusions": data.get("inclusions", []),
-        "notes": data.get("notes", ""),
-        "status": "draft",  # draft, sent, accepted, expired
-        "payment_link_id": None,
-        "reservation_id": None,
-        "created_by": data.get("created_by", ""),
-        "created_at": now_utc().isoformat(),
-        "updated_at": now_utc().isoformat()
-    }
-    await db.offers.insert_one(offer)
-    
-    # Log audit
-    await _log_audit(tenant["id"], "offer_created", "offer", offer["id"], data.get("created_by", ""))
-    
-    return serialize_doc(offer)
 
-@api_router.get("/tenants/{tenant_slug}/offers")
-async def list_offers(tenant_slug: str, status: Optional[str] = None):
-    tenant = await get_tenant_by_slug(tenant_slug)
-    query = {"tenant_id": tenant["id"]}
-    if status:
-        query["status"] = status
-    offers = await db.offers.find(query, {"_id": 0}).sort("created_at", -1).to_list(100)
-    return [serialize_doc(o) for o in offers]
 
-@api_router.post("/tenants/{tenant_slug}/offers/{offer_id}/generate-payment-link")
-async def generate_payment_link(tenant_slug: str, offer_id: str):
-    tenant = await get_tenant_by_slug(tenant_slug)
-    offer = await db.offers.find_one({"id": offer_id, "tenant_id": tenant["id"]})
-    if not offer:
-        raise HTTPException(status_code=404, detail="Offer not found")
-    
-    payment_data = StripeStubProvider.create_payment_link(
-        amount=offer["price"],
-        currency=offer.get("currency", "TRY"),
-        description=f"Reservation: {offer['room_type']} {offer.get('check_in','')} - {offer.get('check_out','')}"
-    )
-    
-    payment_link = {
-        **payment_data,
-        "tenant_id": tenant["id"],
-        "offer_id": offer_id,
-    }
-    await db.payment_links.insert_one(payment_link)
-    await db.offers.update_one({"id": offer_id}, {"$set": {"payment_link_id": payment_data["id"], "status": "sent", "updated_at": now_utc().isoformat()}})
-    
-    return serialize_doc(payment_link)
 
-@api_router.post("/payments/mock/succeed/{link_id}")
-async def mock_payment_success(link_id: str):
-    """Simulate payment success"""
-    link = await db.payment_links.find_one({"id": link_id})
-    if not link:
-        raise HTTPException(status_code=404, detail="Payment link not found")
-    
-    # Update payment link
-    await db.payment_links.update_one({"id": link_id}, {"$set": {"status": "succeeded", "paid_at": now_utc().isoformat()}})
-    
-    # Find offer
-    offer = await db.offers.find_one({"id": link.get("offer_id")})
-    if offer:
-        # Create reservation
-        reservation = {
-            "id": new_id(),
-            "tenant_id": link["tenant_id"],
-            "offer_id": offer["id"],
-            "payment_link_id": link_id,
-            "guest_name": offer.get("guest_name", ""),
-            "guest_email": offer.get("guest_email", ""),
-            "guest_phone": offer.get("guest_phone", ""),
-            "room_type": offer.get("room_type", ""),
-            "check_in": offer.get("check_in", ""),
-            "check_out": offer.get("check_out", ""),
-            "price": offer.get("price", 0),
-            "currency": offer.get("currency", "TRY"),
-            "status": "confirmed",
-            "created_at": now_utc().isoformat()
-        }
-        await db.reservations.insert_one(reservation)
-        await db.offers.update_one({"id": offer["id"]}, {"$set": {"status": "accepted", "reservation_id": reservation["id"], "updated_at": now_utc().isoformat()}})
-        
-        # Broadcast
-        await ws_manager.broadcast_tenant(link["tenant_id"], "reservation", "reservation", "created", serialize_doc(reservation))
-        
-        return {"payment": "succeeded", "reservation": serialize_doc(reservation)}
-    
-    return {"payment": "succeeded", "reservation": None}
 
-@api_router.get("/tenants/{tenant_slug}/reservations")
-async def list_reservations(tenant_slug: str):
-    tenant = await get_tenant_by_slug(tenant_slug)
-    reservations = await db.reservations.find({"tenant_id": tenant["id"]}, {"_id": 0}).sort("created_at", -1).to_list(100)
-    return [serialize_doc(r) for r in reservations]
 
 # ============ GUEST INTELLIGENCE (CRM) ============
-@api_router.get("/tenants/{tenant_slug}/contacts/{contact_id}/intelligence")
-async def get_contact_intelligence(tenant_slug: str, contact_id: str):
-    """Compute and return guest intelligence data"""
-    tenant = await get_tenant_by_slug(tenant_slug)
-    contact = await db.contacts.find_one({"id": contact_id, "tenant_id": tenant["id"]}, {"_id": 0})
-    if not contact:
-        raise HTTPException(status_code=404, detail="Contact not found")
-    
-    phone = contact.get("phone", "")
-    email = contact.get("email", "")
-    
-    # Compute metrics
-    req_query = {"tenant_id": tenant["id"]}
-    if phone:
-        req_query["guest_phone"] = phone
-    
-    requests_list = await db.guest_requests.find(req_query, {"_id": 0}).to_list(500)
-    orders_list = await db.orders.find({"tenant_id": tenant["id"], "guest_phone": phone}, {"_id": 0}).to_list(500) if phone else []
-    
-    visit_count = len(set([r.get("room_code", "") for r in requests_list])) + len(set([o.get("table_code", "") for o in orders_list]))
-    
-    ratings = [r["rating"] for r in requests_list if r.get("rating")]
-    avg_rating = round(sum(ratings) / len(ratings), 1) if ratings else 0
-    
-    total_spend = sum(o.get("total", 0) for o in orders_list)
-    
-    complaints = [r for r in requests_list if r.get("priority") in ["high", "urgent"] or analyze_sentiment(r.get("description", "")) == "negative"]
-    complaint_ratio = round(len(complaints) / max(len(requests_list), 1), 2)
-    
-    # Last sentiment
-    all_texts = [r.get("description", "") for r in requests_list] + [r.get("rating_comment", "") for r in requests_list if r.get("rating_comment")]
-    last_sentiment = analyze_sentiment(all_texts[-1]) if all_texts else "neutral"
-    
-    # Preferred room type
-    room_types = [r.get("room_code", "")[:1] for r in requests_list if r.get("room_code")]
-    
-    # Favorite menu items
-    item_counts = {}
-    for o in orders_list:
-        for item in o.get("items", []):
-            name = item.get("menu_item_name", "")
-            item_counts[name] = item_counts.get(name, 0) + item.get("quantity", 1)
-    favorite_items = sorted(item_counts.items(), key=lambda x: -x[1])[:5]
-    
-    # Alerts
-    alerts = []
-    if complaint_ratio > 0.3:
-        alerts.append({"type": "warning", "message": f"High complaint ratio ({int(complaint_ratio*100)}%)"})
-    for r in requests_list[-3:]:
-        if r.get("priority") in ["high", "urgent"] and r.get("status") in ["OPEN", "IN_PROGRESS"]:
-            alerts.append({"type": "urgent", "message": f"Active {r['priority']} request: {r['description'][:50]}"})
-    if avg_rating > 0 and avg_rating < 3:
-        alerts.append({"type": "warning", "message": f"Low average rating: {avg_rating}/5"})
-    
-    # Loyalty
-    loyalty_info = None
-    if contact.get("loyalty_account_id"):
-        account = await db.loyalty_accounts.find_one({"id": contact["loyalty_account_id"]}, {"_id": 0})
-        if account:
-            tier = compute_tier(account.get("points", 0))
-            loyalty_info = {
-                "points": account.get("points", 0),
-                "tier": tier,
-                "tier_info": LOYALTY_TIERS.get(tier, {}),
-                "next_tier": next_tier_info(tier, account.get("points", 0))
-            }
-    
-    intelligence = {
-        "visit_count": visit_count,
-        "avg_rating": avg_rating,
-        "total_spend": total_spend,
-        "complaint_ratio": complaint_ratio,
-        "last_sentiment": last_sentiment,
-        "preferred_language": contact.get("preferred_language", "en"),
-        "favorite_menu_items": [{"name": n, "count": c} for n, c in favorite_items],
-        "total_requests": len(requests_list),
-        "total_orders": len(orders_list),
-        "alerts": alerts,
-        "loyalty": loyalty_info
-    }
-    
-    # Update contact with computed fields
-    await db.contacts.update_one({"id": contact_id}, {"$set": {
-        "intelligence": intelligence,
-        "updated_at": now_utc().isoformat()
-    }})
-    
-    return intelligence
 
-# ============ AUDIT LOG ============
-async def _log_audit(tenant_id: str, action: str, entity_type: str, entity_id: str, user_id: str = "", details: dict = None):
-    entry = {
-        "id": new_id(),
-        "tenant_id": tenant_id,
-        "action": action,
-        "entity_type": entity_type,
-        "entity_id": entity_id,
-        "user_id": user_id,
-        "details": details or {},
-        "created_at": now_utc().isoformat()
-    }
-    await db.audit_logs.insert_one(entry)
-
-@api_router.get("/tenants/{tenant_slug}/audit-logs")
-async def list_audit_logs(tenant_slug: str, page: int = 1, limit: int = 50):
-    tenant = await get_tenant_by_slug(tenant_slug)
-    skip = (page - 1) * limit
-    logs = await db.audit_logs.find({"tenant_id": tenant["id"]}, {"_id": 0}).sort("created_at", -1).skip(skip).limit(limit).to_list(limit)
-    total = await db.audit_logs.count_documents({"tenant_id": tenant["id"]})
-    return {"data": [serialize_doc(l) for l in logs], "total": total, "page": page}
-
+# ============ AUDIT LOG — use core.tenant_guard.log_audit instead (dead _log_audit removed) ============
 # ============ ENHANCED DASHBOARD STATS — extracted to routers/dashboard_stats.py ============
 
 
@@ -1276,6 +693,10 @@ for router_name, router_module, router_attr in [
     ("storage", "routers.storage", "router"),
     ("demo_seed", "routers.demo_seed", "router"),
     ("guest_resolve", "routers.guest_resolve", "router"),
+    ("legacy_restaurant", "routers.legacy_restaurant", "router"),
+    ("legacy_qr", "routers.legacy_qr", "router"),
+    ("legacy_engagement", "routers.legacy_engagement", "router"),
+    ("legacy_misc", "routers.legacy_misc", "router"),
 ]:
     try:
         mod = __import__(router_module, fromlist=[router_attr])
