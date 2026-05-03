@@ -2,6 +2,7 @@
 Endpoints under /api: reviews, connectors, offers, payments/mock/succeed.
 """
 import random
+from typing import Optional
 from fastapi import APIRouter, HTTPException
 from datetime import timedelta
 

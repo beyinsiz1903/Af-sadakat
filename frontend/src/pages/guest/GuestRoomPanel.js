@@ -44,6 +44,8 @@ export default function GuestRoomPanel() {
     try { return localStorage.getItem('omnihub.guest.lang') || 'en'; }
     catch { return 'en'; }
   });
+  const [langOpen, setLangOpen] = useState(false);
+  const langMenuRef = useRef(null);
 
   useEffect(() => {
     try { localStorage.setItem('omnihub.guest.lang', lang); } catch {}
@@ -52,6 +54,30 @@ export default function GuestRoomPanel() {
       document.documentElement.dir = isRtl(lang) ? 'rtl' : 'ltr';
     }
   }, [lang]);
+
+  useEffect(() => {
+    return () => {
+      if (typeof document !== 'undefined') {
+        document.documentElement.lang = 'en';
+        document.documentElement.dir = 'ltr';
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!langOpen) return;
+    const handleClickOutside = (e) => {
+      if (langMenuRef.current && !langMenuRef.current.contains(e.target)) {
+        setLangOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('touchstart', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('touchstart', handleClickOutside);
+    };
+  }, [langOpen]);
   const [guestName, setGuestName] = useState('');
   const [guestPhone, setGuestPhone] = useState('');
   const [activeServices, setActiveServices] = useState([]);
@@ -416,18 +442,30 @@ export default function GuestRoomPanel() {
                     )}
                   </button>
                 )}
-                <div className="relative group">
-                  <button className="flex items-center gap-1 text-xs px-2 h-7 rounded border border-[hsl(var(--border))] bg-[hsl(var(--secondary))]">
+                <div className="relative" ref={langMenuRef}>
+                  <button
+                    type="button"
+                    onClick={() => setLangOpen(o => !o)}
+                    aria-haspopup="listbox"
+                    aria-expanded={langOpen}
+                    className="flex items-center gap-1 text-xs px-2 h-7 rounded border border-[hsl(var(--border))] bg-[hsl(var(--secondary))]">
                     <Globe className="w-3 h-3" /> {SUPPORTED_LANGUAGES.find(l => l.code === lang)?.label || 'EN'}
                   </button>
-                  <div className="hidden group-hover:block absolute right-0 top-7 bg-[hsl(var(--card))] border border-[hsl(var(--border))] rounded-lg shadow-lg z-50 min-w-[100px]">
-                    {SUPPORTED_LANGUAGES.map(l => (
-                      <button key={l.code} onClick={() => setLang(l.code)}
-                        className={`w-full text-left px-3 py-1.5 text-xs hover:bg-[hsl(var(--secondary))] ${lang === l.code ? 'text-[hsl(var(--primary))] font-medium' : ''}`}>
-                        {l.label} - {l.name}
-                      </button>
-                    ))}
-                  </div>
+                  {langOpen && (
+                    <div role="listbox" className="absolute right-0 top-8 bg-[hsl(var(--card))] border border-[hsl(var(--border))] rounded-lg shadow-lg z-50 min-w-[120px] py-1">
+                      {SUPPORTED_LANGUAGES.map(l => (
+                        <button
+                          key={l.code}
+                          type="button"
+                          role="option"
+                          aria-selected={lang === l.code}
+                          onClick={() => { setLang(l.code); setLangOpen(false); }}
+                          className={`w-full text-left px-3 py-1.5 text-xs hover:bg-[hsl(var(--secondary))] ${lang === l.code ? 'text-[hsl(var(--primary))] font-medium' : ''}`}>
+                          {l.label} - {l.name}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
