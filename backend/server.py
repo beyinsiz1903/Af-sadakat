@@ -28,9 +28,13 @@ from analytics_engine import compute_analytics, compute_revenue_analytics, compu
 from compliance import export_guest_data, forget_guest, log_consent, retention_auto_cleanup
 from referral import get_or_create_referral, track_referral_click, track_referral_signup, generate_referral_code, get_referral_landing_data
 from guest_system import create_guest_token, decode_guest_token, encrypt_credentials, decrypt_credentials, ConnectorPollingTask
+from sentry_init import init_sentry
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
+
+# Initialize Sentry (no-op if SENTRY_DSN not set)
+init_sentry()
 
 # MongoDB connection
 mongo_url = os.environ['MONGO_URL']
@@ -710,6 +714,7 @@ for router_name, router_module, router_attr in [
     ("legacy_qr", "routers.legacy_qr", "router"),
     ("legacy_engagement", "routers.legacy_engagement", "router"),
     ("legacy_misc", "routers.legacy_misc", "router"),
+    ("exports", "routers.exports", "router"),
 ]:
     try:
         mod = __import__(router_module, fromlist=[router_attr])

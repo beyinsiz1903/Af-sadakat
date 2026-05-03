@@ -27,6 +27,24 @@ if STRIPE_MODE == "live":
     except ImportError:
         logger.warning("stripe package not installed, falling back to stub")
 
+# iyzico (Turkey) provider — auto-enabled when env keys present
+try:
+    from services import iyzico_provider
+    if iyzico_provider.is_configured():
+        logger.info("iyzico LIVE mode enabled")
+except Exception as e:
+    iyzico_provider = None
+    logger.warning("iyzico provider not loaded: %s", e)
+
+
+def _payment_provider() -> str:
+    """Resolve which provider to use for new checkouts."""
+    if iyzico_provider and iyzico_provider.is_configured():
+        return "iyzico"
+    if STRIPE_MODE == "live" and stripe:
+        return "stripe"
+    return "stub"
+
 @router.get("/config")
 async def get_payment_config():
     return {

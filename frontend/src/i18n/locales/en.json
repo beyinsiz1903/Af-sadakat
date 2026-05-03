@@ -1,0 +1,30 @@
+{
+  "app": { "name": "OmniHub", "tagline": "All hospitality operations in one panel" },
+  "common": {
+    "save": "Save", "cancel": "Cancel", "delete": "Delete", "edit": "Edit", "close": "Close",
+    "search": "Search", "filter": "Filter", "loading": "Loading...", "empty": "No records",
+    "yes": "Yes", "no": "No", "confirm": "Confirm", "back": "Back", "next": "Next",
+    "actions": "Actions", "status": "Status", "date": "Date", "name": "Name", "total": "Total",
+    "export": "Export", "import": "Import", "refresh": "Refresh", "settings": "Settings",
+    "language": "Language", "logout": "Logout", "login": "Login"
+  },
+  "nav": {
+    "dashboard": "Dashboard", "reservations": "Reservations", "calendar": "Calendar",
+    "rooms": "Rooms", "tables": "Tables", "menu": "Menu", "orders": "Orders",
+    "guests": "Guests", "loyalty": "Loyalty", "reports": "Reports", "users": "Users",
+    "departments": "Departments", "housekeeping": "Housekeeping", "lostFound": "Lost & Found",
+    "social": "Social", "billing": "Billing", "audit": "Audit Logs"
+  },
+  "auth": {
+    "email": "Email", "password": "Password", "tenantSlug": "Property Slug",
+    "loginTitle": "Sign in to OmniHub", "loginFailed": "Login failed",
+    "otpSend": "Send Code", "otpVerify": "Verify", "otpCode": "Verification Code",
+    "phone": "Phone"
+  },
+  "calendar": {
+    "title": "Reservation Calendar", "today": "Today", "month": "Month", "week": "Week", "day": "Day",
+    "agenda": "Agenda", "previous": "Previous", "next": "Next",
+    "noEvents": "No reservations in this range"
+  },
+  "errors": { "generic": "An error occurred", "unauthorized": "Unauthorized", "notFound": "Not found" }
+}

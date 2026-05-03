@@ -1,0 +1,30 @@
+{
+  "app": { "name": "OmniHub", "tagline": "جميع عمليات الضيافة في لوحة واحدة" },
+  "common": {
+    "save": "حفظ", "cancel": "إلغاء", "delete": "حذف", "edit": "تعديل", "close": "إغلاق",
+    "search": "بحث", "filter": "تصفية", "loading": "جارٍ التحميل...", "empty": "لا توجد سجلات",
+    "yes": "نعم", "no": "لا", "confirm": "تأكيد", "back": "رجوع", "next": "التالي",
+    "actions": "إجراءات", "status": "الحالة", "date": "التاريخ", "name": "الاسم", "total": "المجموع",
+    "export": "تصدير", "import": "استيراد", "refresh": "تحديث", "settings": "الإعدادات",
+    "language": "اللغة", "logout": "تسجيل الخروج", "login": "تسجيل الدخول"
+  },
+  "nav": {
+    "dashboard": "لوحة التحكم", "reservations": "الحجوزات", "calendar": "التقويم",
+    "rooms": "الغرف", "tables": "الطاولات", "menu": "القائمة", "orders": "الطلبات",
+    "guests": "الضيوف", "loyalty": "الولاء", "reports": "التقارير", "users": "المستخدمون",
+    "departments": "الأقسام", "housekeeping": "تدبير الفنادق", "lostFound": "المفقودات",
+    "social": "اجتماعي", "billing": "الفواتير", "audit": "سجل التدقيق"
+  },
+  "auth": {
+    "email": "البريد الإلكتروني", "password": "كلمة المرور", "tenantSlug": "رمز المنشأة",
+    "loginTitle": "تسجيل الدخول إلى OmniHub", "loginFailed": "فشل تسجيل الدخول",
+    "otpSend": "إرسال الرمز", "otpVerify": "تحقق", "otpCode": "رمز التحقق",
+    "phone": "الهاتف"
+  },
+  "calendar": {
+    "title": "تقويم الحجوزات", "today": "اليوم", "month": "شهر", "week": "أسبوع", "day": "يوم",
+    "agenda": "جدول", "previous": "السابق", "next": "التالي",
+    "noEvents": "لا توجد حجوزات في هذا النطاق"
+  },
+  "errors": { "generic": "حدث خطأ", "unauthorized": "غير مصرح", "notFound": "غير موجود" }
+}

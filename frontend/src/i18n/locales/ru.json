@@ -1,0 +1,30 @@
+{
+  "app": { "name": "OmniHub", "tagline": "Все операции гостеприимства в одной панели" },
+  "common": {
+    "save": "Сохранить", "cancel": "Отмена", "delete": "Удалить", "edit": "Изменить", "close": "Закрыть",
+    "search": "Поиск", "filter": "Фильтр", "loading": "Загрузка...", "empty": "Нет записей",
+    "yes": "Да", "no": "Нет", "confirm": "Подтвердить", "back": "Назад", "next": "Далее",
+    "actions": "Действия", "status": "Статус", "date": "Дата", "name": "Имя", "total": "Итого",
+    "export": "Экспорт", "import": "Импорт", "refresh": "Обновить", "settings": "Настройки",
+    "language": "Язык", "logout": "Выйти", "login": "Войти"
+  },
+  "nav": {
+    "dashboard": "Панель", "reservations": "Бронирования", "calendar": "Календарь",
+    "rooms": "Номера", "tables": "Столы", "menu": "Меню", "orders": "Заказы",
+    "guests": "Гости", "loyalty": "Лояльность", "reports": "Отчёты", "users": "Пользователи",
+    "departments": "Отделы", "housekeeping": "Уборка", "lostFound": "Бюро находок",
+    "social": "Соцсети", "billing": "Биллинг", "audit": "Журнал аудита"
+  },
+  "auth": {
+    "email": "Эл. почта", "password": "Пароль", "tenantSlug": "Код объекта",
+    "loginTitle": "Вход в OmniHub", "loginFailed": "Ошибка входа",
+    "otpSend": "Отправить код", "otpVerify": "Проверить", "otpCode": "Код подтверждения",
+    "phone": "Телефон"
+  },
+  "calendar": {
+    "title": "Календарь бронирований", "today": "Сегодня", "month": "Месяц", "week": "Неделя", "day": "День",
+    "agenda": "Повестка", "previous": "Предыдущий", "next": "Следующий",
+    "noEvents": "Нет бронирований в этом диапазоне"
+  },
+  "errors": { "generic": "Произошла ошибка", "unauthorized": "Не авторизован", "notFound": "Не найдено" }
+}

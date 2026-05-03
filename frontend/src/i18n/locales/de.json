@@ -1,0 +1,30 @@
+{
+  "app": { "name": "OmniHub", "tagline": "Alle Hotelvorgänge in einem Panel" },
+  "common": {
+    "save": "Speichern", "cancel": "Abbrechen", "delete": "Löschen", "edit": "Bearbeiten", "close": "Schließen",
+    "search": "Suchen", "filter": "Filtern", "loading": "Wird geladen...", "empty": "Keine Einträge",
+    "yes": "Ja", "no": "Nein", "confirm": "Bestätigen", "back": "Zurück", "next": "Weiter",
+    "actions": "Aktionen", "status": "Status", "date": "Datum", "name": "Name", "total": "Gesamt",
+    "export": "Exportieren", "import": "Importieren", "refresh": "Aktualisieren", "settings": "Einstellungen",
+    "language": "Sprache", "logout": "Abmelden", "login": "Anmelden"
+  },
+  "nav": {
+    "dashboard": "Übersicht", "reservations": "Reservierungen", "calendar": "Kalender",
+    "rooms": "Zimmer", "tables": "Tische", "menu": "Menü", "orders": "Bestellungen",
+    "guests": "Gäste", "loyalty": "Treue", "reports": "Berichte", "users": "Benutzer",
+    "departments": "Abteilungen", "housekeeping": "Housekeeping", "lostFound": "Fundbüro",
+    "social": "Sozial", "billing": "Abrechnung", "audit": "Audit-Protokoll"
+  },
+  "auth": {
+    "email": "E-Mail", "password": "Passwort", "tenantSlug": "Objekt-ID",
+    "loginTitle": "Bei OmniHub anmelden", "loginFailed": "Anmeldung fehlgeschlagen",
+    "otpSend": "Code senden", "otpVerify": "Bestätigen", "otpCode": "Verifizierungscode",
+    "phone": "Telefon"
+  },
+  "calendar": {
+    "title": "Reservierungskalender", "today": "Heute", "month": "Monat", "week": "Woche", "day": "Tag",
+    "agenda": "Agenda", "previous": "Zurück", "next": "Weiter",
+    "noEvents": "Keine Reservierungen in diesem Zeitraum"
+  },
+  "errors": { "generic": "Ein Fehler ist aufgetreten", "unauthorized": "Nicht autorisiert", "notFound": "Nicht gefunden" }
+}

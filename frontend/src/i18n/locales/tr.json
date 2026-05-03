@@ -1,0 +1,30 @@
+{
+  "app": { "name": "OmniHub", "tagline": "Tüm konaklama operasyonları tek panelde" },
+  "common": {
+    "save": "Kaydet", "cancel": "İptal", "delete": "Sil", "edit": "Düzenle", "close": "Kapat",
+    "search": "Ara", "filter": "Filtrele", "loading": "Yükleniyor...", "empty": "Kayıt yok",
+    "yes": "Evet", "no": "Hayır", "confirm": "Onayla", "back": "Geri", "next": "İleri",
+    "actions": "İşlemler", "status": "Durum", "date": "Tarih", "name": "Ad", "total": "Toplam",
+    "export": "Dışa Aktar", "import": "İçe Aktar", "refresh": "Yenile", "settings": "Ayarlar",
+    "language": "Dil", "logout": "Çıkış Yap", "login": "Giriş Yap"
+  },
+  "nav": {
+    "dashboard": "Kontrol Paneli", "reservations": "Rezervasyonlar", "calendar": "Takvim",
+    "rooms": "Odalar", "tables": "Masalar", "menu": "Menü", "orders": "Siparişler",
+    "guests": "Misafirler", "loyalty": "Sadakat", "reports": "Raporlar", "users": "Kullanıcılar",
+    "departments": "Departmanlar", "housekeeping": "Kat Hizmetleri", "lostFound": "Kayıp Eşya",
+    "social": "Sosyal", "billing": "Faturalama", "audit": "Denetim Kayıtları"
+  },
+  "auth": {
+    "email": "E-posta", "password": "Parola", "tenantSlug": "Tesis Kodu",
+    "loginTitle": "OmniHub'a Giriş", "loginFailed": "Giriş başarısız",
+    "otpSend": "Kod Gönder", "otpVerify": "Doğrula", "otpCode": "Doğrulama Kodu",
+    "phone": "Telefon"
+  },
+  "calendar": {
+    "title": "Rezervasyon Takvimi", "today": "Bugün", "month": "Ay", "week": "Hafta", "day": "Gün",
+    "agenda": "Ajanda", "previous": "Önceki", "next": "Sonraki",
+    "noEvents": "Bu aralıkta rezervasyon yok"
+  },
+  "errors": { "generic": "Bir hata oluştu", "unauthorized": "Yetkisiz erişim", "notFound": "Bulunamadı" }
+}

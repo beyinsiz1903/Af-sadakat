@@ -231,3 +231,47 @@ async def revoke_session(session_id: str, user=Depends(get_current_user)):
 @router.get("/csrf-token")
 async def get_csrf_token(user=Depends(get_current_user)):
     return {"csrf_token": csrf_protection.generate_token(user["id"])}
+
+
+# ---------------------------------------------------------------------------
+# OTP (Twilio Verify) — phone verification for guest flows / 2FA
+# ---------------------------------------------------------------------------
+class OtpSendRequest(BaseModel):
+    phone: str
+    channel: str = "sms"
+
+
+class OtpVerifyRequest(BaseModel):
+    phone: str
+    code: str
+
+
+@router.post("/otp/send")
+async def otp_send(data: OtpSendRequest, request: Request):
+    client_ip = request.client.host if request else "unknown"
+    rate_check = rate_limiter.check_tiered(client_ip, route="auth/otp_send")
+    if rate_check["limited"]:
+        raise HTTPException(status_code=429, detail=f"Too many OTP requests. Retry after {rate_check['retry_after']}s")
+
+    from services.twilio_provider import send_otp, is_configured
+    sent, dev_code = await send_otp(data.phone, channel=data.channel)
+    if not sent:
+        raise HTTPException(status_code=502, detail="OTP send failed")
+    resp = {"sent": True, "configured": is_configured()}
+    if dev_code is not None:
+        resp["dev_code"] = dev_code
+    return resp
+
+
+@router.post("/otp/verify")
+async def otp_verify(data: OtpVerifyRequest, request: Request):
+    client_ip = request.client.host if request else "unknown"
+    rate_check = rate_limiter.check_tiered(client_ip, route="auth/otp_verify")
+    if rate_check["limited"]:
+        raise HTTPException(status_code=429, detail=f"Too many OTP attempts. Retry after {rate_check['retry_after']}s")
+
+    from services.twilio_provider import verify_otp
+    ok = await verify_otp(data.phone, data.code)
+    if not ok:
+        raise HTTPException(status_code=400, detail="Invalid or expired code")
+    return {"verified": True}

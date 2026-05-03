@@ -44,6 +44,7 @@ const PushNotificationsPage = lazy(() => import('./pages/PushNotificationsPage')
 const ABTestingPage = lazy(() => import('./pages/ABTestingPage'));
 const LoyaltyEnginePage = lazy(() => import('./pages/LoyaltyEnginePage'));
 const ReferralLandingPage = lazy(() => import('./pages/ReferralLandingPage'));
+const ReservationCalendar = lazy(() => import('./pages/admin/ReservationCalendar'));
 
 const GuestRoomPanel = lazy(() => import('./pages/guest/GuestRoomPanel'));
 const GuestTablePanel = lazy(() => import('./pages/guest/GuestTablePanel'));
@@ -122,6 +123,7 @@ function App() {
                 <Route path="reports" element={<ReportsPage />} />
                 <Route path="notifications" element={<NotificationCenterPage />} />
                 <Route path="restaurant-reservations" element={<RestaurantReservationsPage />} />
+                <Route path="calendar" element={<ReservationCalendar />} />
                 <Route path="gamification" element={<GamificationPage />} />
                 <Route path="push-notifications" element={<PushNotificationsPage />} />
                 <Route path="ab-testing" element={<ABTestingPage />} />
