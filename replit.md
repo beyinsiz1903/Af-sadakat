@@ -21,7 +21,7 @@ A comprehensive multi-tenant SaaS platform for the hospitality and service indus
 │   │   └── lib/       # API client, WebSocket, Zustand store
 │   └── plugins/       # Custom webpack plugins (visual-edits, health-check)
 ├── backend/           # FastAPI backend
-│   ├── server.py      # Main entry point (~3300 lines, rooms/orders/contacts/analytics/demo/websocket)
+│   ├── server.py      # Main entry point (~1310 lines, websocket + 33 legacy routes; rooms/orders/contacts/analytics/demo-seed/guest-resolve extracted)
 │   ├── routers/       # Modular API routers (auth, tenants, billing, system, hotel, restaurant, inbox, etc.)
 │   ├── services/      # Business logic + external provider integrations
 │   ├── connectors/    # Third-party platform connectors
