@@ -1,5 +1,6 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, Suspense } from 'react';
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
+import { Loader2 } from 'lucide-react';
 import { useAuthStore } from '../../lib/store';
 import { useQuery } from '@tanstack/react-query';
 import { propertiesAPI } from '../../lib/api';
@@ -260,7 +261,9 @@ export default function AdminLayout() {
 
         {/* Page content */}
         <div className="flex-1 overflow-auto p-4 lg:p-6">
-          <Outlet />
+          <Suspense fallback={<div className="flex items-center justify-center h-[60vh]"><Loader2 className="w-8 h-8 animate-spin text-emerald-500" /></div>}>
+            <Outlet />
+          </Suspense>
         </div>
       </main>
     </div>
