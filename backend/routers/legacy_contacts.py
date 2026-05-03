@@ -62,7 +62,7 @@ async def update_contact(tenant_slug: str, contact_id: str, data: dict):
     await db.contacts.update_one(
         {"id": contact_id, "tenant_id": tenant["id"]}, {"$set": update_data}
     )
-    updated = await db.contacts.find_one({"id": contact_id}, {"_id": 0})
+    updated = await db.contacts.find_one({"id": contact_id, "tenant_id": tenant["id"]}, {"_id": 0})
     return serialize_doc(updated)
 
 

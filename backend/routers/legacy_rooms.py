@@ -195,9 +195,9 @@ async def update_guest_request(
     update_data["last_updated_by"] = user.get("name", "System") if user else "System"
     update_data["last_updated_by_id"] = user.get("id", "") if user else ""
     update_data["updated_at"] = now_utc().isoformat()
-    await db.guest_requests.update_one({"id": request_id}, {"$set": update_data})
+    await db.guest_requests.update_one({"id": request_id, "tenant_id": tenant["id"]}, {"$set": update_data})
 
-    updated = await db.guest_requests.find_one({"id": request_id}, {"_id": 0})
+    updated = await db.guest_requests.find_one({"id": request_id, "tenant_id": tenant["id"]}, {"_id": 0})
     result = serialize_doc(updated)
     await ws_manager.broadcast_tenant(tenant["id"], "request", "guest_request", "updated", result)
     return result
@@ -213,8 +213,8 @@ async def rate_request(tenant_slug: str, request_id: str, data: RequestRatingCre
         raise HTTPException(status_code=400, detail="Rating must be 1-5")
 
     await db.guest_requests.update_one(
-        {"id": request_id},
+        {"id": request_id, "tenant_id": tenant["id"]},
         {"$set": {"rating": data.rating, "rating_comment": data.comment, "updated_at": now_utc().isoformat()}},
     )
-    updated = await db.guest_requests.find_one({"id": request_id}, {"_id": 0})
+    updated = await db.guest_requests.find_one({"id": request_id, "tenant_id": tenant["id"]}, {"_id": 0})
     return serialize_doc(updated)

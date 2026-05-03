@@ -94,7 +94,7 @@ async def get_intelligence_v2(tenant_slug: str, contact_id: str):
 
     loyalty_info = None
     if contact.get("loyalty_account_id"):
-        account = await db.loyalty_accounts.find_one({"id": contact["loyalty_account_id"]}, {"_id": 0})
+        account = await db.loyalty_accounts.find_one({"id": contact["loyalty_account_id"], "tenant_id": contact["tenant_id"]}, {"_id": 0})
         if account:
             tier = compute_tier(account.get("points", 0))
             loyalty_info = {

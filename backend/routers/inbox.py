@@ -282,7 +282,7 @@ async def webchat_guest_message(conv_id: str, data: dict):
         "guest_name": data.get("senderName", conv.get("guest_name", "Guest"))})
     urgent = ["urgent", "emergency", "complaint", "terrible", "acil", "sikayet"]
     if any(w in body.lower() for w in urgent):
-        await db.conversations.update_one({"id": conv_id}, {"$set": {"needs_attention": True}})
+        await db.conversations.update_one({"id": conv_id, "tenant_id": tid}, {"$set": {"needs_attention": True}})
     try:
         from server import ws_manager
         await ws_manager.broadcast_tenant(tid, "message", "message", "created", msg)

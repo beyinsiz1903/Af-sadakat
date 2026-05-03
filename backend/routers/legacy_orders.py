@@ -88,12 +88,12 @@ async def update_order_status(tenant_slug: str, order_id: str, data: OrderStatus
         raise HTTPException(status_code=404, detail="Order not found")
 
     update = {"status": data.status.upper(), "updated_at": now_utc().isoformat()}
-    await db.orders.update_one({"id": order_id}, {"$set": update})
+    await db.orders.update_one({"id": order_id, "tenant_id": tenant["id"]}, {"$set": update})
 
     if data.status.upper() == "SERVED":
         await award_loyalty_points(tenant, "order", serialize_doc(order))
 
-    updated = await db.orders.find_one({"id": order_id}, {"_id": 0})
+    updated = await db.orders.find_one({"id": order_id, "tenant_id": tenant["id"]}, {"_id": 0})
     result = serialize_doc(updated)
     await ws_manager.broadcast_tenant(tenant["id"], "order", "order", "updated", result)
     return result

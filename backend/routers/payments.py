@@ -54,7 +54,7 @@ async def get_payment_page_data(payment_link_id: str, request: Request):
             "reservation": serialize_doc(reservation) if reservation else None
         }
 
-    offer = await db.offers.find_one({"id": pl.get("offer_id")}, {"_id": 0})
+    offer = await db.offers.find_one({"id": pl.get("offer_id"), "tenant_id": pl["tenant_id"]}, {"_id": 0})
     if not offer:
         raise HTTPException(status_code=404, detail="Offer not found")
     offer = serialize_doc(offer)
@@ -66,7 +66,7 @@ async def get_payment_page_data(payment_link_id: str, request: Request):
     # Get property name if available
     property_name = ""
     if offer.get("property_id"):
-        prop = await db.properties.find_one({"id": offer["property_id"]}, {"_id": 0})
+        prop = await db.properties.find_one({"id": offer["property_id"], "tenant_id": pl["tenant_id"]}, {"_id": 0})
         property_name = prop.get("name", "") if prop else ""
 
     return {
@@ -103,7 +103,7 @@ async def checkout(payment_link_id: str, request: Request):
     if pl.get("status") == "CANCELLED":
         raise HTTPException(status_code=400, detail="Payment link has been cancelled")
 
-    offer = await db.offers.find_one({"id": pl.get("offer_id")}, {"_id": 0})
+    offer = await db.offers.find_one({"id": pl.get("offer_id"), "tenant_id": pl["tenant_id"]}, {"_id": 0})
     if not offer:
         raise HTTPException(status_code=404, detail="Offer not found")
 
@@ -190,7 +190,7 @@ async def webhook_mock_succeed(data: dict, request: Request):
     )
 
     # Find the offer
-    offer = await db.offers.find_one({"id": pl.get("offer_id")}, {"_id": 0})
+    offer = await db.offers.find_one({"id": pl.get("offer_id"), "tenant_id": tid}, {"_id": 0})
     if not offer:
         return {"status": "SUCCEEDED", "reservation": None, "message": "Payment succeeded but offer not found"}
     offer = serialize_doc(offer)
@@ -215,7 +215,7 @@ async def webhook_mock_succeed(data: dict, request: Request):
     # Get property prefix for confirmation code
     prop_prefix = "GHI"
     if offer.get("property_id"):
-        prop = await db.properties.find_one({"id": offer["property_id"]}, {"_id": 0})
+        prop = await db.properties.find_one({"id": offer["property_id"], "tenant_id": tid}, {"_id": 0})
         if prop and prop.get("slug"):
             prop_prefix = prop["slug"][:3].upper() or "GHI"
 

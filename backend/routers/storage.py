@@ -91,7 +91,7 @@ async def delete_file(tenant_id: str, file_id: str) -> bool:
         if local_path.exists():
             local_path.unlink()
 
-    await db.file_records.delete_one({"id": file_id})
+    await db.file_records.delete_one({"id": file_id, "tenant_id": tenant_id})
     return True
 
 

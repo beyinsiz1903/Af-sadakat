@@ -2334,8 +2334,9 @@ app.add_middleware(
 
 # Sprint 6: Request ID middleware + global exception handler
 try:
-    from core.middleware import RequestIDMiddleware, global_exception_handler
+    from core.middleware import RequestIDMiddleware, TenantIsolationMiddleware, global_exception_handler
     app.add_middleware(RequestIDMiddleware)
+    app.add_middleware(TenantIsolationMiddleware)
     app.add_exception_handler(Exception, global_exception_handler)
     logger.info("Sprint 6 middleware loaded: RequestID + exception handler")
 except Exception as e:

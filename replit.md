@@ -52,7 +52,7 @@ This starts:
 
 ## Key Features
 
-- **Multi-tenant**: Isolated per tenant via `tenant_id`
+- **Multi-tenant**: Isolated per tenant via `tenant_id`. **TenantIsolationMiddleware** (`backend/core/middleware.py`) enforces fail-closed cross-tenant guard on all `/api/.../tenants/{slug}/...` routes — JWT `tenant_id` claim must match resolved slug. 60s TTL slug→tenant_id cache with negative caching. Public/guest paths (`/api/g/`, `/api/auth/`, `/api/v2/payments/pay/`, webhooks, etc.) are skipped.
 - **Property Scoping**: Multiple properties under one tenant via `X-Property-Id` header
 - **AI Sales Engine**: Automated guest inquiry handling and upsell suggestions
 - **Unified Inbox**: Meta (WhatsApp/Facebook) and other channel integrations

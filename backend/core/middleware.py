@@ -10,9 +10,91 @@ from fastapi import Request, HTTPException
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import JSONResponse
 
-from core.config import db
+import jwt as _jwt
+from core.config import db, JWT_SECRET
 
 logger = logging.getLogger("omnihub.middleware")
+
+
+# ============ TENANT ISOLATION MIDDLEWARE ============
+# Fail-closed: any /api/.../tenants/{slug}/... endpoint REQUIRES a valid bearer
+# token whose tenant_id matches the slug's tenant.
+# Cache: 60s TTL with negative-cache to avoid stale slug->tid mappings on rename/delete.
+_slug_to_tid_cache: dict = {}
+_CACHE_TTL_SECONDS = 60
+
+def invalidate_tenant_cache(slug: str | None = None):
+    """Invalidate slug->tenant_id cache (call after tenant rename/delete)."""
+    if slug is None:
+        _slug_to_tid_cache.clear()
+    else:
+        _slug_to_tid_cache.pop(slug, None)
+
+class TenantIsolationMiddleware(BaseHTTPMiddleware):
+    """Block cross-tenant access by validating JWT tenant_id against URL slug.
+    Fail-closed: returns 401/403 unless a valid token's tenant_id matches the slug.
+    """
+    SKIP_PREFIXES = (
+        "/api/auth/", "/api/g/", "/api/guest/", "/api/health", "/api/system/",
+        "/api/seed", "/api/demo/", "/api/r/", "/api/rbac/", "/api/plans",
+        "/api/integrations/syroce", "/api/admin/integrations/",
+        "/api/billing/webhook", "/api/v2/payments/pay/", "/api/v2/payments/webhook/",
+        "/api/v2/payments/config", "/api/v2/storage/config", "/api/v2/pms/providers",
+        "/api/v2/webhooks/", "/api/v2/integrations/meta/oauth/",
+        "/api/v2/uploads/g/", "/api/v2/uploads/files/", "/api/payments/mock/",
+        "/api/compliance/retention-cleanup", "/sso/", "/docs", "/openapi.json", "/redoc",
+    )
+    GUEST_PATH_RE = re.compile(r"/g/[^/]+/")
+    SLUG_RE = re.compile(r"/tenants/([a-zA-Z0-9][a-zA-Z0-9_\-]*)(?:/|$)")
+
+    async def dispatch(self, request: Request, call_next):
+        path = request.url.path
+        if any(path.startswith(p) for p in self.SKIP_PREFIXES):
+            return await call_next(request)
+        if self.GUEST_PATH_RE.search(path):
+            return await call_next(request)
+        m = self.SLUG_RE.search(path)
+        if not m:
+            return await call_next(request)
+
+        slug = m.group(1).lower()
+        auth = request.headers.get("authorization", "")
+        if not auth.lower().startswith("bearer "):
+            return JSONResponse({"detail": "Authentication required"}, status_code=401)
+        token = auth[7:].strip()
+        try:
+            payload = _jwt.decode(token, JWT_SECRET, algorithms=["HS256"])
+        except Exception:
+            return JSONResponse({"detail": "Invalid or expired token"}, status_code=401)
+        token_tid = payload.get("tenant_id")
+        if not token_tid:
+            return JSONResponse({"detail": "Token missing tenant_id"}, status_code=401)
+
+        # Resolve slug->tenant_id with TTL cache (fail-closed on lookup failure)
+        now = time.time()
+        cached = _slug_to_tid_cache.get(slug)
+        target_tid = None
+        if cached and (now - cached[1]) < _CACHE_TTL_SECONDS:
+            target_tid = cached[0]
+        else:
+            try:
+                doc = await db.tenants.find_one({"slug": slug}, {"id": 1, "_id": 0})
+            except Exception as e:
+                logger.error("Tenant lookup failed for slug=%s: %s", slug, e)
+                return JSONResponse({"detail": "Tenant lookup unavailable"}, status_code=503)
+            if not doc:
+                _slug_to_tid_cache[slug] = (None, now)
+                return JSONResponse({"detail": "Tenant not found"}, status_code=404)
+            target_tid = doc["id"]
+            _slug_to_tid_cache[slug] = (target_tid, now)
+
+        if target_tid is None:
+            return JSONResponse({"detail": "Tenant not found"}, status_code=404)
+        if token_tid != target_tid:
+            logger.warning("Cross-tenant access denied: user_tid=%s target_slug=%s target_tid=%s path=%s",
+                          token_tid, slug, target_tid, path)
+            return JSONResponse({"detail": "Cross-tenant access denied"}, status_code=403)
+        return await call_next(request)
 
 # ============ REQUEST ID MIDDLEWARE ============
 class RequestIDMiddleware(BaseHTTPMiddleware):

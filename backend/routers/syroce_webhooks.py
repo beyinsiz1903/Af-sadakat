@@ -127,7 +127,7 @@ async def _handle_reservation(tenant_id: str, event: str, data: dict):
 
     existing = await db.reservations.find_one({"tenant_id": tenant_id, "external_id": str(ext_id)})
     if existing:
-        await db.reservations.update_one({"id": existing["id"]}, {"$set": payload})
+        await db.reservations.update_one({"id": existing["id"], "tenant_id": tenant_id}, {"$set": payload})
         return {"ok": True, "action": "updated", "id": existing["id"]}
     payload["id"] = new_id()
     payload["created_at"] = now_utc().isoformat()

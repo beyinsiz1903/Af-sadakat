@@ -60,7 +60,7 @@ async def send_chat_message(tenant_slug: str, conversation_id: str, message: dic
     if message.get("sender_name"):
         update["guest_name"] = message["sender_name"]
 
-    await db.conversations.update_one({"id": conversation_id}, {"$set": update})
+    await db.conversations.update_one({"id": conversation_id, "tenant_id": tenant["id"]}, {"$set": update})
     result = serialize_doc(msg)
     await ws_manager.broadcast_tenant(tenant["id"], "message", "message", "created", result)
     return result
@@ -92,7 +92,7 @@ async def update_conversation(tenant_slug: str, conv_id: str, data: dict):
     update_data = {k: v for k, v in data.items() if k in allowed}
     update_data["updated_at"] = now_utc().isoformat()
     await db.conversations.update_one({"id": conv_id, "tenant_id": tenant["id"]}, {"$set": update_data})
-    updated = await db.conversations.find_one({"id": conv_id}, {"_id": 0})
+    updated = await db.conversations.find_one({"id": conv_id, "tenant_id": tenant["id"]}, {"_id": 0})
     return serialize_doc(updated)
 
 
