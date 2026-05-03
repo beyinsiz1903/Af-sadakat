@@ -71,15 +71,35 @@ def decode_guest_token_safe(token: str) -> dict:
         raise HTTPException(status_code=401, detail="Invalid guest token")
 
 # ---- Tenant Guard (THE critical dependency) ----
+# Short-TTL user cache: avoids per-request MongoDB lookup on hot endpoints.
+# 10s window is safe — role/disable changes propagate within 10s.
+import time as _time
+_USER_CACHE: dict = {}
+_USER_CACHE_TTL = 10.0
+
+
 async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)):
-    """Extract and validate user from JWT. Returns user dict with tenant_id guaranteed."""
+    """Extract and validate user from JWT. Returns user dict with tenant_id guaranteed.
+    Uses a 10s in-process TTL cache to avoid per-request DB lookup."""
     if not credentials:
         raise HTTPException(status_code=401, detail="Not authenticated")
     payload = decode_access_token(credentials.credentials)
-    user = await db.users.find_one({"id": payload["user_id"]}, {"_id": 0})
+    uid = payload["user_id"]
+    now = _time.monotonic()
+    cached = _USER_CACHE.get(uid)
+    if cached and cached[0] > now:
+        return cached[1]
+    user = await db.users.find_one({"id": uid}, {"_id": 0})
     if not user:
         raise HTTPException(status_code=401, detail="User not found")
-    return serialize_doc(user)
+    serialized = serialize_doc(user)
+    _USER_CACHE[uid] = (now + _USER_CACHE_TTL, serialized)
+    # Best-effort prune to keep dict bounded
+    if len(_USER_CACHE) > 5000:
+        for k in list(_USER_CACHE.keys())[:1000]:
+            if _USER_CACHE[k][0] <= now:
+                _USER_CACHE.pop(k, None)
+    return serialized
 
 async def get_optional_user(credentials: HTTPAuthorizationCredentials = Depends(security)):
     if not credentials:

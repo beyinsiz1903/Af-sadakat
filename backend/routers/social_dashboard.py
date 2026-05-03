@@ -3,6 +3,7 @@ Aggregated view of all social channels, analytics, moderation
 Optimized: N+1 count loops replaced with grouped aggregation pipelines.
 """
 import asyncio
+from core import cache
 from fastapi import APIRouter, HTTPException, Depends
 from typing import Optional
 from datetime import datetime, timezone, timedelta
@@ -19,8 +20,15 @@ router = APIRouter(prefix="/api/v2/social", tags=["social-dashboard"])
 
 @router.get("/tenants/{tenant_slug}/dashboard")
 async def get_social_dashboard(tenant_slug: str, user=Depends(get_current_user)):
-    """Unified social media dashboard.
+    """Unified social media dashboard (cached 60s).
     Optimized: was 13+ sequential queries, now 6 parallel aggregations."""
+    return await cache.cached_or_fetch(
+        f"social_dashboard:{tenant_slug}", ttl=60,
+        fetcher=lambda: _build_social_dashboard(tenant_slug),
+    )
+
+
+async def _build_social_dashboard(tenant_slug: str):
     tenant = await resolve_tenant(tenant_slug)
     tid = tenant["id"]
 
@@ -166,8 +174,15 @@ async def create_moderation_rule(tenant_slug: str, data: dict, user=Depends(get_
 @router.get("/tenants/{tenant_slug}/analytics")
 async def get_social_analytics(tenant_slug: str, days: int = 30,
                                 user=Depends(get_current_user)):
-    """Social media analytics.
+    """Social media analytics (cached 60s).
     Optimized: 4 parallel queries replace sequential calls."""
+    return await cache.cached_or_fetch(
+        f"social_analytics:{tenant_slug}:{days}", ttl=60,
+        fetcher=lambda: _build_social_analytics(tenant_slug, days),
+    )
+
+
+async def _build_social_analytics(tenant_slug: str, days: int):
     tenant = await resolve_tenant(tenant_slug)
     tid = tenant["id"]
     since = (now_utc() - timedelta(days=days)).isoformat()

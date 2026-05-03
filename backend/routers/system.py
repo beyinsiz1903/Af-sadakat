@@ -4,6 +4,7 @@ import logging
 
 from core.config import db
 from core.tenant_guard import serialize_doc, now_utc, get_current_user
+from core import cache as _cache
 from rbac import ROLES, get_accessible_modules, LOYALTY_TIERS
 from analytics_engine import compute_investor_metrics
 from compliance import retention_auto_cleanup
@@ -49,6 +50,23 @@ async def system_status_v2():
 @router.get("/system/metrics")
 async def system_metrics_v2():
     return await compute_investor_metrics(db)
+
+
+@router.get("/system/cache-stats")
+async def cache_stats_v2(user=Depends(get_current_user)):
+    if user.get("role") not in ("owner", "admin", "superadmin"):
+        from fastapi import HTTPException
+        raise HTTPException(status_code=403, detail="admin role required")
+    return _cache.stats()
+
+
+@router.post("/system/cache-clear")
+async def cache_clear_v2(user=Depends(get_current_user)):
+    if user.get("role") not in ("owner", "admin", "superadmin"):
+        from fastapi import HTTPException
+        raise HTTPException(status_code=403, detail="admin role required")
+    await _cache.clear()
+    return {"cleared": True}
 
 @router.get("/system/investor-metrics")
 async def investor_metrics_v2():

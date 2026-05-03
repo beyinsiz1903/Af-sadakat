@@ -2,6 +2,7 @@
 AI-powered member segmentation and loyalty program analytics.
 """
 import asyncio
+from core import cache
 from fastapi import APIRouter, Depends
 from typing import Optional
 from datetime import datetime, timedelta
@@ -36,7 +37,14 @@ def _clv_simple(avg_spend, frequency, lifespan_months):
 # ============ RFM ANALYSIS ============
 @router.get("/tenants/{tenant_slug}/rfm")
 async def rfm_analysis(tenant_slug: str, user=Depends(get_current_user)):
-    """RFM (Recency, Frequency, Monetary) segmentation analysis"""
+    """RFM (Recency, Frequency, Monetary) segmentation analysis (cached 120s)"""
+    return await cache.cached_or_fetch(
+        f"loyalty_rfm:{tenant_slug}", ttl=120,
+        fetcher=lambda: _build_rfm(tenant_slug),
+    )
+
+
+async def _build_rfm(tenant_slug: str):
     tenant = await resolve_tenant(tenant_slug)
     tid = tenant["id"]
 
@@ -341,7 +349,14 @@ async def churn_analysis(tenant_slug: str, user=Depends(get_current_user)):
 # ============ COHORT ANALYSIS ============
 @router.get("/tenants/{tenant_slug}/cohort")
 async def cohort_analysis(tenant_slug: str, months: int = 6, user=Depends(get_current_user)):
-    """Cohort analysis: new vs returning members by enrollment month"""
+    """Cohort analysis: new vs returning members by enrollment month (cached 120s)"""
+    return await cache.cached_or_fetch(
+        f"loyalty_cohort:{tenant_slug}:{months}", ttl=120,
+        fetcher=lambda: _build_cohort(tenant_slug, months),
+    )
+
+
+async def _build_cohort(tenant_slug: str, months: int):
     tenant = await resolve_tenant(tenant_slug)
     tid = tenant["id"]
     now = now_utc()

@@ -10,14 +10,22 @@ from core.tenant_guard import (
     resolve_tenant, get_current_user, serialize_doc, new_id, now_utc,
     find_one_scoped, find_many_scoped, count_scoped
 )
+from core import cache
 
 router = APIRouter(prefix="/api/v2/reports", tags=["reports"])
 
 @router.get("/tenants/{tenant_slug}/department-performance")
 async def department_performance(tenant_slug: str, days: int = 30,
                                   user=Depends(get_current_user)):
-    """Department performance report.
+    """Department performance report (cached 60s).
     Optimized: single aggregation pipeline replaces N+1 (was 4 queries per department)."""
+    return await cache.cached_or_fetch(
+        f"reports_deptperf:{tenant_slug}:{days}", ttl=60,
+        fetcher=lambda: _build_department_performance(tenant_slug, days),
+    )
+
+
+async def _build_department_performance(tenant_slug: str, days: int):
     tenant = await resolve_tenant(tenant_slug)
     tid = tenant["id"]
     since = (now_utc() - timedelta(days=days)).isoformat()

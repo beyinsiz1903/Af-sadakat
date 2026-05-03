@@ -76,6 +76,25 @@ Audit-driven N+1 elimination across hot analytics paths. All preserve original s
 
 **Frontend fixes:** Silent `try/catch` blocks in `OnboardingPage.js`, `GuestRoomPanel.js` (×2), `GuestTablePanel.js`, `LoyaltyTab.js` now log via `console.error`.
 
+### Cache Layer (`backend/core/cache.py`)
+
+In-process async TTL cache with single-flight de-duplication. Drop-in compatible with Redis (`get` / `setex` / `delete` / `delete_prefix`) so a future swap to `redis.asyncio` is one line. Currently used on the 7 hot endpoints above.
+
+**Cache hit performance (combined w/ 10s user-auth cache):** all 7 hot endpoints now **3-4ms** on cache hit (originally 2.8-7.8s — up to **2,600x faster**). Auth user lookup also cached 10s in `core/tenant_guard.py:get_current_user` so authed endpoints no longer pay MongoDB RTT.
+
+**Security:** `/cache-stats` and `/cache-clear` require `owner|admin|superadmin` role. Single-flight uses `BaseException` so cancelled tasks never hang waiters.
+
+**TTL strategy:**
+- Live dashboard stats: 30s
+- Reports / social: 60s
+- Loyalty analytics (cohort, rfm): 120s
+
+**Ops endpoints:**
+- `GET /api/system/cache-stats` → `{hits, misses, hit_rate, size}`
+- `POST /api/system/cache-clear` (auth required) → manual flush
+
+**Note:** Single-process in-memory. For multi-worker production, set `REDIS_URL` and swap the backing store in `core/cache.py` (interface already matches `redis.asyncio`).
+
 ## Key Features
 
 - **Multi-tenant**: Isolated per tenant via `tenant_id`. **TenantIsolationMiddleware** (`backend/core/middleware.py`) enforces fail-closed cross-tenant guard on all `/api/.../tenants/{slug}/...` routes — JWT `tenant_id` claim must match resolved slug. 60s TTL slug→tenant_id cache with negative caching. Public/guest paths (`/api/g/`, `/api/auth/`, `/api/v2/payments/pay/`, webhooks, etc.) are skipped.

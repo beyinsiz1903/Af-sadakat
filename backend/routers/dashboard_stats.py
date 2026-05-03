@@ -8,6 +8,7 @@ from fastapi import APIRouter
 
 from core.config import db
 from core.legacy_helpers import get_tenant_by_slug
+from core import cache
 
 logger = logging.getLogger("omnihub.dashboard_stats")
 router = APIRouter(prefix="/api", tags=["stats"])
@@ -20,6 +21,13 @@ async def _agg_first(coll, pipeline, key, default=0):
 
 @router.get("/tenants/{tenant_slug}/stats")
 async def get_dashboard_stats(tenant_slug: str):
+    return await cache.cached_or_fetch(
+        f"stats:{tenant_slug}", ttl=30,
+        fetcher=lambda: _build_stats(tenant_slug),
+    )
+
+
+async def _build_stats(tenant_slug: str):
     tenant = await get_tenant_by_slug(tenant_slug)
     tid = tenant["id"]
 
@@ -66,6 +74,13 @@ async def get_dashboard_stats(tenant_slug: str):
 
 @router.get("/tenants/{tenant_slug}/stats/enhanced")
 async def get_enhanced_stats(tenant_slug: str):
+    return await cache.cached_or_fetch(
+        f"stats_enhanced:{tenant_slug}", ttl=30,
+        fetcher=lambda: _build_enhanced_stats(tenant_slug),
+    )
+
+
+async def _build_enhanced_stats(tenant_slug: str):
     tenant = await get_tenant_by_slug(tenant_slug)
     tid = tenant["id"]
 
