@@ -84,9 +84,15 @@ In-process async TTL cache with single-flight de-duplication. Drop-in compatible
 
 **Security:** `/cache-stats` and `/cache-clear` require `owner|admin|superadmin` role. Single-flight uses `BaseException` so cancelled tasks never hang waiters.
 
+**Round 2 cached endpoints (added):**
+- `/inbox/conversations` — 3.25s → **256ms** (12.7x). N+1 collapsed: per-conv last_msg/count was 90 round-trips → single `$group` aggregation; contacts batch-fetched. 30s TTL.
+- `/sla/sla-stats` — 1.52s → **146ms** (10.4x). 500-doc Python loop replaced with `$dateFromString`+`$avg` pipeline; 4 queries parallel via `asyncio.gather`. 60s TTL.
+- `/notifications` — 1.01s → **257ms** (4x). 3 sequential queries → `asyncio.gather`. 15s TTL.
+
 **TTL strategy:**
 - Live dashboard stats: 30s
 - Reports / social: 60s
+- Inbox/notifications: 15-30s (write-heavy)
 - Loyalty analytics (cohort, rfm): 120s
 
 **Ops endpoints:**

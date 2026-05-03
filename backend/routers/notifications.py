@@ -4,12 +4,14 @@ Push notifications, notification preferences, department routing
 from fastapi import APIRouter, HTTPException, Depends, Query
 from typing import Optional
 
+import asyncio
 from core.config import db
 from core.tenant_guard import (
     resolve_tenant, get_current_user, serialize_doc, new_id, now_utc,
     find_one_scoped, find_many_scoped, count_scoped,
     insert_scoped, update_scoped, delete_scoped
 )
+from core.cache import cached_or_fetch, delete_prefix as _cache_invalidate
 
 router = APIRouter(prefix="/api/v2/notifications", tags=["notifications"])
 
@@ -18,28 +20,36 @@ async def list_notifications(tenant_slug: str, unread_only: bool = False,
                             department: Optional[str] = None,
                             page: int = 1, limit: int = 50,
                             user=Depends(get_current_user)):
-    """List notifications for the current user/department"""
+    """List notifications — 3 parallel queries + 15s cache."""
     tenant = await resolve_tenant(tenant_slug)
     tid = tenant["id"]
-    
+
     query = {}
     if unread_only:
         query["read"] = False
     if department:
         query["department_code"] = department.upper()
-    
+
     skip = (page - 1) * limit
-    notifications = await find_many_scoped("notifications", tid, query,
-                                           sort=[("created_at", -1)], skip=skip, limit=limit)
-    total = await count_scoped("notifications", tid, query)
-    unread_count = await count_scoped("notifications", tid, {"read": False})
-    
-    return {"data": notifications, "total": total, "unread_count": unread_count, "page": page}
+    cache_key = f"notif:list:{tid}:{unread_only}:{department or '_'}:{page}:{limit}"
+
+    async def _fetch():
+        notifications, total, unread_count = await asyncio.gather(
+            find_many_scoped("notifications", tid, query,
+                             sort=[("created_at", -1)], skip=skip, limit=limit),
+            count_scoped("notifications", tid, query),
+            count_scoped("notifications", tid, {"read": False}),
+        )
+        return {"data": notifications, "total": total, "unread_count": unread_count, "page": page}
+
+    return await cached_or_fetch(cache_key, 15, _fetch)
 
 @router.post("/tenants/{tenant_slug}/notifications/{notif_id}/read")
 async def mark_notification_read(tenant_slug: str, notif_id: str, user=Depends(get_current_user)):
     tenant = await resolve_tenant(tenant_slug)
-    return await update_scoped("notifications", tenant["id"], notif_id, {"read": True, "read_by": user.get("id", "")})
+    res = await update_scoped("notifications", tenant["id"], notif_id, {"read": True, "read_by": user.get("id", "")})
+    await _cache_invalidate(f"notif:list:{tenant['id']}:")
+    return res
 
 @router.post("/tenants/{tenant_slug}/notifications/mark-all-read")
 async def mark_all_read(tenant_slug: str, user=Depends(get_current_user)):
@@ -48,6 +58,7 @@ async def mark_all_read(tenant_slug: str, user=Depends(get_current_user)):
         {"tenant_id": tenant["id"], "read": False},
         {"$set": {"read": True, "read_by": user.get("id", ""), "updated_at": now_utc().isoformat()}}
     )
+    await _cache_invalidate(f"notif:list:{tenant['id']}:")
     return {"ok": True}
 
 @router.get("/tenants/{tenant_slug}/notifications/unread-count")
@@ -60,7 +71,7 @@ async def get_unread_count(tenant_slug: str, user=Depends(get_current_user)):
 async def create_notification(tenant_slug: str, data: dict, user=Depends(get_current_user)):
     """Create notification manually"""
     tenant = await resolve_tenant(tenant_slug)
-    return await insert_scoped("notifications", tenant["id"], {
+    res = await insert_scoped("notifications", tenant["id"], {
         "type": data.get("type", "CUSTOM"),
         "title": data.get("title", ""),
         "body": data.get("body", ""),
@@ -72,6 +83,8 @@ async def create_notification(tenant_slug: str, data: dict, user=Depends(get_cur
         "sound": data.get("sound", True),
         "created_by": user.get("id", ""),
     })
+    await _cache_invalidate(f"notif:list:{tenant['id']}:")
+    return res
 
 # Notification Preferences
 @router.get("/tenants/{tenant_slug}/notification-preferences")

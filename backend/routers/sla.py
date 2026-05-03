@@ -4,12 +4,14 @@ Define SLA rules per category/department, track breaches, auto-escalation
 from fastapi import APIRouter, HTTPException, Depends
 from typing import Optional
 
+import asyncio
 from core.config import db
 from core.tenant_guard import (
     resolve_tenant, get_current_user, serialize_doc, new_id, now_utc,
     find_one_scoped, find_many_scoped, count_scoped,
     insert_scoped, update_scoped, delete_scoped, log_audit
 )
+from core.cache import cached_or_fetch
 
 router = APIRouter(prefix="/api/v2/sla", tags=["sla"])
 
@@ -69,51 +71,71 @@ async def list_sla_breaches(tenant_slug: str, status: Optional[str] = None,
 
 @router.get("/tenants/{tenant_slug}/sla-stats")
 async def get_sla_stats(tenant_slug: str, user=Depends(get_current_user)):
-    """Get SLA compliance statistics"""
+    """Get SLA compliance statistics — fully parallelized + 60s cache."""
     tenant = await resolve_tenant(tenant_slug)
     tid = tenant["id"]
-    
-    total_requests = await count_scoped("guest_requests", tid)
-    total_breaches = await count_scoped("sla_breaches", tid)
-    active_breaches = await count_scoped("sla_breaches", tid, {"status": "active"})
-    
-    # Get average response time from resolved requests
-    resolved = await find_many_scoped("guest_requests", tid, {"status": {"$in": ["DONE", "CLOSED"]}}, limit=500)
-    
-    response_times = []
-    resolution_times = []
-    for r in resolved:
-        if r.get("first_response_at") and r.get("created_at"):
-            try:
-                from datetime import datetime
-                created = datetime.fromisoformat(r["created_at"].replace("Z", "+00:00"))
-                responded = datetime.fromisoformat(r["first_response_at"].replace("Z", "+00:00"))
-                diff = (responded - created).total_seconds() / 60
-                response_times.append(diff)
-            except Exception:
-                pass
-        if r.get("resolved_at") and r.get("created_at"):
-            try:
-                from datetime import datetime
-                created = datetime.fromisoformat(r["created_at"].replace("Z", "+00:00"))
-                resolved_dt = datetime.fromisoformat(r["resolved_at"].replace("Z", "+00:00"))
-                diff = (resolved_dt - created).total_seconds() / 60
-                resolution_times.append(diff)
-            except Exception:
-                pass
-    
-    avg_response = round(sum(response_times) / len(response_times), 1) if response_times else 0
-    avg_resolution = round(sum(resolution_times) / len(resolution_times), 1) if resolution_times else 0
-    compliance_rate = round((1 - total_breaches / max(total_requests, 1)) * 100, 1)
-    
-    return {
-        "total_requests": total_requests,
-        "total_breaches": total_breaches,
-        "active_breaches": active_breaches,
-        "avg_response_minutes": avg_response,
-        "avg_resolution_minutes": avg_resolution,
-        "compliance_rate": compliance_rate,
-    }
+
+    cache_key = f"sla:stats:{tid}"
+
+    async def _fetch():
+        # MongoDB-side average computation: $dateFromString → $subtract → $avg.
+        # Single pipeline yields both averages without 500-doc client loop.
+        avg_pipe = [
+            {"$match": {"tenant_id": tid, "status": {"$in": ["DONE", "CLOSED"]}}},
+            {"$project": {
+                "resp_ms": {
+                    "$cond": [
+                        {"$and": ["$first_response_at", "$created_at"]},
+                        {"$subtract": [
+                            {"$dateFromString": {"dateString": "$first_response_at", "onError": None}},
+                            {"$dateFromString": {"dateString": "$created_at", "onError": None}},
+                        ]},
+                        None,
+                    ]
+                },
+                "reso_ms": {
+                    "$cond": [
+                        {"$and": ["$resolved_at", "$created_at"]},
+                        {"$subtract": [
+                            {"$dateFromString": {"dateString": "$resolved_at", "onError": None}},
+                            {"$dateFromString": {"dateString": "$created_at", "onError": None}},
+                        ]},
+                        None,
+                    ]
+                },
+            }},
+            {"$group": {
+                "_id": None,
+                "avg_resp_ms": {"$avg": "$resp_ms"},
+                "avg_reso_ms": {"$avg": "$reso_ms"},
+            }},
+        ]
+
+        total_requests, total_breaches, active_breaches, avg_rows = await asyncio.gather(
+            count_scoped("guest_requests", tid),
+            count_scoped("sla_breaches", tid),
+            count_scoped("sla_breaches", tid, {"status": "active"}),
+            db.guest_requests.aggregate(avg_pipe).to_list(1),
+        )
+
+        avg_resp_ms = (avg_rows[0].get("avg_resp_ms") if avg_rows else None) or 0
+        avg_reso_ms = (avg_rows[0].get("avg_reso_ms") if avg_rows else None) or 0
+        avg_response = round(avg_resp_ms / 60000, 1) if avg_resp_ms else 0
+        avg_resolution = round(avg_reso_ms / 60000, 1) if avg_reso_ms else 0
+        compliance_rate = round((1 - total_breaches / max(total_requests, 1)) * 100, 1)
+
+        return {
+            "total_requests": total_requests,
+            "total_breaches": total_breaches,
+            "active_breaches": active_breaches,
+            "avg_response_minutes": avg_response,
+            "avg_resolution_minutes": avg_resolution,
+            "compliance_rate": compliance_rate,
+            "_cached_payload": True,
+        }
+
+    result = await cached_or_fetch(cache_key, 60, _fetch)
+    return {k: v for k, v in result.items() if k != "_cached_payload"}
 
 # Auto-assignment Rules
 @router.get("/tenants/{tenant_slug}/assignment-rules")

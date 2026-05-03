@@ -5,12 +5,14 @@ from fastapi import APIRouter, HTTPException, Depends, Query
 from fastapi.responses import PlainTextResponse
 from typing import Optional
 
+import asyncio
 from core.config import db, PUBLIC_BASE_URL
 from core.tenant_guard import (
     resolve_tenant, get_current_user, get_optional_user, serialize_doc,
     new_id, now_utc, find_one_scoped, find_many_scoped, count_scoped,
     insert_scoped, update_scoped, log_audit
 )
+from core.cache import cached_or_fetch, delete_prefix as _cache_invalidate
 from ai_provider import generate_inbox_reply
 
 router = APIRouter(prefix="/api/v2/inbox", tags=["inbox"])
@@ -43,25 +45,58 @@ async def list_conversations(tenant_slug: str, status: Optional[str] = None,
                               channel: Optional[str] = None, page: int = 1, limit: int = 30,
                               user=Depends(get_current_user)):
     tenant = await resolve_tenant(tenant_slug)
+    tid = tenant["id"]
     query = {}
     if status:
         query["status"] = status.upper()
     if channel:
         query["channel_type"] = channel.upper()
     skip_val = (page - 1) * limit
-    convs = await find_many_scoped("conversations", tenant["id"], query,
-                                    sort=[("last_message_at", -1)], skip=skip_val, limit=limit)
-    total = await count_scoped("conversations", tenant["id"], query)
-    for conv in convs:
-        last_msg = await db.messages.find_one(
-            {"tenant_id": tenant["id"], "conversation_id": conv["id"]},
-            {"_id": 0}, sort=[("created_at", -1)])
-        conv["last_message_preview"] = serialize_doc(last_msg).get("body", "")[:80] if last_msg else ""
-        conv["message_count"] = await db.messages.count_documents(
-            {"tenant_id": tenant["id"], "conversation_id": conv["id"]})
-        if conv.get("contact_id"):
-            conv["contact"] = await find_one_scoped("contacts", tenant["id"], {"id": conv["contact_id"]})
-    return {"data": convs, "total": total, "page": page}
+
+    cache_key = f"inbox:list:{tid}:{status or '_'}:{channel or '_'}:{page}:{limit}"
+
+    async def _fetch():
+        # 1. Fetch page + total in parallel
+        convs, total = await asyncio.gather(
+            find_many_scoped("conversations", tid, query,
+                             sort=[("last_message_at", -1)], skip=skip_val, limit=limit),
+            count_scoped("conversations", tid, query),
+        )
+        if not convs:
+            return {"data": [], "total": total, "page": page}
+
+        conv_ids = [c["id"] for c in convs]
+        contact_ids = list({c["contact_id"] for c in convs if c.get("contact_id")})
+
+        # 2. Batch all enrichments in parallel (replaces 3*N round-trips)
+        msg_stats_pipe = [
+            {"$match": {"tenant_id": tid, "conversation_id": {"$in": conv_ids}}},
+            {"$sort": {"created_at": -1}},
+            {"$group": {
+                "_id": "$conversation_id",
+                "count": {"$sum": 1},
+                "last_body": {"$first": "$body"},
+            }},
+        ]
+        msg_stats_task = db.messages.aggregate(msg_stats_pipe).to_list(length=len(conv_ids))
+        contacts_task = (
+            db.contacts.find({"tenant_id": tid, "id": {"$in": contact_ids}}, {"_id": 0}).to_list(length=len(contact_ids))
+            if contact_ids else asyncio.sleep(0, result=[])
+        )
+        msg_stats, contacts = await asyncio.gather(msg_stats_task, contacts_task)
+
+        stats_by_conv = {row["_id"]: row for row in msg_stats}
+        contact_by_id = {c["id"]: serialize_doc(c) for c in contacts}
+
+        for conv in convs:
+            stat = stats_by_conv.get(conv["id"], {})
+            conv["last_message_preview"] = (stat.get("last_body") or "")[:80]
+            conv["message_count"] = stat.get("count", 0)
+            if conv.get("contact_id"):
+                conv["contact"] = contact_by_id.get(conv["contact_id"])
+        return {"data": convs, "total": total, "page": page}
+
+    return await cached_or_fetch(cache_key, 30, _fetch)
 
 @router.get("/tenants/{tenant_slug}/conversations/{conv_id}")
 async def get_conversation(tenant_slug: str, conv_id: str, user=Depends(get_current_user)):
@@ -82,6 +117,7 @@ async def assign_conversation(tenant_slug: str, conv_id: str, data: dict, user=D
     updated = await update_scoped("conversations", tenant["id"], conv_id, {"assigned_user_id": data.get("userId", "")})
     if not updated:
         raise HTTPException(status_code=404, detail="Conversation not found")
+    await _cache_invalidate(f"inbox:list:{tenant['id']}:")
     await log_audit(tenant["id"], "conversation_assigned", "conversation", conv_id, user.get("id", ""))
     return updated
 
@@ -89,6 +125,7 @@ async def assign_conversation(tenant_slug: str, conv_id: str, data: dict, user=D
 async def close_conversation(tenant_slug: str, conv_id: str, user=Depends(get_current_user)):
     tenant = await resolve_tenant(tenant_slug)
     updated = await update_scoped("conversations", tenant["id"], conv_id, {"status": "CLOSED"})
+    await _cache_invalidate(f"inbox:list:{tenant['id']}:")
     await log_audit(tenant["id"], "conversation_closed", "conversation", conv_id, user.get("id", ""))
     return updated
 
@@ -96,6 +133,7 @@ async def close_conversation(tenant_slug: str, conv_id: str, user=Depends(get_cu
 async def reopen_conversation(tenant_slug: str, conv_id: str, user=Depends(get_current_user)):
     tenant = await resolve_tenant(tenant_slug)
     updated = await update_scoped("conversations", tenant["id"], conv_id, {"status": "OPEN"})
+    await _cache_invalidate(f"inbox:list:{tenant['id']}:")
     await log_audit(tenant["id"], "conversation_reopened", "conversation", conv_id, user.get("id", ""))
     return updated
 
@@ -190,6 +228,7 @@ async def send_agent_message(tenant_slug: str, conv_id: str, data: dict, user=De
         },
     })
     await update_scoped("conversations", tenant["id"], conv_id, {"last_message_at": now_utc().isoformat()})
+    await _cache_invalidate(f"inbox:list:{tenant['id']}:")
 
     action = "MESSAGE_SENT_META" if meta_send_result else "agent_message_sent"
     await log_audit(tenant["id"], action, "message", msg["id"], user.get("id", ""))
