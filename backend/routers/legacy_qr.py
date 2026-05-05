@@ -1,6 +1,8 @@
 """Legacy QR routes — extracted from server.py (T007 Faz 2).
 Endpoints: /api/g/{slug}/room/info, /api/g/{slug}/table/info, /api/admin/rooms/{id}/qr.png, /api/admin/rooms/print.pdf
 """
+import os
+
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import Response
 

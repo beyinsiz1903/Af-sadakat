@@ -10,6 +10,7 @@ from core.config import db
 from core.legacy_helpers import (
     now_utc, new_id, serialize_doc, get_tenant_by_slug, ws_manager,
 )
+from core.tenant_guard import log_audit as _log_audit
 from rbac import FAKE_REVIEWS, CONNECTOR_TYPES, analyze_sentiment
 from connectors_legacy import StripeStubProvider
 

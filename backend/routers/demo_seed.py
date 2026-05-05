@@ -2,6 +2,9 @@
 Endpoints: POST /api/seed, POST /api/demo/reset
 Mounted under api_router prefix=/api by include_router below.
 """
+import hashlib
+import os
+
 from fastapi import APIRouter
 from datetime import timedelta
 import bcrypt
