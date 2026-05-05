@@ -6,60 +6,258 @@ on:
   pull_request:
     branches: [main]
 
-jobs:
-  check-project:
-    runs-on: ubuntu-latest
+env:
+  PYTHON_VERSION: "3.11"
+  NODE_VERSION: "20"
 
+jobs:
+  # ─────────────────────────────────────────────────────────────────────────
+  # 1) Backend Tests (pytest)
+  # ─────────────────────────────────────────────────────────────────────────
+  backend-tests:
+    name: Backend Tests
+    runs-on: ubuntu-latest
     services:
       mongodb:
         image: mongo:7.0
-        ports:
-          - 27017:27017
-
+        ports: ["27017:27017"]
     env:
       MONGO_URL: mongodb://localhost:27017
-      DB_NAME: omni_inbox_hub
+      DB_NAME: omni_inbox_hub_test
       JWT_SECRET: test-secret
-      REACT_APP_BACKEND_URL: http://localhost:8000
-      CI: false
-
+      APP_ENV: test
     steps:
-      - name: Kodu indir
-        uses: actions/checkout@v4
-
-      - name: Python kur
-        uses: actions/setup-python@v5
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
-
-      - name: Backend paketlerini kur
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+      - name: Install backend deps
         run: |
           python -m pip install --upgrade pip
-          pip install pytest
-          if [ -f backend/requirements.txt ]; then pip install -r backend/requirements.txt; fi
+          pip install -r backend/requirements.txt
+      - name: Run pytest
+        working-directory: backend
+        run: pytest -q --tb=short
 
-      - name: Python dosyalarını kontrol et
-        run: |
-          python -m compileall backend tests
-
-      - name: Python testlerini çalıştır
-        run: |
-          if [ -d tests ]; then pytest -q; else echo "tests klasörü yok, test atlandı."; fi
-
-      - name: Node.js kur
-        uses: actions/setup-node@v4
+  # ─────────────────────────────────────────────────────────────────────────
+  # 2) Backend Lint (flake8)
+  # ─────────────────────────────────────────────────────────────────────────
+  backend-lint:
+    name: Backend Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
         with:
-          node-version: 20
-
-      - name: Yarn kur
-        run: npm install -g yarn
-
-      - name: Frontend paketlerini kur
+          python-version: ${{ env.PYTHON_VERSION }}
+      - name: Install flake8
+        run: pip install flake8==7.3.0
+      - name: Run flake8 (errors only)
+        working-directory: backend
         run: |
-          cd frontend
-          yarn install --frozen-lockfile
+          # Critical errors only — non-blocking style warnings allowed
+          flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics \
+            --exclude=__pycache__,uploads,build,node_modules
 
-      - name: Frontend build al
+  # ─────────────────────────────────────────────────────────────────────────
+  # 3) Backend Format Check (black + isort)
+  # ─────────────────────────────────────────────────────────────────────────
+  backend-format:
+    name: Backend Format Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - name: Install formatters
+        run: pip install black==26.1.0 isort==7.0.0
+      - name: Black check
+        working-directory: backend
+        continue-on-error: true
+        run: black --check --diff . --exclude '(__pycache__|uploads|build)'
+      - name: isort check
+        working-directory: backend
+        continue-on-error: true
+        run: isort --check-only --diff . --skip __pycache__ --skip uploads --skip build
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # 4) Backend Compile Check (syntax)
+  # ─────────────────────────────────────────────────────────────────────────
+  backend-compile:
+    name: Backend Compile
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - name: Compile all .py files
+        run: python -m compileall -q backend
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # 5) Frontend Build
+  # ─────────────────────────────────────────────────────────────────────────
+  frontend-build:
+    name: Frontend Build
+    runs-on: ubuntu-latest
+    env:
+      CI: false
+      REACT_APP_BACKEND_URL: http://localhost:8000
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: yarn
+          cache-dependency-path: frontend/yarn.lock
+      - name: Install frontend deps
+        working-directory: frontend
+        run: yarn install --frozen-lockfile
+      - name: Build production bundle
+        working-directory: frontend
+        run: yarn build
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-build
+          path: frontend/build
+          retention-days: 7
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # 6) Frontend Lint (eslint via react-scripts)
+  # ─────────────────────────────────────────────────────────────────────────
+  frontend-lint:
+    name: Frontend Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: yarn
+          cache-dependency-path: frontend/yarn.lock
+      - name: Install frontend deps
+        working-directory: frontend
+        run: yarn install --frozen-lockfile
+      - name: ESLint scan (via CRA config)
+        working-directory: frontend
+        continue-on-error: true
+        run: npx eslint "src/**/*.{js,jsx}" --max-warnings=0 || true
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # 7) API Contract Tests (smoke endpoints)
+  # ─────────────────────────────────────────────────────────────────────────
+  api-contract-tests:
+    name: API Contract Tests
+    runs-on: ubuntu-latest
+    services:
+      mongodb:
+        image: mongo:7.0
+        ports: ["27017:27017"]
+    env:
+      MONGO_URL: mongodb://localhost:27017
+      DB_NAME: omni_inbox_hub_test
+      JWT_SECRET: test-secret
+      APP_ENV: test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+      - name: Install backend deps
         run: |
-          cd frontend
-          yarn build
+          python -m pip install --upgrade pip
+          pip install -r backend/requirements.txt
+      - name: Boot backend
+        working-directory: backend
+        run: |
+          uvicorn server:app --host 0.0.0.0 --port 8000 &
+          echo $! > /tmp/uvicorn.pid
+          for i in $(seq 1 30); do
+            curl -fs http://localhost:8000/api/health && break
+            sleep 1
+          done
+      - name: Smoke contract checks
+        run: |
+          set -e
+          echo "GET /api/health"
+          curl -fs http://localhost:8000/api/health | grep -q '"status"'
+          echo "GET /api/v2/payments/config"
+          curl -fs http://localhost:8000/api/v2/payments/config | grep -q '"mode"'
+          echo "POST /api/auth/otp/send (dev fallback)"
+          curl -fs -X POST http://localhost:8000/api/auth/otp/send \
+            -H 'Content-Type: application/json' \
+            -d '{"phone":"+905551112233"}' | grep -q '"sent"'
+          echo "POST /api/auth/login (invalid → 401)"
+          code=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
+            http://localhost:8000/api/auth/login \
+            -H 'Content-Type: application/json' \
+            -d '{"email":"x","password":"y"}')
+          test "$code" = "401" || (echo "expected 401 got $code" && exit 1)
+          echo "GET /api/v2/exports/.../department-performance.xlsx (unauth → 401/403)"
+          code=$(curl -s -o /dev/null -w "%{http_code}" \
+            http://localhost:8000/api/v2/exports/tenants/grand-hotel/department-performance.xlsx)
+          test "$code" = "401" -o "$code" = "403" || (echo "expected 401/403 got $code" && exit 1)
+      - name: Stop backend
+        if: always()
+        run: kill $(cat /tmp/uvicorn.pid) 2>/dev/null || true
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # 8) Security Scan (pip-audit + npm audit)
+  # ─────────────────────────────────────────────────────────────────────────
+  security-scan:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - name: pip-audit (Python deps)
+        continue-on-error: true
+        run: |
+          pip install pip-audit
+          pip-audit -r backend/requirements.txt --desc || true
+      - name: npm audit (Frontend deps)
+        working-directory: frontend
+        continue-on-error: true
+        run: |
+          npm audit --omit=dev --audit-level=high || true
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # 9) Secrets Leak Scan (gitleaks-style grep)
+  # ─────────────────────────────────────────────────────────────────────────
+  secrets-scan:
+    name: Secrets Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Scan for committed secrets
+        run: |
+          set +e
+          # Build patterns from parts so the workflow file itself does not contain
+          # complete pseudo-secret strings that may trip GitHub Push Protection.
+          P1='AKIA[0-9A-Z]{16}'
+          P2='sk_'"live"'_[0-9a-zA-Z]{24,}'
+          P3='sk-[A-Za-z0-9]{32,}'
+          P4='-----'"BEGIN"' (RSA |OPENSSH |EC )?PRIVATE KEY-----'
+          P5='xox[pboa]-[0-9A-Za-z-]{10,}'
+          PATTERNS="$P1|$P2|$P3|$P4|$P5"
+          FOUND=$(git ls-files | grep -vE '^(node_modules/|frontend/build/|backend/uploads/|.*\.lock$|\.github/workflows/)' \
+            | xargs -I{} grep -EHn "$PATTERNS" "{}" 2>/dev/null)
+          if [ -n "$FOUND" ]; then
+            echo "::error::Potential secret(s) committed:"
+            echo "$FOUND"
+            exit 1
+          fi
+          echo "No obvious secrets detected."
